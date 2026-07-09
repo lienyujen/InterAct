@@ -71,15 +71,14 @@ export function JoinPage() {
     <main className="center-page">
       <SetupNotice />
       <form className="panel form-panel" onSubmit={join}>
-        <p className="eyebrow">{session?.title || 'InterAct 場次'}</p>
-        <h1>加入互動</h1>
+        <h1>加入{session?.title || '場次'}</h1>
         <label>
           你的姓名
           <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="請輸入姓名" />
         </label>
         {error && <p className="error">{error}</p>}
         <button disabled={busy} type="submit">
-          {busy ? '加入中...' : '加入場次'}
+          {busy ? '加入中...' : '加入'}
         </button>
       </form>
     </main>

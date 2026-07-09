@@ -114,7 +114,6 @@ export function ParticipantPage() {
       <SetupNotice />
       <header className="participant-header">
         <div>
-          <p className="eyebrow">{session?.title || 'InterAct'}</p>
           <h1>{participant?.name || '與會者'}</h1>
         </div>
       </header>
@@ -123,7 +122,11 @@ export function ParticipantPage() {
       <form className="panel message-form" onSubmit={sendMessage}>
         <label>
           送出問題或回饋
-          <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="輸入後會即時出現在講者彈幕" />
+          <textarea
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="送出後這則訊息會即時出現在講者的畫面上"
+          />
         </label>
         {error && <p className="error">{error}</p>}
         <button type="submit">送出</button>
