@@ -7,7 +7,7 @@ import { QuestionResult } from '../components/QuestionResult'
 import { SetupNotice } from '../components/SetupNotice'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { Answer, Message, Participant, Question, Screenshot, Session } from '../types'
+import type { Answer, Message, Participant, Question, QuestionType, Screenshot, Session } from '../types'
 import { useParams } from 'react-router-dom'
 
 export function PresenterPage() {
@@ -18,7 +18,10 @@ export function PresenterPage() {
   const [question, setQuestion] = useState<Question | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
   const [latestScreenshot, setLatestScreenshot] = useState<Screenshot | null>(null)
+  const [controlsOpen, setControlsOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [captureFile, setCaptureFile] = useState<File | null>(null)
+  const [capturePreviewUrl, setCapturePreviewUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const joinUrl = useMemo(() => buildJoinUrl(sessionId), [sessionId])
 
@@ -81,7 +84,7 @@ export function PresenterPage() {
     }
   }
 
-  async function uploadImage(file: File) {
+  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[]) {
     setBusy(true)
     try {
       const supabase = requireSupabase()
@@ -98,7 +101,7 @@ export function PresenterPage() {
       if (insertError) throw insertError
       const { data: questionData } = await supabase
         .from('questions')
-        .insert({ session_id: sessionId, screenshot_id: screenshotId, type: 'send_screen', status: 'active', title: '講者派送圖片', options: [] })
+        .insert({ session_id: sessionId, screenshot_id: screenshotId, type, status: 'active', title: questionTitle(type), options })
         .select('*')
         .single()
       await supabase.from('sessions').update({ current_question_id: questionData?.id }).eq('id', sessionId)
@@ -106,6 +109,18 @@ export function PresenterPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  function questionTitle(type: QuestionType) {
+    const labels: Record<QuestionType, string> = {
+      send_screen: '派送畫面',
+      poll: '投票題',
+      multiple_choice: '選擇題',
+      true_false: '是非題',
+      short_answer: '問答題',
+    }
+
+    return labels[type]
   }
 
   function dataUrlToFile(dataUrl: string, filename: string) {
@@ -126,18 +141,24 @@ export function PresenterPage() {
 
     const source = await window.interactDesktop.captureFirstScreen()
     const file = dataUrlToFile(source.thumbnailDataUrl, `windows-screen-${Date.now()}.png`)
-    await uploadImage(file)
+    setCaptureFile(file)
+    setCapturePreviewUrl(source.thumbnailDataUrl)
+    setEditorOpen(true)
   }
 
-  async function createChoiceQuestion(title: string, options: string[]) {
+  async function createScreenshotQuestion(type: QuestionType, options: string[]) {
+    if (!captureFile) return
+
     setEditorOpen(false)
-    const supabase = requireSupabase()
-    const { data } = await supabase
-      .from('questions')
-      .insert({ session_id: sessionId, screenshot_id: latestScreenshot?.id || null, type: 'multiple_choice', status: 'active', title, options })
-      .select('*')
-      .single()
-    await supabase.from('sessions').update({ current_question_id: data?.id }).eq('id', sessionId)
+    await uploadQuestionScreenshot(captureFile, type, options)
+    setCaptureFile(null)
+    setCapturePreviewUrl(null)
+  }
+
+  function cancelQuestionEditor() {
+    setEditorOpen(false)
+    setCaptureFile(null)
+    setCapturePreviewUrl(null)
   }
 
   async function stopQuestion() {
@@ -168,25 +189,28 @@ export function PresenterPage() {
   return (
     <main className="presenter-page">
       <DanmakuLayer messages={messages} session={session} />
-      <section className="stage">
+      <section className="stage" onDoubleClick={() => setControlsOpen((current) => !current)}>
         {latestScreenshot ? <img alt="派送圖片" className="stage-image" src={latestScreenshot.public_url} /> : <h1>{session.title}</h1>}
+        <p className="double-click-hint">雙擊畫面開啟功能</p>
       </section>
-      <aside className="presenter-sidebar">
+      <aside className="qr-floating">
         <QRCodePanel code={session.code} joinUrl={joinUrl} />
+      </aside>
+      {controlsOpen && (
+        <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
         <PresenterControlPanel
           busy={busy}
           participants={participants}
           session={session}
-          onCreateChoiceQuestion={() => setEditorOpen(true)}
           onStopQuestion={stopQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
-          onUploadImage={uploadImage}
         />
         <QuestionResult answers={answers} question={question} onSetCorrectAnswer={setCorrectAnswer} />
       </aside>
-      <QuestionEditor open={editorOpen} onCancel={() => setEditorOpen(false)} onCreate={createChoiceQuestion} />
+      )}
+      <QuestionEditor open={editorOpen} previewUrl={capturePreviewUrl} onCancel={cancelQuestionEditor} onCreate={createScreenshotQuestion} />
     </main>
   )
 }

@@ -1,4 +1,4 @@
-import { Eye, EyeOff, ImageUp, MessageSquare, MonitorUp, Square, Users } from 'lucide-react'
+import { Eye, EyeOff, MessageSquare, MonitorUp, Square, Users } from 'lucide-react'
 import type { Participant, Session } from '../types'
 
 type Props = {
@@ -7,9 +7,7 @@ type Props = {
   busy: boolean
   onToggleDanmaku: () => void
   onToggleAnonymous: () => void
-  onUploadImage: (file: File) => void
   onCaptureScreen?: () => void
-  onCreateChoiceQuestion: () => void
   onStopQuestion: () => void
 }
 
@@ -19,9 +17,7 @@ export function PresenterControlPanel({
   busy,
   onToggleDanmaku,
   onToggleAnonymous,
-  onUploadImage,
   onCaptureScreen,
-  onCreateChoiceQuestion,
   onStopQuestion,
 }: Props) {
   return (
@@ -38,30 +34,12 @@ export function PresenterControlPanel({
         <MessageSquare size={16} />
         {session.anonymous_enabled ? '取消匿名' : '啟用匿名'}
       </button>
-      <label className="file-button">
-        <ImageUp size={16} />
-        派送圖片
-        <input
-          accept="image/*"
-          disabled={busy}
-          type="file"
-          onChange={(event) => {
-            const file = event.target.files?.[0]
-            if (file) onUploadImage(file)
-            event.currentTarget.value = ''
-          }}
-        />
-      </label>
       {onCaptureScreen && (
         <button type="button" onClick={onCaptureScreen} disabled={busy}>
           <MonitorUp size={16} />
-          Windows 截圖派送
+          截圖派題
         </button>
       )}
-      <button type="button" onClick={onCreateChoiceQuestion} disabled={busy}>
-        <MessageSquare size={16} />
-        建立選擇題
-      </button>
       <button type="button" onClick={onStopQuestion} disabled={busy || !session.current_question_id}>
         <Square size={16} />
         停止作答

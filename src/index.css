@@ -188,9 +188,8 @@ h2 {
 
 .presenter-page {
   background: #0b1020;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
   min-height: 100svh;
+  position: relative;
 }
 
 .stage {
@@ -202,6 +201,19 @@ h2 {
   overflow: hidden;
   padding: 32px;
   position: relative;
+}
+
+.double-click-hint {
+  background: rgb(15 23 42 / 72%);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  bottom: 20px;
+  color: rgb(255 255 255 / 72%);
+  font-size: 13px;
+  left: 50%;
+  padding: 7px 12px;
+  position: absolute;
+  transform: translateX(-50%);
 }
 
 .stage h1 {
@@ -217,14 +229,43 @@ h2 {
   object-fit: contain;
 }
 
-.presenter-sidebar {
+.presenter-controls-overlay {
   background: #f7f8fb;
+  border-left: 1px solid var(--border);
+  box-shadow: -20px 0 40px rgb(0 0 0 / 22%);
   display: grid;
   gap: 14px;
-  max-height: 100svh;
+  max-height: calc(100svh - 24px);
   overflow: auto;
   padding: 14px;
+  position: fixed;
+  right: 12px;
+  top: 12px;
+  width: 360px;
   z-index: 3;
+}
+
+.qr-floating {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  width: 230px;
+  z-index: 4;
+}
+
+.qr-floating .qr-panel {
+  gap: 8px;
+  padding: 12px;
+}
+
+.qr-floating .qr-box svg {
+  height: 132px;
+  width: 132px;
+}
+
+.qr-floating .join-url,
+.qr-floating .ghost-button {
+  display: none;
 }
 
 .panel-heading {
@@ -295,7 +336,7 @@ h2 {
 }
 
 .danmaku-layer {
-  inset: 0 360px 0 0;
+  inset: 0;
   overflow: hidden;
   pointer-events: none;
   position: fixed;
@@ -388,6 +429,45 @@ h2 {
   width: 100%;
 }
 
+.question-modal {
+  max-width: 720px;
+}
+
+.capture-preview {
+  background: #0b1020;
+  border-radius: 8px;
+  max-height: 280px;
+  object-fit: contain;
+  width: 100%;
+}
+
+.type-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.selected-type {
+  background: var(--surface-strong);
+  border-color: var(--surface-strong);
+}
+
+.option-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.option-edit-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 44px;
+}
+
+.icon-button {
+  min-height: 40px;
+  padding: 8px;
+}
+
 .modal-actions {
   display: flex;
   gap: 10px;
@@ -417,22 +497,21 @@ h2 {
 }
 
 .participant-question,
-.choice-list {
+.choice-list,
+.short-answer-form {
   display: grid;
   gap: 12px;
 }
 
 @media (max-width: 900px) {
-  .presenter-page {
-    grid-template-columns: 1fr;
-  }
-
   .stage {
     min-height: 54svh;
   }
 
-  .presenter-sidebar {
+  .presenter-controls-overlay {
     max-height: none;
+    position: static;
+    width: auto;
   }
 
   .danmaku-layer {
@@ -448,5 +527,13 @@ h2 {
     left: 12px;
     right: 12px;
     top: 12px;
+  }
+
+  .qr-floating {
+    width: 180px;
+  }
+
+  .type-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -41,6 +41,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: https://vejugrrraqdvgzqbylje.supabase.co
           VITE_SUPABASE_ANON_KEY: sb_publishable_8hHmc3hPQMMJY_h8ZLD6ww_jWz2w7lO
+          VITE_PUBLIC_APP_URL: https://lienyujen.github.io/InterAct
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

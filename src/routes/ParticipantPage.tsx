@@ -90,6 +90,7 @@ export function ParticipantPage() {
 
   async function submitAnswer(value: string) {
     if (!participant || !question) return
+    const isShortAnswer = question.type === 'short_answer'
     try {
       const { data, error: insertError } = await requireSupabase()
         .from('answers')
@@ -98,7 +99,8 @@ export function ParticipantPage() {
           question_id: question.id,
           participant_id: participant.id,
           participant_name: participant.name,
-          answer_value: value,
+          answer_value: isShortAnswer ? null : value,
+          answer_text: isShortAnswer ? value : null,
         })
         .select('*')
         .single()
@@ -118,7 +120,7 @@ export function ParticipantPage() {
         </div>
       </header>
       {screenshot && <img alt="講者派送圖片" className="participant-image" src={screenshot.public_url} />}
-      <ParticipantQuestionView answer={answer} question={question?.type === 'multiple_choice' ? question : null} onSubmit={submitAnswer} />
+      <ParticipantQuestionView answer={answer} question={question} onSubmit={submitAnswer} />
       <form className="panel message-form" onSubmit={sendMessage}>
         <label>
           送出問題或回饋
