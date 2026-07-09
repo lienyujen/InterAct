@@ -4,6 +4,8 @@ declare global {
   interface InterActCaptureSource {
     id: string
     name: string
+    width: number
+    height: number
     thumbnailDataUrl: string
     appIconDataUrl: string | null
   }

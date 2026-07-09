@@ -5,12 +5,13 @@ const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 1100,
-    minHeight: 720,
+    fullscreen: true,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: false,
     title: 'InterAct Presenter',
-    backgroundColor: '#0b1020',
+    backgroundColor: '#00000000',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -45,6 +46,8 @@ async function listCaptureSources() {
   return sources.map((source) => ({
     id: source.id,
     name: source.name,
+    width: source.thumbnail.getSize().width,
+    height: source.thumbnail.getSize().height,
     thumbnailDataUrl: source.thumbnail.toDataURL(),
     appIconDataUrl: source.appIcon?.toDataURL() || null,
   }))

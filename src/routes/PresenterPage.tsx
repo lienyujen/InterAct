@@ -7,7 +7,7 @@ import { QuestionResult } from '../components/QuestionResult'
 import { SetupNotice } from '../components/SetupNotice'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { Answer, Message, Participant, Question, QuestionType, Screenshot, Session } from '../types'
+import type { Answer, Message, Participant, Question, QuestionType, Session } from '../types'
 import { useParams } from 'react-router-dom'
 
 export function PresenterPage() {
@@ -17,11 +17,14 @@ export function PresenterPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [question, setQuestion] = useState<Question | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
-  const [latestScreenshot, setLatestScreenshot] = useState<Screenshot | null>(null)
   const [controlsOpen, setControlsOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [captureFile, setCaptureFile] = useState<File | null>(null)
   const [capturePreviewUrl, setCapturePreviewUrl] = useState<string | null>(null)
+  const [captureSource, setCaptureSource] = useState<InterActCaptureSource | null>(null)
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null)
+  const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  const [selectionMode, setSelectionMode] = useState(false)
   const [busy, setBusy] = useState(false)
   const joinUrl = useMemo(() => buildJoinUrl(sessionId), [sessionId])
 
@@ -29,18 +32,16 @@ export function PresenterPage() {
     if (!isSupabaseConfigured || !sessionId) return
 
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }, { data: messageData }, { data: screenshotData }] = await Promise.all([
+    const [{ data: sessionData }, { data: participantData }, { data: messageData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at'),
       supabase.from('messages').select('*').eq('session_id', sessionId).order('created_at'),
-      supabase.from('screenshots').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ])
 
     const nextSession = sessionData as Session | null
     setSession(nextSession)
     setParticipants((participantData || []) as Participant[])
     setMessages((messageData || []) as Message[])
-    setLatestScreenshot((screenshotData as Screenshot | null) || null)
 
     if (nextSession?.current_question_id) {
       const [{ data: questionData }, { data: answerData }] = await Promise.all([
@@ -93,11 +94,9 @@ export function PresenterPage() {
       const { error: uploadError } = await supabase.storage.from('interact-screenshots').upload(path, file, { upsert: true })
       if (uploadError) throw uploadError
       const { data: publicData } = supabase.storage.from('interact-screenshots').getPublicUrl(path)
-      const { data: screenshotData, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('screenshots')
         .insert({ id: screenshotId, session_id: sessionId, storage_path: path, public_url: publicData.publicUrl, ai_status: 'skipped' })
-        .select('*')
-        .single()
       if (insertError) throw insertError
       const { data: questionData } = await supabase
         .from('questions')
@@ -105,7 +104,6 @@ export function PresenterPage() {
         .select('*')
         .single()
       await supabase.from('sessions').update({ current_question_id: questionData?.id }).eq('id', sessionId)
-      setLatestScreenshot(screenshotData as Screenshot)
     } finally {
       setBusy(false)
     }
@@ -139,11 +137,82 @@ export function PresenterPage() {
   async function captureWindowsScreen() {
     if (!window.interactDesktop) return
 
+    setControlsOpen(false)
+    setCapturePreviewUrl(null)
+    setCaptureFile(null)
+    setSelectionRect(null)
+    setSelectionStart(null)
+    setSelectionMode(true)
+    await new Promise((resolve) => window.setTimeout(resolve, 120))
     const source = await window.interactDesktop.captureFirstScreen()
-    const file = dataUrlToFile(source.thumbnailDataUrl, `windows-screen-${Date.now()}.png`)
+    setCaptureSource(source)
+  }
+
+  async function cropCapture(rect: { x: number; y: number; width: number; height: number }) {
+    if (!captureSource) return
+
+    const image = new Image()
+    image.src = captureSource.thumbnailDataUrl
+    await image.decode()
+
+    const scaleX = image.naturalWidth / window.innerWidth
+    const scaleY = image.naturalHeight / window.innerHeight
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(rect.width * scaleX))
+    canvas.height = Math.max(1, Math.round(rect.height * scaleY))
+
+    const context = canvas.getContext('2d')
+    if (!context) return
+
+    context.drawImage(
+      image,
+      Math.round(rect.x * scaleX),
+      Math.round(rect.y * scaleY),
+      canvas.width,
+      canvas.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    )
+
+    const dataUrl = canvas.toDataURL('image/png')
+    const file = dataUrlToFile(dataUrl, `windows-selection-${Date.now()}.png`)
     setCaptureFile(file)
-    setCapturePreviewUrl(source.thumbnailDataUrl)
+    setCapturePreviewUrl(dataUrl)
+    setSelectionMode(false)
+    setCaptureSource(null)
+    setSelectionRect(null)
+    setSelectionStart(null)
     setEditorOpen(true)
+  }
+
+  function beginSelection(x: number, y: number) {
+    setSelectionStart({ x, y })
+    setSelectionRect({ x, y, width: 0, height: 0 })
+  }
+
+  function updateSelection(x: number, y: number) {
+    if (!selectionStart) return
+
+    setSelectionRect({
+      x: Math.min(selectionStart.x, x),
+      y: Math.min(selectionStart.y, y),
+      width: Math.abs(x - selectionStart.x),
+      height: Math.abs(y - selectionStart.y),
+    })
+  }
+
+  function finishSelection() {
+    if (!selectionRect || selectionRect.width < 16 || selectionRect.height < 16) {
+      setSelectionMode(false)
+      setCaptureSource(null)
+      setSelectionRect(null)
+      setSelectionStart(null)
+      return
+    }
+
+    cropCapture(selectionRect)
   }
 
   async function createScreenshotQuestion(type: QuestionType, options: string[]) {
@@ -187,15 +256,14 @@ export function PresenterPage() {
   }
 
   return (
-    <main className="presenter-page">
+    <main className={`presenter-page ${selectionMode ? 'selecting-capture' : ''}`}>
       <DanmakuLayer messages={messages} session={session} />
-      <section className="stage" onDoubleClick={() => setControlsOpen((current) => !current)}>
-        {latestScreenshot ? <img alt="派送圖片" className="stage-image" src={latestScreenshot.public_url} /> : <h1>{session.title}</h1>}
-        <p className="double-click-hint">雙擊畫面開啟功能</p>
-      </section>
-      <aside className="qr-floating">
+      <section className="stage" />
+      {!selectionMode && (
+        <aside className="qr-floating" onDoubleClick={() => setControlsOpen((current) => !current)}>
         <QRCodePanel code={session.code} joinUrl={joinUrl} />
       </aside>
+      )}
       {controlsOpen && (
         <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
         <PresenterControlPanel
@@ -209,6 +277,27 @@ export function PresenterPage() {
         />
         <QuestionResult answers={answers} question={question} onSetCorrectAnswer={setCorrectAnswer} />
       </aside>
+      )}
+      {selectionMode && (
+        <div
+          className="capture-selection-layer"
+          onMouseDown={(event) => beginSelection(event.clientX, event.clientY)}
+          onMouseMove={(event) => updateSelection(event.clientX, event.clientY)}
+          onMouseUp={finishSelection}
+        >
+          <p className="capture-selection-hint">拖曳框選要派送的畫面區域</p>
+          {selectionRect && (
+            <div
+              className="capture-selection-box"
+              style={{
+                left: selectionRect.x,
+                top: selectionRect.y,
+                width: selectionRect.width,
+                height: selectionRect.height,
+              }}
+            />
+          )}
+        </div>
       )}
       <QuestionEditor open={editorOpen} previewUrl={capturePreviewUrl} onCancel={cancelQuestionEditor} onCreate={createScreenshotQuestion} />
     </main>

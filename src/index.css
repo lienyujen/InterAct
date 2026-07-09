@@ -12,7 +12,7 @@
   --track: #e9edf5;
   font-family: Inter, "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
   color: var(--text);
-  background: var(--bg);
+  background: transparent;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -23,6 +23,7 @@
 }
 
 body {
+  background: transparent;
   margin: 0;
 }
 
@@ -102,6 +103,7 @@ h2 {
 .home-page,
 .center-page,
 .participant-page {
+  background: var(--bg);
   min-height: 100svh;
   padding: 24px;
 }
@@ -187,33 +189,20 @@ h2 {
 }
 
 .presenter-page {
-  background: #0b1020;
+  background: transparent;
   min-height: 100svh;
   position: relative;
 }
 
 .stage {
   align-items: center;
-  color: #fff;
   display: flex;
   justify-content: center;
   min-height: 100svh;
   overflow: hidden;
   padding: 32px;
+  pointer-events: none;
   position: relative;
-}
-
-.double-click-hint {
-  background: rgb(15 23 42 / 72%);
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 999px;
-  bottom: 20px;
-  color: rgb(255 255 255 / 72%);
-  font-size: 13px;
-  left: 50%;
-  padding: 7px 12px;
-  position: absolute;
-  transform: translateX(-50%);
 }
 
 .stage h1 {
@@ -239,8 +228,8 @@ h2 {
   overflow: auto;
   padding: 14px;
   position: fixed;
-  right: 12px;
-  top: 12px;
+  right: 16px;
+  top: 244px;
   width: 360px;
   z-index: 3;
 }
@@ -250,7 +239,7 @@ h2 {
   right: 16px;
   top: 16px;
   width: 230px;
-  z-index: 4;
+  z-index: 5;
 }
 
 .qr-floating .qr-panel {
@@ -468,6 +457,34 @@ h2 {
   padding: 8px;
 }
 
+.capture-selection-layer {
+  cursor: crosshair;
+  inset: 0;
+  position: fixed;
+  user-select: none;
+  z-index: 20;
+}
+
+.capture-selection-hint {
+  background: rgb(15 23 42 / 80%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 700;
+  left: 50%;
+  padding: 10px 16px;
+  position: fixed;
+  top: 20px;
+  transform: translateX(-50%);
+}
+
+.capture-selection-box {
+  background: rgb(20 99 255 / 14%);
+  border: 2px solid #1463ff;
+  box-shadow: 0 0 0 9999px rgb(15 23 42 / 8%);
+  position: fixed;
+}
+
 .modal-actions {
   display: flex;
   gap: 10px;
@@ -510,7 +527,9 @@ h2 {
 
   .presenter-controls-overlay {
     max-height: none;
-    position: static;
+    position: fixed;
+    right: 12px;
+    top: 220px;
     width: auto;
   }
 
