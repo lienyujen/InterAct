@@ -108,6 +108,27 @@ export function PresenterPage() {
     }
   }
 
+  function dataUrlToFile(dataUrl: string, filename: string) {
+    const [meta, base64] = dataUrl.split(',')
+    const mime = meta.match(/data:(.*);base64/)?.[1] || 'image/png'
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index)
+    }
+
+    return new File([bytes], filename, { type: mime })
+  }
+
+  async function captureWindowsScreen() {
+    if (!window.interactDesktop) return
+
+    const source = await window.interactDesktop.captureFirstScreen()
+    const file = dataUrlToFile(source.thumbnailDataUrl, `windows-screen-${Date.now()}.png`)
+    await uploadImage(file)
+  }
+
   async function createChoiceQuestion(title: string, options: string[]) {
     setEditorOpen(false)
     const supabase = requireSupabase()
@@ -160,6 +181,7 @@ export function PresenterPage() {
           onStopQuestion={stopQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
+          onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
           onUploadImage={uploadImage}
         />
         <QuestionResult answers={answers} question={question} onSetCorrectAnswer={setCorrectAnswer} />

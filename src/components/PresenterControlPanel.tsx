@@ -1,4 +1,4 @@
-import { Eye, EyeOff, ImageUp, MessageSquare, Square, Users } from 'lucide-react'
+import { Eye, EyeOff, ImageUp, MessageSquare, MonitorUp, Square, Users } from 'lucide-react'
 import type { Participant, Session } from '../types'
 
 type Props = {
@@ -8,6 +8,7 @@ type Props = {
   onToggleDanmaku: () => void
   onToggleAnonymous: () => void
   onUploadImage: (file: File) => void
+  onCaptureScreen?: () => void
   onCreateChoiceQuestion: () => void
   onStopQuestion: () => void
 }
@@ -19,6 +20,7 @@ export function PresenterControlPanel({
   onToggleDanmaku,
   onToggleAnonymous,
   onUploadImage,
+  onCaptureScreen,
   onCreateChoiceQuestion,
   onStopQuestion,
 }: Props) {
@@ -50,6 +52,12 @@ export function PresenterControlPanel({
           }}
         />
       </label>
+      {onCaptureScreen && (
+        <button type="button" onClick={onCaptureScreen} disabled={busy}>
+          <MonitorUp size={16} />
+          Windows 截圖派送
+        </button>
+      )}
       <button type="button" onClick={onCreateChoiceQuestion} disabled={busy}>
         <MessageSquare size={16} />
         建立選擇題

@@ -53,6 +53,16 @@ cp .env.example .env
 pnpm dev
 ```
 
+## Windows Presenter App
+
+The participant app remains available on GitHub Pages. The presenter can also run a Windows desktop app for screen capture.
+
+```bash
+pnpm desktop:dev
+```
+
+The desktop app opens the presenter flow and adds `Windows 截圖派送` on the presenter control panel. Captured images use the same Supabase Storage and Realtime flow as uploaded images.
+
 ## Build
 
 ```bash
