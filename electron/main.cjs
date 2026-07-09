@@ -1,7 +1,7 @@
 const { app, BrowserWindow, desktopCapturer, ipcMain } = require('electron')
 const path = require('node:path')
 
-const isDev = !app.isPackaged
+const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
 
 function createWindow() {
   const mainWindow = new BrowserWindow({
@@ -18,13 +18,21 @@ function createWindow() {
     },
   })
 
-  if (isDev) {
+  if (isDesktopDev) {
     mainWindow.loadURL('http://127.0.0.1:5173/#/presenter/new')
   } else {
     mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'), {
       hash: '/presenter/new',
     })
   }
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedUrl) => {
+    console.error('InterAct failed to load', { errorCode, errorDescription, validatedUrl })
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('InterAct renderer process gone', details)
+  })
 }
 
 async function listCaptureSources() {
