@@ -2,11 +2,8 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SetupNotice } from '../components/SetupNotice'
+import { savePresenterToken } from '../lib/presenterAuth'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-
-function makeCode() {
-  return Math.random().toString(36).slice(2, 8).toUpperCase()
-}
 
 export function PresenterNewPage() {
   const [title, setTitle] = useState('')
@@ -24,15 +21,14 @@ export function PresenterNewPage() {
 
     setBusy(true)
     try {
-      const supabase = requireSupabase()
-      const { data, error: insertError } = await supabase
-        .from('sessions')
-        .insert({ title: title.trim() || '未命名場次', code: makeCode() })
-        .select('id')
-        .single()
+      const { data, error: createError } = await requireSupabase().functions.invoke('create-session', {
+        body: { title: title.trim() || '未命名場次' },
+      })
 
-      if (insertError) throw insertError
-      navigate(`/presenter/${data.id}`)
+      if (createError) throw createError
+      if (!data?.sessionId || !data?.presenterToken) throw new Error('建立場次時沒有取得講者權限。')
+      savePresenterToken(data.sessionId, data.presenterToken)
+      navigate(`/presenter/${data.sessionId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : '建立場次失敗')
     } finally {

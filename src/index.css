@@ -27,6 +27,64 @@ body {
   margin: 0;
 }
 
+.desktop-shell {
+  min-height: 100vh;
+}
+
+.desktop-window-chrome {
+  align-items: center;
+  background: rgb(255 255 255 / 96%);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  height: 34px;
+  justify-content: space-between;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 50;
+}
+
+.desktop-drag-handle {
+  -webkit-app-region: drag;
+  align-items: center;
+  align-self: stretch;
+  color: var(--muted);
+  cursor: move;
+  display: flex;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  gap: 7px;
+  padding: 0 10px;
+  user-select: none;
+}
+
+.desktop-window-actions {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  display: flex;
+}
+
+.desktop-window-actions button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  min-height: 33px;
+  padding: 0;
+  width: 38px;
+}
+
+.desktop-window-actions button:hover {
+  background: var(--track);
+}
+
+.desktop-window-actions button:last-child:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
 button,
 input,
 textarea {
@@ -194,6 +252,42 @@ h2 {
   position: relative;
 }
 
+.desktop-shell .center-page {
+  padding-top: 58px;
+}
+
+.desktop-shell .presenter-page {
+  display: grid;
+  gap: 10px;
+  height: 100vh;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.desktop-shell .qr-floating,
+.desktop-shell .presenter-controls-overlay {
+  max-height: none;
+  position: static;
+  right: auto;
+  top: auto;
+  width: 100%;
+}
+
+.desktop-shell .presenter-controls-overlay {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  padding: 0;
+}
+
+.desktop-shell .presenter-page.selecting-capture {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+
 .stage {
   align-items: center;
   display: flex;
@@ -252,9 +346,8 @@ h2 {
   width: 132px;
 }
 
-.qr-floating .join-url,
-.qr-floating .ghost-button {
-  display: none;
+.qr-floating .join-url {
+  display: block;
 }
 
 .panel-heading {
@@ -262,6 +355,41 @@ h2 {
   display: flex;
   gap: 12px;
   justify-content: space-between;
+}
+
+.desktop-shell .qr-panel .panel-heading {
+  -webkit-app-region: drag;
+  cursor: move;
+  user-select: none;
+}
+
+.qr-window-actions {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  display: flex;
+  gap: 2px;
+}
+
+.qr-window-actions button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0;
+  width: 32px;
+}
+
+.qr-window-actions button:hover {
+  background: var(--track);
+}
+
+.qr-window-actions button:last-child:hover {
+  background: #dc2626;
+  color: #fff;
 }
 
 .code,
@@ -301,6 +429,7 @@ h2 {
   color: var(--muted);
   font-size: 12px;
   overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .ghost-button {
@@ -311,6 +440,15 @@ h2 {
 
 .ghost-button:hover {
   background: var(--track);
+}
+
+.end-class-button {
+  background: #b42318;
+  border-color: #b42318;
+}
+
+.end-class-button:hover {
+  background: #912018;
 }
 
 .file-button input {
@@ -397,6 +535,76 @@ h2 {
   padding: 12px;
 }
 
+.ai-analysis-panel,
+.analysis-content,
+.analysis-content section,
+.analysis-content details {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-analysis-panel .panel-heading {
+  align-items: flex-start;
+}
+
+.ai-analysis-panel .panel-heading h2 {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.analysis-content {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.analysis-content h3,
+.analysis-content h4 {
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.analysis-content h3 {
+  font-size: 16px;
+}
+
+.analysis-content h4 {
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.analysis-content details {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.analysis-content summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.analysis-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.ai-suggestion {
+  align-items: center;
+  background: #eef5ff;
+  border: 1px solid #bfd4ff;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+
+.ai-suggestion .ghost-button {
+  margin-left: auto;
+}
+
 .modal-backdrop {
   align-items: center;
   background: rgb(15 23 42 / 58%);
@@ -405,6 +613,7 @@ h2 {
   justify-content: center;
   padding: 24px;
   position: fixed;
+  overflow-y: auto;
   z-index: 10;
 }
 
@@ -462,7 +671,7 @@ h2 {
   inset: 0;
   position: fixed;
   user-select: none;
-  z-index: 20;
+  z-index: 100;
 }
 
 .capture-selection-hint {
@@ -520,6 +729,203 @@ h2 {
   gap: 12px;
 }
 
+.session-report-page {
+  background: var(--bg);
+  min-height: 100vh;
+  padding: 64px 34px 48px;
+}
+
+.report-header {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 1240px;
+  padding-bottom: 20px;
+}
+
+.report-header h1 {
+  align-items: center;
+  display: flex;
+  font-size: 28px;
+  gap: 10px;
+  margin: 6px 0 8px;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.report-loading {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  justify-content: center;
+  text-align: center;
+}
+
+.report-loading h1 {
+  font-size: 28px;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.report-inline-error {
+  margin: 14px auto 0;
+  max-width: 1240px;
+}
+
+.report-metrics {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 20px auto;
+  max-width: 1240px;
+}
+
+.report-metrics article {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  min-height: 96px;
+  padding: 14px;
+}
+
+.report-metrics article svg {
+  color: var(--primary);
+  grid-row: span 2;
+}
+
+.report-metrics article span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.report-metrics article strong {
+  font-size: 22px;
+}
+
+.report-section {
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  margin: 0 auto;
+  max-width: 1240px;
+  padding: 24px 4px;
+}
+
+.report-summary-band {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  max-width: 1240px;
+  padding: 22px 24px;
+}
+
+.report-section-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.report-section h3 {
+  font-size: 15px;
+  margin: 8px 0 0;
+}
+
+.report-lead {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.engagement-badge {
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.engagement-badge.high {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.engagement-badge.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.engagement-badge.low {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.report-two-column {
+  display: grid;
+  gap: 32px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 auto;
+  max-width: 1240px;
+}
+
+.report-list {
+  display: grid;
+  gap: 8px;
+  line-height: 1.6;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.report-table-wrap {
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.report-table {
+  border-collapse: collapse;
+  min-width: 820px;
+  width: 100%;
+}
+
+.report-table th,
+.report-table td {
+  border-bottom: 1px solid var(--border);
+  line-height: 1.5;
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.report-table th {
+  background: var(--surface-strong);
+  color: #fff;
+  font-size: 13px;
+}
+
+.report-table tr:nth-child(even) td {
+  background: #fff;
+}
+
 @media (max-width: 900px) {
   .stage {
     min-height: 54svh;
@@ -553,6 +959,25 @@ h2 {
   }
 
   .type-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-report-page {
+    padding: 58px 16px 32px;
+  }
+
+  .report-header,
+  .report-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .report-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-two-column {
+    gap: 0;
     grid-template-columns: 1fr;
   }
 }

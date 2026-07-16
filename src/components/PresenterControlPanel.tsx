@@ -1,4 +1,4 @@
-import { Eye, EyeOff, MessageSquare, MonitorUp, Square, Users } from 'lucide-react'
+import { DoorOpen, Eye, EyeOff, MessageSquare, Minus, MonitorUp, Square, Users } from 'lucide-react'
 import type { Participant, Session } from '../types'
 
 type Props = {
@@ -9,6 +9,8 @@ type Props = {
   onToggleAnonymous: () => void
   onCaptureScreen?: () => void
   onStopQuestion: () => void
+  onMinimize?: () => void
+  onEndClass: () => void
 }
 
 export function PresenterControlPanel({
@@ -19,6 +21,8 @@ export function PresenterControlPanel({
   onToggleAnonymous,
   onCaptureScreen,
   onStopQuestion,
+  onMinimize,
+  onEndClass,
 }: Props) {
   return (
     <section className="panel control-panel">
@@ -43,6 +47,16 @@ export function PresenterControlPanel({
       <button type="button" onClick={onStopQuestion} disabled={busy || !session.current_question_id}>
         <Square size={16} />
         停止作答
+      </button>
+      {onMinimize && (
+        <button className="ghost-button" type="button" onClick={onMinimize} disabled={busy}>
+          <Minus size={16} />
+          最小化功能列
+        </button>
+      )}
+      <button className="end-class-button" type="button" onClick={onEndClass} disabled={busy}>
+        <DoorOpen size={16} />
+        下課並產生報告
       </button>
     </section>
   )

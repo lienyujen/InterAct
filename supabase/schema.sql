@@ -8,6 +8,7 @@ create table if not exists public.sessions (
   danmaku_enabled boolean not null default true,
   anonymous_enabled boolean not null default true,
   current_question_id uuid null,
+  short_join_url text null,
   created_at timestamptz not null default now(),
   ended_at timestamptz null
 );
@@ -20,6 +21,12 @@ create table if not exists public.participants (
   joined_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
   unique (session_id, device_id)
+);
+
+create table if not exists public.presenter_session_keys (
+  session_id uuid primary key references public.sessions(id) on delete cascade,
+  token_hash text not null,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.messages (
@@ -79,7 +86,7 @@ create table if not exists public.ai_summaries (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade,
   question_id uuid null references public.questions(id) on delete cascade,
-  type text not null check (type in ('screen_preview', 'short_answer_summary', 'exit_ticket_summary')),
+  type text not null check (type in ('screen_preview', 'short_answer_summary', 'question_analysis', 'exit_ticket_summary')),
   input_json jsonb not null default '{}'::jsonb,
   output_json jsonb not null default '{}'::jsonb,
   status text not null check (status in ('success', 'failed')),
@@ -102,6 +109,7 @@ create table if not exists public.exit_tickets (
 
 alter table public.sessions enable row level security;
 alter table public.participants enable row level security;
+alter table public.presenter_session_keys enable row level security;
 alter table public.messages enable row level security;
 alter table public.screenshots enable row level security;
 alter table public.questions enable row level security;

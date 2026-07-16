@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DanmakuLayer } from '../components/DanmakuLayer'
 import { PresenterControlPanel } from '../components/PresenterControlPanel'
 import { QRCodePanel } from '../components/QRCodePanel'
 import { QuestionEditor } from '../components/QuestionEditor'
 import { QuestionResult } from '../components/QuestionResult'
 import { SetupNotice } from '../components/SetupNotice'
+import { getPresenterToken } from '../lib/presenterAuth'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { Answer, Message, Participant, Question, QuestionType, Session } from '../types'
+import type { AiSummary, Answer, Participant, Question, QuestionAnalysis, QuestionType, Session } from '../types'
 import { useParams } from 'react-router-dom'
 
 export function PresenterPage() {
   const { sessionId = '' } = useParams()
   const [session, setSession] = useState<Session | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
-  const [messages, setMessages] = useState<Message[]>([])
   const [question, setQuestion] = useState<Question | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
+  const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null)
+  const [analysisBusy, setAnalysisBusy] = useState(false)
+  const [analysisError, setAnalysisError] = useState('')
   const [controlsOpen, setControlsOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [captureFile, setCaptureFile] = useState<File | null>(null)
@@ -26,30 +28,43 @@ export function PresenterPage() {
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
   const [busy, setBusy] = useState(false)
-  const joinUrl = useMemo(() => buildJoinUrl(sessionId), [sessionId])
+  const fallbackJoinUrl = useMemo(() => buildJoinUrl(session?.code || sessionId), [session?.code, sessionId])
+  const [joinUrl, setJoinUrl] = useState(fallbackJoinUrl)
 
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId) return
 
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }, { data: messageData }] = await Promise.all([
+    const [{ data: sessionData }, { data: participantData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at'),
-      supabase.from('messages').select('*').eq('session_id', sessionId).order('created_at'),
     ])
 
     const nextSession = sessionData as Session | null
     setSession(nextSession)
     setParticipants((participantData || []) as Participant[])
-    setMessages((messageData || []) as Message[])
 
     if (nextSession?.current_question_id) {
-      const [{ data: questionData }, { data: answerData }] = await Promise.all([
+      const [{ data: questionData }, { data: answerData }, { data: summaryData }] = await Promise.all([
         supabase.from('questions').select('*').eq('id', nextSession.current_question_id).single(),
         supabase.from('answers').select('*').eq('question_id', nextSession.current_question_id).order('submitted_at'),
+        supabase
+          .from('ai_summaries')
+          .select('*')
+          .eq('question_id', nextSession.current_question_id)
+          .eq('type', 'question_analysis')
+          .eq('status', 'success')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
       ])
       setQuestion(questionData as Question | null)
       setAnswers((answerData || []) as Answer[])
+      setAnalysis(((summaryData as AiSummary | null)?.output_json as QuestionAnalysis | undefined) || null)
+    } else {
+      setQuestion(null)
+      setAnswers([])
+      setAnalysis(null)
     }
   }, [sessionId])
 
@@ -58,13 +73,46 @@ export function PresenterPage() {
   }, [loadAll])
 
   useEffect(() => {
+    if (session?.id && window.interactDesktop) {
+      window.interactDesktop.enterPresenterMode(session.id)
+    }
+  }, [session?.id])
+
+  useEffect(() => {
+    if (!session) return
+    const fallback = buildJoinUrl(session.code)
+    setJoinUrl(session.short_join_url || fallback)
+    if (session.short_join_url) return
+
+    const presenterToken = getPresenterToken(session.id)
+    if (!presenterToken) return
+    let cancelled = false
+
+    requireSupabase().functions.invoke('shorten-url', {
+      body: { sessionId: session.id, presenterToken, url: fallback },
+    }).then(({ data, error }) => {
+      if (!cancelled && !error && typeof data?.shortUrl === 'string') {
+        setJoinUrl(data.shortUrl)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [session])
+
+  useEffect(() => {
+    if (!window.interactDesktop || selectionMode) return
+    window.interactDesktop.setPresenterExpanded(controlsOpen || editorOpen)
+  }, [controlsOpen, editorOpen, selectionMode])
+
+  useEffect(() => {
     if (!isSupabaseConfigured || !sessionId) return
     const supabase = requireSupabase()
     const channel = supabase
       .channel(`presenter:${sessionId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${sessionId}` }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
@@ -143,9 +191,13 @@ export function PresenterPage() {
     setSelectionRect(null)
     setSelectionStart(null)
     setSelectionMode(true)
-    await new Promise((resolve) => window.setTimeout(resolve, 120))
-    const source = await window.interactDesktop.captureFirstScreen()
-    setCaptureSource(source)
+    try {
+      const source = await window.interactDesktop.startCaptureSelection()
+      setCaptureSource(source)
+    } catch {
+      setSelectionMode(false)
+      await window.interactDesktop.finishCaptureSelection(false)
+    }
   }
 
   async function cropCapture(rect: { x: number; y: number; width: number; height: number }) {
@@ -185,6 +237,7 @@ export function PresenterPage() {
     setSelectionRect(null)
     setSelectionStart(null)
     setEditorOpen(true)
+    await window.interactDesktop?.finishCaptureSelection(true)
   }
 
   function beginSelection(x: number, y: number) {
@@ -209,6 +262,7 @@ export function PresenterPage() {
       setCaptureSource(null)
       setSelectionRect(null)
       setSelectionStart(null)
+      window.interactDesktop?.finishCaptureSelection(false)
       return
     }
 
@@ -246,6 +300,50 @@ export function PresenterPage() {
     await supabase.from('answers').update({ is_correct: true }).eq('question_id', question.id).eq('answer_value', answer)
   }
 
+  async function analyzeQuestion() {
+    if (!question) return
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setAnalysisError('這個舊場次沒有講者 AI 權限，請建立新場次後再試。')
+      return
+    }
+
+    setAnalysisBusy(true)
+    setAnalysisError('')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('analyze-question', {
+        body: { sessionId, questionId: question.id, presenterToken },
+      })
+      if (error) throw error
+      if (!data?.analysis) throw new Error(data?.message || 'AI 沒有回傳分析結果。')
+      setAnalysis(data.analysis as QuestionAnalysis)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : 'AI 分析失敗。')
+    } finally {
+      setAnalysisBusy(false)
+    }
+  }
+
+  async function endClass() {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setAnalysisError('這個舊場次沒有講者 AI 權限，請建立新場次後再試。')
+      return
+    }
+
+    setBusy(true)
+    try {
+      if (window.interactDesktop) {
+        await window.interactDesktop.openSessionReport(sessionId)
+      } else {
+        window.location.hash = `/session-report/${sessionId}`
+      }
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '無法開啟課堂報告。')
+      setBusy(false)
+    }
+  }
+
   if (!session) {
     return (
       <main className="center-page">
@@ -257,12 +355,14 @@ export function PresenterPage() {
 
   return (
     <main className={`presenter-page ${selectionMode ? 'selecting-capture' : ''}`}>
-      <DanmakuLayer messages={messages} session={session} />
-      <section className="stage" />
       {!selectionMode && (
         <aside className="qr-floating" onDoubleClick={() => setControlsOpen((current) => !current)}>
-        <QRCodePanel code={session.code} joinUrl={joinUrl} />
-      </aside>
+          <QRCodePanel
+            joinUrl={joinUrl}
+            onClose={window.interactDesktop ? () => window.interactDesktop?.close() : undefined}
+            onMinimize={window.interactDesktop ? () => window.interactDesktop?.minimize() : undefined}
+          />
+        </aside>
       )}
       {controlsOpen && (
         <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
@@ -274,8 +374,18 @@ export function PresenterPage() {
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
+          onMinimize={window.interactDesktop ? () => window.interactDesktop?.minimize() : undefined}
+          onEndClass={endClass}
         />
-        <QuestionResult answers={answers} question={question} onSetCorrectAnswer={setCorrectAnswer} />
+        <QuestionResult
+          analysis={analysis}
+          analysisBusy={analysisBusy}
+          analysisError={analysisError}
+          answers={answers}
+          question={question}
+          onAnalyze={analyzeQuestion}
+          onSetCorrectAnswer={setCorrectAnswer}
+        />
       </aside>
       )}
       {selectionMode && (

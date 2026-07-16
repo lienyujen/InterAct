@@ -14,8 +14,14 @@ declare global {
     interactDesktop?: {
       isDesktop: boolean
       platform: string
+      enterPresenterMode: (sessionId: string) => Promise<void>
+      setPresenterExpanded: (expanded: boolean) => Promise<void>
+      openSessionReport: (sessionId: string) => Promise<void>
+      minimize: () => Promise<void>
+      close: () => Promise<void>
       listCaptureSources: () => Promise<InterActCaptureSource[]>
-      captureFirstScreen: () => Promise<InterActCaptureSource>
+      startCaptureSelection: () => Promise<InterActCaptureSource>
+      finishCaptureSelection: (expanded?: boolean) => Promise<void>
     }
   }
 }

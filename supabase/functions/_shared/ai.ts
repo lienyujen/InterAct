@@ -13,59 +13,45 @@ export function jsonResponse(body: unknown, status = 200) {
   })
 }
 
-export async function callAiJson(systemPrompt: string, userPayload: unknown) {
-  const endpoint = Deno.env.get('AI_API_ENDPOINT')
-  const apiKey = Deno.env.get('AI_API_KEY')
-  const model = Deno.env.get('AI_MODEL') || 'gpt-4.1-mini'
+export async function callAiJson(systemPrompt: string, userPayload: unknown, schema?: Record<string, unknown>) {
+  const apiKey = Deno.env.get('GEMINI_API_KEY')
+  const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash'
 
-  if (!endpoint || !apiKey) {
+  if (!apiKey) {
     return {
       status: 'skipped',
-      output: {
-        message: 'AI_API_ENDPOINT or AI_API_KEY is not configured.',
-      },
+      output: { message: 'GEMINI_API_KEY is not configured.' },
     }
   }
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      'x-goog-api-key': apiKey,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: JSON.stringify(userPayload) },
-      ],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: JSON.stringify(userPayload) }] }],
+      generationConfig: {
+        responseFormat: { text: { mimeType: 'APPLICATION_JSON', ...(schema ? { schema } : {}) } },
+      },
     }),
   })
 
   if (!response.ok) {
     return {
       status: 'failed',
-      output: {
-        message: await response.text(),
-      },
+      output: { message: await response.text() },
     }
   }
 
   const data = await response.json()
-  const content = data.choices?.[0]?.message?.content
+  const content = data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('') || ''
 
   try {
-    return {
-      status: 'success',
-      output: JSON.parse(content),
-    }
+    return { status: 'success', output: JSON.parse(content) }
   } catch {
-    return {
-      status: 'success',
-      output: {
-        raw: content,
-      },
-    }
+    return { status: 'success', output: { raw: content } }
   }
 }

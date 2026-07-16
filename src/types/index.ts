@@ -6,6 +6,7 @@ export type Session = {
   danmaku_enabled: boolean
   anonymous_enabled: boolean
   current_question_id: string | null
+  short_join_url: string | null
   created_at: string
   ended_at: string | null
 }
@@ -68,6 +69,84 @@ export type Answer = {
   submitted_at: string
 }
 
+export type QuestionAnalysis = {
+  question_understanding: {
+    detected_question: string
+    subject: string
+    concepts: string[]
+    suggested_correct_answer: string | null
+    confidence: 'high' | 'medium' | 'low'
+    reasoning: string
+  }
+  response_analysis: {
+    response_count: number
+    response_rate: number
+    understanding_summary: string
+    strengths: string[]
+    misconceptions: string[]
+    representative_patterns: string[]
+  }
+  teaching_recommendations: {
+    immediate_actions: string[]
+    explanation_points: string[]
+    follow_up_questions: string[]
+  }
+  limitations: string[]
+}
+
+export type SessionMetrics = {
+  participant_count: number
+  message_count: number
+  active_message_participants: number
+  question_count: number
+  interactive_question_count: number
+  answer_count: number
+  average_response_rate: number
+  assessed_answer_count: number
+  correct_answer_count: number
+  correct_rate: number | null
+  exit_ticket_count: number
+  duration_minutes: number
+}
+
+export type SessionAnalysis = {
+  executive_summary: string
+  engagement_analysis: {
+    level: 'high' | 'medium' | 'low'
+    summary: string
+    participation_observations: string[]
+    danmaku_observations: string[]
+  }
+  learning_analysis: {
+    overall_understanding: string
+    strengths: string[]
+    misconceptions: string[]
+    question_findings: Array<{
+      question_id: string
+      detected_question: string
+      result_summary: string
+      evidence: string
+    }>
+  }
+  teaching_recommendations: {
+    immediate_actions: string[]
+    next_lesson_actions: string[]
+    follow_up_questions: string[]
+  }
+  limitations: string[]
+}
+
+export type AiSummary = {
+  id: string
+  session_id: string
+  question_id: string | null
+  type: 'screen_preview' | 'short_answer_summary' | 'question_analysis' | 'exit_ticket_summary'
+  input_json: Record<string, unknown>
+  output_json: QuestionAnalysis | SessionAnalysis | Record<string, unknown>
+  status: 'success' | 'failed'
+  created_at: string
+}
+
 export type ExitTicket = {
   id: string
   session_id: string
@@ -79,4 +158,15 @@ export type ExitTicket = {
   engagement_score: number
   next_suggestion: string
   submitted_at: string
+}
+
+export type SessionReportData = {
+  session: Session
+  participants: Participant[]
+  messages: Message[]
+  screenshots: Screenshot[]
+  questions: Question[]
+  answers: Answer[]
+  aiSummaries: AiSummary[]
+  exitTickets: ExitTicket[]
 }

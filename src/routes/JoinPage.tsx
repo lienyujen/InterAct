@@ -7,7 +7,7 @@ import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { Participant, Session } from '../types'
 
 export function JoinPage() {
-  const { sessionId = '' } = useParams()
+  const { sessionId: sessionReference = '' } = useParams()
   const [session, setSession] = useState<Session | null>(null)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
@@ -15,15 +15,16 @@ export function JoinPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !sessionId) return
+    if (!isSupabaseConfigured || !sessionReference) return
 
+    const isSessionId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionReference)
     requireSupabase()
       .from('sessions')
       .select('*')
-      .eq('id', sessionId)
+      .eq(isSessionId ? 'id' : 'code', sessionReference)
       .single()
       .then(({ data }) => setSession(data as Session | null))
-  }, [sessionId])
+  }, [sessionReference])
 
   async function join(event: FormEvent) {
     event.preventDefault()
@@ -36,6 +37,8 @@ export function JoinPage() {
     setBusy(true)
     setError('')
     try {
+      if (!session) throw new Error('找不到這個場次。')
+      const sessionId = session.id
       const supabase = requireSupabase()
       const deviceId = getDeviceId()
       const { data: existing } = await supabase
