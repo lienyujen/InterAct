@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { PresenterControlPanel } from '../components/PresenterControlPanel'
 import { QRCodePanel } from '../components/QRCodePanel'
 import { QuestionEditor } from '../components/QuestionEditor'
+import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
 import { SetupNotice } from '../components/SetupNotice'
 import { getPresenterToken } from '../lib/presenterAuth'
@@ -14,6 +15,9 @@ export function PresenterPage() {
   const { sessionId = '' } = useParams()
   const [session, setSession] = useState<Session | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
+  const [questions, setQuestions] = useState<Question[]>([])
+  const [answerCounts, setAnswerCounts] = useState<Record<string, number>>({})
+  const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<Question | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
   const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null)
@@ -35,29 +39,43 @@ export function PresenterPage() {
     if (!isSupabaseConfigured || !sessionId) return
 
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }] = await Promise.all([
+    const [{ data: sessionData }, { data: participantData }, { data: questionListData }, { data: answerQuestionData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at'),
+      supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at'),
+      supabase.from('answers').select('question_id').eq('session_id', sessionId),
     ])
 
     const nextSession = sessionData as Session | null
+    const nextQuestions = (questionListData || []) as Question[]
     setSession(nextSession)
     setParticipants((participantData || []) as Participant[])
+    setQuestions(nextQuestions)
+    setAnswerCounts((answerQuestionData || []).reduce<Record<string, number>>((counts, answer) => {
+      counts[answer.question_id] = (counts[answer.question_id] || 0) + 1
+      return counts
+    }, {}))
 
-    if (nextSession?.current_question_id) {
+    const selectedStillExists = selectedQuestionId && nextQuestions.some((item) => item.id === selectedQuestionId)
+    const targetQuestionId = selectedStillExists
+      ? selectedQuestionId
+      : nextSession?.current_question_id || nextQuestions.at(-1)?.id || null
+
+    if (targetQuestionId) {
       const [{ data: questionData }, { data: answerData }, { data: summaryData }] = await Promise.all([
-        supabase.from('questions').select('*').eq('id', nextSession.current_question_id).single(),
-        supabase.from('answers').select('*').eq('question_id', nextSession.current_question_id).order('submitted_at'),
+        supabase.from('questions').select('*').eq('id', targetQuestionId).single(),
+        supabase.from('answers').select('*').eq('question_id', targetQuestionId).order('submitted_at'),
         supabase
           .from('ai_summaries')
           .select('*')
-          .eq('question_id', nextSession.current_question_id)
+          .eq('question_id', targetQuestionId)
           .eq('type', 'question_analysis')
           .eq('status', 'success')
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
       ])
+      if (targetQuestionId !== selectedQuestionId) setSelectedQuestionId(targetQuestionId)
       setQuestion(questionData as Question | null)
       setAnswers((answerData || []) as Answer[])
       setAnalysis(((summaryData as AiSummary | null)?.output_json as QuestionAnalysis | undefined) || null)
@@ -66,7 +84,7 @@ export function PresenterPage() {
       setAnswers([])
       setAnalysis(null)
     }
-  }, [sessionId])
+  }, [selectedQuestionId, sessionId])
 
   useEffect(() => {
     loadAll()
@@ -146,12 +164,20 @@ export function PresenterPage() {
         .from('screenshots')
         .insert({ id: screenshotId, session_id: sessionId, storage_path: path, public_url: publicData.publicUrl, ai_status: 'skipped' })
       if (insertError) throw insertError
+      if (session?.current_question_id) {
+        await supabase
+          .from('questions')
+          .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+          .eq('id', session.current_question_id)
+          .eq('status', 'active')
+      }
       const { data: questionData } = await supabase
         .from('questions')
         .insert({ session_id: sessionId, screenshot_id: screenshotId, type, status: 'active', title: questionTitle(type), options })
         .select('*')
         .single()
       await supabase.from('sessions').update({ current_question_id: questionData?.id }).eq('id', sessionId)
+      if (questionData?.id) setSelectedQuestionId(questionData.id)
     } finally {
       setBusy(false)
     }
@@ -285,11 +311,11 @@ export function PresenterPage() {
   }
 
   async function stopQuestion() {
-    if (!question) return
+    if (!session?.current_question_id) return
     await requireSupabase()
       .from('questions')
       .update({ status: 'stopped', stopped_at: new Date().toISOString() })
-      .eq('id', question.id)
+      .eq('id', session.current_question_id)
   }
 
   async function setCorrectAnswer(answer: string) {
@@ -344,6 +370,11 @@ export function PresenterPage() {
     }
   }
 
+  function selectQuestion(questionId: string) {
+    setAnalysisError('')
+    setSelectedQuestionId(questionId)
+  }
+
   if (!session) {
     return (
       <main className="center-page">
@@ -374,8 +405,14 @@ export function PresenterPage() {
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
-          onMinimize={window.interactDesktop ? () => window.interactDesktop?.minimize() : undefined}
           onEndClass={endClass}
+        />
+        <QuestionHistory
+          activeQuestionId={session.current_question_id}
+          answerCounts={answerCounts}
+          questions={questions}
+          selectedQuestionId={selectedQuestionId}
+          onSelect={selectQuestion}
         />
         <QuestionResult
           analysis={analysis}
