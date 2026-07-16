@@ -185,19 +185,21 @@ function setControlBounds(expanded, snapToTopRight = false) {
   lastControlBounds = bounds
 }
 
-async function listCaptureSources() {
-  const display = screen.getPrimaryDisplay()
+async function listCaptureSources(targetDisplay = screen.getPrimaryDisplay(), types = ['screen', 'window']) {
+  const captureWidth = Math.round(targetDisplay.size.width * targetDisplay.scaleFactor)
+  const captureHeight = Math.round(targetDisplay.size.height * targetDisplay.scaleFactor)
   const sources = await desktopCapturer.getSources({
-    types: ['screen', 'window'],
+    types,
     thumbnailSize: {
-      width: Math.max(1920, display.size.width),
-      height: Math.max(1080, display.size.height),
+      width: Math.max(1920, captureWidth),
+      height: Math.max(1080, captureHeight),
     },
     fetchWindowIcons: true,
   })
 
   return sources.map((source) => ({
     id: source.id,
+    displayId: source.display_id || null,
     name: source.name,
     width: source.thumbnail.getSize().width,
     height: source.thumbnail.getSize().height,
@@ -230,16 +232,19 @@ ipcMain.handle('capture:start-selection', async () => {
   if (!mainWindow) throw new Error('InterAct presenter window is unavailable.')
 
   lastControlBounds = mainWindow.getBounds()
+  const targetDisplay = displayForBounds(lastControlBounds)
   mainWindow.hide()
   overlayWindow?.hide()
   await new Promise((resolve) => setTimeout(resolve, 160))
 
-  const sources = await listCaptureSources()
-  const captureSource = sources.find((source) => source.id.startsWith('screen:')) || sources[0]
+  const sources = await listCaptureSources(targetDisplay, ['screen'])
+  const displayIndex = screen.getAllDisplays().findIndex((display) => display.id === targetDisplay.id)
+  const captureSource = sources.find((source) => source.displayId === String(targetDisplay.id))
+    || sources.find((source) => source.id.startsWith(`screen:${displayIndex}:`))
+    || sources[displayIndex]
   if (!captureSource) throw new Error('找不到可截取的螢幕來源。')
 
-  const display = screen.getPrimaryDisplay()
-  mainWindow.setBounds(display.bounds)
+  mainWindow.setBounds(targetDisplay.bounds)
   mainWindow.show()
   mainWindow.focus()
   return captureSource

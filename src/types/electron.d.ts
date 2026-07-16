@@ -3,6 +3,7 @@ export {}
 declare global {
   interface InterActCaptureSource {
     id: string
+    displayId: string | null
     name: string
     width: number
     height: number
