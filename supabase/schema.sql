@@ -58,7 +58,9 @@ create table if not exists public.questions (
   status text not null default 'active' check (status in ('draft', 'active', 'stopped', 'closed')),
   title text not null default '',
   options jsonb not null default '[]'::jsonb,
+  allow_multiple boolean not null default false,
   correct_answer text null,
+  correct_answers text[] not null default '{}'::text[],
   started_at timestamptz null default now(),
   stopped_at timestamptz null,
   created_at timestamptz not null default now()
@@ -76,6 +78,7 @@ create table if not exists public.answers (
   participant_id uuid not null references public.participants(id) on delete cascade,
   participant_name text not null,
   answer_value text null,
+  answer_values text[] null,
   answer_text text null,
   is_correct boolean null,
   submitted_at timestamptz not null default now(),

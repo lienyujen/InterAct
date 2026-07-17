@@ -7,6 +7,14 @@ import { useParams } from 'react-router-dom'
 
 const PAGE_SIZE = 1000
 
+const questionTypeLabels: Record<Question['type'], string> = {
+  send_screen: '派送畫面',
+  poll: '投票題',
+  multiple_choice: '選擇題',
+  true_false: '是非題',
+  short_answer: '問答題',
+}
+
 async function fetchAllRows<T>(table: string, sessionId: string, orderColumn: string) {
   const rows: T[] = []
   for (let from = 0; ; from += PAGE_SIZE) {
@@ -93,7 +101,7 @@ export function SessionReportPage() {
         body: { sessionId, presenterToken },
       })
       if (functionError) throw new Error(await edgeFunctionMessage(functionError))
-      if (!data?.analysis || !data?.metrics) throw new Error(data?.message || 'Gemini 沒有回傳完整課堂分析。')
+      if (!data?.analysis || !data?.metrics) throw new Error(data?.message || 'AI 沒有回傳完整課堂分析。')
 
       setAnalysis(data.analysis as SessionAnalysis)
       setMetrics(data.metrics as SessionMetrics)
@@ -109,8 +117,11 @@ export function SessionReportPage() {
     generateReport()
   }, [generateReport])
 
-  const questionNumber = useMemo(
-    () => new Map((reportData?.questions || []).map((question, index) => [question.id, index + 1])),
+  const questionMeta = useMemo(
+    () => new Map((reportData?.questions || []).map((question, index) => [question.id, {
+      number: index + 1,
+      type: questionTypeLabels[question.type],
+    }])),
     [reportData?.questions],
   )
 
@@ -140,7 +151,7 @@ export function SessionReportPage() {
     return (
       <main className="session-report-page report-loading">
         <LoaderCircle className="spin" size={34} />
-        <h1>Gemini 正在分析整節課</h1>
+        <h1>AI 正在分析整節課</h1>
         <p className="muted">彙整題目、作答、彈幕與參與資料...</p>
       </main>
     )
@@ -190,7 +201,7 @@ export function SessionReportPage() {
 
       <section className="report-section report-summary-band">
         <div className="report-section-heading">
-          <h2>Gemini 課堂總結</h2>
+          <h2>AI 課堂總結</h2>
           <span className={`engagement-badge ${analysis.engagement_analysis.level}`}>
             互動程度：{analysis.engagement_analysis.level === 'high' ? '高' : analysis.engagement_analysis.level === 'medium' ? '中' : '低'}
           </span>
@@ -222,11 +233,12 @@ export function SessionReportPage() {
         {analysis.learning_analysis.question_findings.length ? (
           <div className="report-table-wrap">
             <table className="report-table">
-              <thead><tr><th>題次</th><th>題目</th><th>結果</th><th>資料證據</th></tr></thead>
+              <thead><tr><th>題型</th><th>題次</th><th>題目</th><th>結果</th><th>資料證據</th></tr></thead>
               <tbody>
                 {analysis.learning_analysis.question_findings.map((finding) => (
                   <tr key={finding.question_id}>
-                    <td>{questionNumber.get(finding.question_id) || '—'}</td>
+                    <td>{questionMeta.get(finding.question_id)?.type || '—'}</td>
+                    <td>{questionMeta.get(finding.question_id)?.number || '—'}</td>
                     <td>{finding.detected_question}</td>
                     <td>{finding.result_summary}</td>
                     <td>{finding.evidence}</td>

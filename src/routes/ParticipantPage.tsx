@@ -88,9 +88,11 @@ export function ParticipantPage() {
     }
   }
 
-  async function submitAnswer(value: string) {
+  async function submitAnswer(value: string | string[]) {
     if (!participant || !question) return
     const isShortAnswer = question.type === 'short_answer'
+    const answerValues = Array.isArray(value) ? value : null
+    const singleValue = Array.isArray(value) ? null : value
     try {
       const { data, error: insertError } = await requireSupabase()
         .from('answers')
@@ -99,8 +101,9 @@ export function ParticipantPage() {
           question_id: question.id,
           participant_id: participant.id,
           participant_name: participant.name,
-          answer_value: isShortAnswer ? null : value,
-          answer_text: isShortAnswer ? value : null,
+          answer_value: isShortAnswer ? null : singleValue,
+          answer_values: isShortAnswer ? null : answerValues,
+          answer_text: isShortAnswer ? singleValue : null,
         })
         .select('*')
         .single()

@@ -51,7 +51,9 @@ export type Question = {
   status: 'draft' | 'active' | 'stopped' | 'closed'
   title: string
   options: string[]
+  allow_multiple: boolean
   correct_answer: string | null
+  correct_answers: string[]
   started_at: string | null
   stopped_at: string | null
   created_at: string
@@ -64,6 +66,7 @@ export type Answer = {
   participant_id: string
   participant_name: string
   answer_value: string | null
+  answer_values: string[] | null
   answer_text: string | null
   is_correct: boolean | null
   submitted_at: string

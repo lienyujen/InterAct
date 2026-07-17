@@ -125,7 +125,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
   overview.getCell(`B${interactionStart + 5}`).numFmt = '0.0%'
   if (metrics.correct_rate !== null) overview.getCell(`B${interactionStart + 8}`).numFmt = '0.0%'
 
-  addOverviewSection(overview, 'Gemini 整節課分析', [
+  addOverviewSection(overview, 'AI 整節課分析', [
     ['總結', analysis.executive_summary],
     ['互動程度', analysis.engagement_analysis.level],
     ['互動分析', analysis.engagement_analysis.summary],
@@ -202,7 +202,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       title: questionAnalysis?.question_understanding.detected_question || question.title,
       status: question.status,
       options: question.options.join('、'),
-      correctAnswer: question.correct_answer || '',
+      correctAnswer: question.correct_answers?.length ? question.correct_answers.join('、') : question.correct_answer || '',
       answerCount: questionAnswers.length,
       responseRate: data.participants.length ? questionAnswers.length / data.participants.length : 0,
       correctRate: assessed.length ? assessed.filter((answer) => answer.is_correct).length / assessed.length : '',
@@ -233,7 +233,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       questionNumber: questionNumber.get(answer.question_id) || '',
       questionType: question ? questionTypeLabels[question.type] : '',
       participantName: answer.participant_name,
-      answerValue: answer.answer_value || '',
+      answerValue: answer.answer_values?.length ? answer.answer_values.join('、') : answer.answer_value || '',
       answerText: answer.answer_text || '',
       correctness: answer.is_correct === null ? '未判定' : answer.is_correct ? '正確' : '錯誤',
       submittedAt: formatDate(answer.submitted_at),
@@ -287,6 +287,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
   const aiQuestions = workbook.addWorksheet('AI 題目分析')
   aiQuestions.columns = [
     { header: '題次', key: 'questionNumber', width: 8 },
+    { header: '題型', key: 'questionType', width: 14 },
     { header: 'AI 辨識題目', key: 'detectedQuestion', width: 45 },
     { header: '科目', key: 'subject', width: 20 },
     { header: '概念', key: 'concepts', width: 35 },
@@ -302,6 +303,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     if (!item) return
     aiQuestions.addRow({
       questionNumber: index + 1,
+      questionType: questionTypeLabels[question.type],
       detectedQuestion: item.question_understanding.detected_question,
       subject: item.question_understanding.subject,
       concepts: item.question_understanding.concepts.join('、'),

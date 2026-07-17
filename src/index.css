@@ -795,9 +795,50 @@ h2 {
 
 .participant-question,
 .choice-list,
+.multi-choice-form,
+.multi-choice-list,
 .short-answer-form {
   display: grid;
   gap: 12px;
+}
+
+.multi-select-setting,
+.multi-choice-option {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.multi-select-setting {
+  font-weight: 700;
+  justify-content: flex-start;
+}
+
+.multi-select-setting input,
+.multi-choice-option input {
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.multi-choice-option {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 48px;
+  padding: 12px 14px;
+}
+
+.multi-choice-option.selected {
+  background: #edf4ff;
+  border-color: #1463ff;
+}
+
+.detected-question {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 10px 0;
 }
 
 .session-report-page {

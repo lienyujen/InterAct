@@ -31,6 +31,7 @@ function AiAnalysisPanel({ question, answers, analysis, analysisBusy, analysisEr
   const canApplySuggestion = Boolean(
     suggestion
     && (question.type === 'multiple_choice' || question.type === 'true_false')
+    && !question.allow_multiple
     && question.options.includes(suggestion),
   )
 
@@ -106,7 +107,7 @@ function AiAnalysisPanel({ question, answers, analysis, analysisBusy, analysisEr
 }
 
 export function QuestionResult(props: Props) {
-  const { question, answers, onSetCorrectAnswer } = props
+  const { question, answers, analysis, onSetCorrectAnswer } = props
 
   if (!question) {
     return (
@@ -154,6 +155,11 @@ export function QuestionResult(props: Props) {
 
   const counts = countByAnswer(answers)
   const correctness = correctnessStats(question, answers)
+  const correctAnswers = question.correct_answers?.length
+    ? question.correct_answers
+    : question.correct_answer
+      ? [question.correct_answer]
+      : []
 
   return (
     <>
@@ -162,17 +168,21 @@ export function QuestionResult(props: Props) {
           <h2>{question.title}</h2>
           <span className={`status ${question.status}`}>{question.status}</span>
         </div>
+        {analysis?.question_understanding.detected_question && (
+          <p className="detected-question">{analysis.question_understanding.detected_question}</p>
+        )}
         <p className="muted">已作答 {answers.length} 人</p>
         <div className="option-results">
           {question.options.map((option) => {
             const count = counts[option] || 0
             const rate = answers.length ? Math.round((count / answers.length) * 100) : 0
-            const canSetCorrectAnswer = question.type === 'multiple_choice' || question.type === 'true_false'
+            const canSetCorrectAnswer = question.status !== 'active'
+              && (question.type === 'multiple_choice' || question.type === 'true_false')
 
             return (
               <div className="bar-row" key={option}>
                 <button
-                  className={question.correct_answer === option ? 'correct-option' : 'ghost-button'}
+                  className={correctAnswers.includes(option) ? 'correct-option' : 'ghost-button'}
                   disabled={!canSetCorrectAnswer}
                   type="button"
                   onClick={() => onSetCorrectAnswer(option)}
@@ -194,7 +204,13 @@ export function QuestionResult(props: Props) {
           </div>
         ) : (
           <p className="muted">
-            {question.type === 'poll' ? '投票題不需要正確答案。' : '點選正確選項後即可計算答對比例。'}
+            {question.type === 'poll'
+              ? '投票題不需要正確答案。'
+              : question.status === 'active'
+                ? '停止作答後可設定正確答案。'
+                : question.allow_multiple
+                  ? '可點選一個或多個正確選項，再計算答對比例。'
+                  : '點選正確選項後即可計算答對比例。'}
           </p>
         )}
       </section>

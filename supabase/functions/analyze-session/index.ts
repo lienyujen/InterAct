@@ -60,6 +60,10 @@ function roundPercent(value: number) {
   return Math.round(value * 10) / 10
 }
 
+function selectedValues(answer: { answer_value?: string | null; answer_values?: string[] | null }) {
+  return answer.answer_values?.length ? answer.answer_values : answer.answer_value ? [answer.answer_value] : []
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return jsonResponse({ message: 'Method not allowed.' }, 405)
@@ -116,7 +120,7 @@ Deno.serve(async (req) => {
       supabase.from('participants').select('id').eq('session_id', sessionId).order('joined_at').limit(5000),
       supabase.from('messages').select('participant_id, content, created_at').eq('session_id', sessionId).order('created_at').limit(5000),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
-      supabase.from('answers').select('question_id, participant_id, answer_value, answer_text, is_correct').eq('session_id', sessionId).order('submitted_at').limit(10000),
+      supabase.from('answers').select('question_id, participant_id, answer_value, answer_values, answer_text, is_correct').eq('session_id', sessionId).order('submitted_at').limit(10000),
       supabase.from('ai_summaries').select('question_id, output_json').eq('session_id', sessionId).eq('type', 'question_analysis').eq('status', 'success').order('created_at').limit(500),
       supabase.from('exit_tickets').select('most_useful, still_confused, understanding_score, engagement_score, next_suggestion').eq('session_id', sessionId).order('submitted_at').limit(5000),
     ])
@@ -146,7 +150,7 @@ Deno.serve(async (req) => {
       const distribution = Object.fromEntries(
         (Array.isArray(question.options) ? question.options : []).map((option: string) => [
           option,
-          questionAnswers.filter((answer) => answer.answer_value === option).length,
+          questionAnswers.filter((answer) => selectedValues(answer).includes(option)).length,
         ]),
       )
       const assessed = questionAnswers.filter((answer) => answer.is_correct !== null)
@@ -156,7 +160,9 @@ Deno.serve(async (req) => {
         type: question.type,
         title: question.title,
         options: question.options,
+        allow_multiple: question.allow_multiple,
         correct_answer: question.correct_answer,
+        correct_answers: question.correct_answers,
         answer_count: questionAnswers.length,
         response_rate: participants.length ? roundPercent((questionAnswers.length / participants.length) * 100) : 0,
         correct_rate: assessed.length ? roundPercent((assessed.filter((answer) => answer.is_correct).length / assessed.length) * 100) : null,
@@ -190,7 +196,7 @@ Deno.serve(async (req) => {
     }
 
     const result = await callAiJson(
-      '你是 InterAct 的課堂互動與形成性評量分析顧問。請以繁體中文根據匿名化統計、彈幕內容、每題作答結果、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告。所有結論都要指出資料證據；資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID。',
+      '你是 InterAct 的課堂互動與形成性評量分析顧問。請以繁體中文根據匿名化統計、彈幕內容、每題作答結果、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告。所有結論都要指出資料證據；資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
       summaryInput,
       sessionAnalysisSchema,
     )

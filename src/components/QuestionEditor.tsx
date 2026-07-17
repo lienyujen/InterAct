@@ -6,7 +6,7 @@ type Props = {
   open: boolean
   previewUrl: string | null
   onCancel: () => void
-  onCreate: (type: QuestionType, options: string[]) => void
+  onCreate: (type: QuestionType, options: string[], allowMultiple: boolean) => void
 }
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
@@ -20,11 +20,13 @@ const questionTypes: Array<{ type: QuestionType; label: string }> = [
 export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) {
   const [type, setType] = useState<QuestionType>('multiple_choice')
   const [options, setOptions] = useState(['A', 'B', 'C', 'D'])
+  const [allowMultiple, setAllowMultiple] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setType('multiple_choice')
     setOptions(['A', 'B', 'C', 'D'])
+    setAllowMultiple(false)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -42,7 +44,7 @@ export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) 
         className="modal question-modal"
         onSubmit={(event) => {
           event.preventDefault()
-          onCreate(type, finalOptions)
+          onCreate(type, finalOptions, editableOptions && allowMultiple)
         }}
       >
         <h2>截圖派題</h2>
@@ -61,6 +63,14 @@ export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) 
         </div>
         {editableOptions && (
           <div className="option-editor">
+            <label className="multi-select-setting">
+              <input
+                checked={allowMultiple}
+                type="checkbox"
+                onChange={(event) => setAllowMultiple(event.target.checked)}
+              />
+              <span>允許多選</span>
+            </label>
             <div className="panel-heading">
               <h2>選項</h2>
               <button className="ghost-button icon-button" type="button" onClick={() => setOptions((current) => [...current, String.fromCharCode(65 + current.length)])}>

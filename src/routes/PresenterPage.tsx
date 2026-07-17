@@ -151,7 +151,7 @@ export function PresenterPage() {
     }
   }
 
-  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[]) {
+  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean) {
     setBusy(true)
     try {
       const supabase = requireSupabase()
@@ -173,7 +173,15 @@ export function PresenterPage() {
       }
       const { data: questionData } = await supabase
         .from('questions')
-        .insert({ session_id: sessionId, screenshot_id: screenshotId, type, status: 'active', title: questionTitle(type), options })
+        .insert({
+          session_id: sessionId,
+          screenshot_id: screenshotId,
+          type,
+          status: 'active',
+          title: questionTitle(type),
+          options,
+          allow_multiple: allowMultiple,
+        })
         .select('*')
         .single()
       await supabase.from('sessions').update({ current_question_id: questionData?.id }).eq('id', sessionId)
@@ -295,11 +303,11 @@ export function PresenterPage() {
     cropCapture(selectionRect)
   }
 
-  async function createScreenshotQuestion(type: QuestionType, options: string[]) {
+  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean) {
     if (!captureFile) return
 
     setEditorOpen(false)
-    await uploadQuestionScreenshot(captureFile, type, options)
+    await uploadQuestionScreenshot(captureFile, type, options, allowMultiple)
     setCaptureFile(null)
     setCapturePreviewUrl(null)
   }
@@ -319,11 +327,48 @@ export function PresenterPage() {
   }
 
   async function setCorrectAnswer(answer: string) {
-    if (!question) return
+    if (!question || question.status === 'active') return
     const supabase = requireSupabase()
-    await supabase.from('questions').update({ correct_answer: answer }).eq('id', question.id)
-    await supabase.from('answers').update({ is_correct: false }).eq('question_id', question.id)
-    await supabase.from('answers').update({ is_correct: true }).eq('question_id', question.id).eq('answer_value', answer)
+    const { data: latestQuestion } = await supabase
+      .from('questions')
+      .select('correct_answers')
+      .eq('id', question.id)
+      .single()
+    const currentCorrectAnswers = latestQuestion?.correct_answers || []
+    const correctAnswers = question.allow_multiple
+      ? currentCorrectAnswers.includes(answer)
+        ? currentCorrectAnswers.filter((option: string) => option !== answer)
+        : [...currentCorrectAnswers, answer]
+      : [answer]
+
+    await supabase
+      .from('questions')
+      .update({
+        correct_answer: question.allow_multiple ? null : answer,
+        correct_answers: correctAnswers,
+      })
+      .eq('id', question.id)
+
+    const { data: submittedAnswers } = await supabase
+      .from('answers')
+      .select('id, answer_value, answer_values')
+      .eq('question_id', question.id)
+    const expected = [...new Set(correctAnswers)].sort()
+
+    await Promise.all(
+      (submittedAnswers || []).map((submitted) => {
+        const values = submitted.answer_values?.length
+          ? submitted.answer_values
+          : submitted.answer_value
+            ? [submitted.answer_value]
+            : []
+        const actual = [...new Set(values)].sort()
+        const isCorrect = expected.length
+          ? actual.length === expected.length && actual.every((value, index) => value === expected[index])
+          : null
+        return supabase.from('answers').update({ is_correct: isCorrect }).eq('id', submitted.id)
+      }),
+    )
   }
 
   async function analyzeQuestion() {
