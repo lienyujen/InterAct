@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
 import { PresenterControlPanel } from '../components/PresenterControlPanel'
 import { QRCodePanel } from '../components/QRCodePanel'
 import { QuestionEditor } from '../components/QuestionEditor'
@@ -28,9 +29,14 @@ export function PresenterPage() {
   const [captureFile, setCaptureFile] = useState<File | null>(null)
   const [capturePreviewUrl, setCapturePreviewUrl] = useState<string | null>(null)
   const [captureSource, setCaptureSource] = useState<InterActCaptureSource | null>(null)
-  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null)
   const [selectionRect, setSelectionRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
   const [selectionMode, setSelectionMode] = useState(false)
+  const activeSelectionPointerId = useRef<number | null>(null)
+  const selectionStartRef = useRef<{ x: number; y: number } | null>(null)
+  const selectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
+  const qrTouchStartRef = useRef<{ pointerId: number; x: number; y: number; startedAt: number } | null>(null)
+  const lastQrTapRef = useRef<{ x: number; y: number; time: number } | null>(null)
+  const lastQrTouchToggleAt = useRef(0)
   const [busy, setBusy] = useState(false)
   const fallbackJoinUrl = useMemo(() => buildJoinUrl(session?.code || sessionId), [session?.code, sessionId])
   const [joinUrl, setJoinUrl] = useState(fallbackJoinUrl)
@@ -224,7 +230,9 @@ export function PresenterPage() {
     setCapturePreviewUrl(null)
     setCaptureFile(null)
     setSelectionRect(null)
-    setSelectionStart(null)
+    selectionStartRef.current = null
+    selectionRectRef.current = null
+    activeSelectionPointerId.current = null
     setSelectionMode(true)
     try {
       const source = await window.interactDesktop.startCaptureSelection()
@@ -270,38 +278,114 @@ export function PresenterPage() {
     setSelectionMode(false)
     setCaptureSource(null)
     setSelectionRect(null)
-    setSelectionStart(null)
+    selectionStartRef.current = null
+    selectionRectRef.current = null
+    activeSelectionPointerId.current = null
     setEditorOpen(true)
     await window.interactDesktop?.finishCaptureSelection(true)
   }
 
-  function beginSelection(x: number, y: number) {
-    setSelectionStart({ x, y })
-    setSelectionRect({ x, y, width: 0, height: 0 })
+  function selectionRectangle(start: { x: number; y: number }, x: number, y: number) {
+    return {
+      x: Math.min(start.x, x),
+      y: Math.min(start.y, y),
+      width: Math.abs(x - start.x),
+      height: Math.abs(y - start.y),
+    }
   }
 
-  function updateSelection(x: number, y: number) {
-    if (!selectionStart) return
+  function beginSelection(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!event.isPrimary || activeSelectionPointerId.current !== null) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
 
-    setSelectionRect({
-      x: Math.min(selectionStart.x, x),
-      y: Math.min(selectionStart.y, y),
-      width: Math.abs(x - selectionStart.x),
-      height: Math.abs(y - selectionStart.y),
-    })
+    event.preventDefault()
+    activeSelectionPointerId.current = event.pointerId
+    selectionStartRef.current = { x: event.clientX, y: event.clientY }
+    const rect = { x: event.clientX, y: event.clientY, width: 0, height: 0 }
+    selectionRectRef.current = rect
+    setSelectionRect(rect)
+    event.currentTarget.setPointerCapture(event.pointerId)
   }
 
-  function finishSelection() {
-    if (!selectionRect || selectionRect.width < 16 || selectionRect.height < 16) {
-      setSelectionMode(false)
-      setCaptureSource(null)
-      setSelectionRect(null)
-      setSelectionStart(null)
-      window.interactDesktop?.finishCaptureSelection(false)
+  function updateSelection(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = selectionStartRef.current
+    if (activeSelectionPointerId.current !== event.pointerId || !start) return
+
+    event.preventDefault()
+    const rect = selectionRectangle(start, event.clientX, event.clientY)
+    selectionRectRef.current = rect
+    setSelectionRect(rect)
+  }
+
+  function cancelSelection() {
+    activeSelectionPointerId.current = null
+    selectionStartRef.current = null
+    selectionRectRef.current = null
+    setSelectionMode(false)
+    setCaptureSource(null)
+    setSelectionRect(null)
+    window.interactDesktop?.finishCaptureSelection(false)
+  }
+
+  function finishSelection(event: ReactPointerEvent<HTMLDivElement>) {
+    const start = selectionStartRef.current
+    if (activeSelectionPointerId.current !== event.pointerId || !start) return
+
+    event.preventDefault()
+    const rect = selectionRectangle(start, event.clientX, event.clientY)
+    activeSelectionPointerId.current = null
+    selectionStartRef.current = null
+    selectionRectRef.current = rect
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    if (rect.width < 16 || rect.height < 16) {
+      cancelSelection()
       return
     }
 
-    cropCapture(selectionRect)
+    setSelectionRect(rect)
+    cropCapture(rect)
+  }
+
+  function beginQrTouch(event: ReactPointerEvent<HTMLElement>) {
+    if (!event.isPrimary || event.pointerType === 'mouse') return
+    if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
+    qrTouchStartRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      startedAt: Date.now(),
+    }
+  }
+
+  function finishQrTouch(event: ReactPointerEvent<HTMLElement>) {
+    const start = qrTouchStartRef.current
+    if (!start || start.pointerId !== event.pointerId) return
+    qrTouchStartRef.current = null
+
+    const now = Date.now()
+    const movement = Math.hypot(event.clientX - start.x, event.clientY - start.y)
+    if (movement > 18 || now - start.startedAt > 550) {
+      lastQrTapRef.current = null
+      return
+    }
+
+    const previous = lastQrTapRef.current
+    if (previous && now - previous.time <= 500 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 48) {
+      lastQrTapRef.current = null
+      lastQrTouchToggleAt.current = now
+      setControlsOpen((current) => !current)
+      return
+    }
+
+    lastQrTapRef.current = { x: event.clientX, y: event.clientY, time: now }
+  }
+
+  function toggleControlsWithMouse() {
+    if (Date.now() - lastQrTouchToggleAt.current < 700) return
+    setControlsOpen((current) => !current)
   }
 
   async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string) {
@@ -457,7 +541,15 @@ export function PresenterPage() {
   return (
     <main className={`presenter-page ${selectionMode ? 'selecting-capture' : ''}`}>
       {!selectionMode && (
-        <aside className="qr-floating" onDoubleClick={() => setControlsOpen((current) => !current)}>
+        <aside
+          className="qr-floating"
+          onDoubleClick={toggleControlsWithMouse}
+          onPointerCancel={(event) => {
+            if (qrTouchStartRef.current?.pointerId === event.pointerId) qrTouchStartRef.current = null
+          }}
+          onPointerDown={beginQrTouch}
+          onPointerUp={finishQrTouch}
+        >
           <QRCodePanel
             joinUrl={joinUrl}
             onClose={window.interactDesktop ? () => window.interactDesktop?.close() : undefined}
@@ -499,9 +591,15 @@ export function PresenterPage() {
       {selectionMode && (
         <div
           className="capture-selection-layer"
-          onMouseDown={(event) => beginSelection(event.clientX, event.clientY)}
-          onMouseMove={(event) => updateSelection(event.clientX, event.clientY)}
-          onMouseUp={finishSelection}
+          onLostPointerCapture={(event) => {
+            if (activeSelectionPointerId.current === event.pointerId) cancelSelection()
+          }}
+          onPointerCancel={(event) => {
+            if (activeSelectionPointerId.current === event.pointerId) cancelSelection()
+          }}
+          onPointerDown={beginSelection}
+          onPointerMove={updateSelection}
+          onPointerUp={finishSelection}
         >
           <p className="capture-selection-hint">拖曳框選要派送的畫面區域</p>
           {selectionRect && (

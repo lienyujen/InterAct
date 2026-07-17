@@ -1,11 +1,13 @@
 import { GripHorizontal, Minus, X } from 'lucide-react'
+import { useWindowDrag } from '../lib/useWindowDrag'
 
 export function DesktopWindowChrome() {
+  const dragHandlers = useWindowDrag()
   if (!window.interactDesktop) return null
 
   return (
     <header className="desktop-window-chrome">
-      <div className="desktop-drag-handle" title="拖曳視窗">
+      <div className="desktop-drag-handle" title="拖曳視窗" {...dragHandlers}>
         <GripHorizontal size={16} />
         <span>InterAct</span>
       </div>

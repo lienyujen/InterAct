@@ -12,6 +12,7 @@ let reportWindow = null
 let lastControlBounds = null
 let isQuitting = false
 let releaseTopmostTimer = null
+const windowDragState = new Map()
 
 function appUrl(hash) {
   return isDesktopDev ? `http://127.0.0.1:5173/#${hash}` : null
@@ -225,6 +226,37 @@ ipcMain.handle('window:close', () => app.quit())
 ipcMain.handle('window:open-session-report', (_event, sessionId) => {
   if (!sessionId) throw new Error('缺少場次資料。')
   createReportWindow(sessionId)
+})
+
+ipcMain.on('window:drag-start', (event, point) => {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  if (!window || !Number.isFinite(point?.screenX) || !Number.isFinite(point?.screenY)) return
+  windowDragState.set(window.id, {
+    pointerX: point.screenX,
+    pointerY: point.screenY,
+    bounds: window.getBounds(),
+  })
+})
+
+ipcMain.on('window:drag-move', (event, point) => {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  const drag = window ? windowDragState.get(window.id) : null
+  if (!window || !drag || !Number.isFinite(point?.screenX) || !Number.isFinite(point?.screenY)) return
+
+  const rawX = Math.round(drag.bounds.x + point.screenX - drag.pointerX)
+  const rawY = Math.round(drag.bounds.y + point.screenY - drag.pointerY)
+  const display = screen.getDisplayNearestPoint({ x: Math.round(point.screenX), y: Math.round(point.screenY) })
+  const workArea = display.workArea
+  const minimumVisible = 72
+  const x = clamp(rawX, workArea.x - drag.bounds.width + minimumVisible, workArea.x + workArea.width - minimumVisible)
+  const y = clamp(rawY, workArea.y, workArea.y + workArea.height - minimumVisible)
+  window.setPosition(x, y)
+  if (window === mainWindow) lastControlBounds = { ...drag.bounds, x, y }
+})
+
+ipcMain.on('window:drag-end', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  if (window) windowDragState.delete(window.id)
 })
 ipcMain.handle('capture:list', listCaptureSources)
 
