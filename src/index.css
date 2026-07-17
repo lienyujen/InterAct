@@ -451,6 +451,18 @@ h2 {
   background: #912018;
 }
 
+.control-toggle-row {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.control-toggle-row button {
+  font-size: 13px;
+  min-width: 0;
+  padding: 10px 6px;
+}
+
 .question-history {
   display: grid;
   gap: 10px;
@@ -726,6 +738,11 @@ h2 {
   gap: 10px;
 }
 
+.question-prompt-field {
+  display: grid;
+  gap: 7px;
+}
+
 .option-edit-row {
   display: grid;
   gap: 8px;
@@ -839,6 +856,54 @@ h2 {
   font-size: 18px;
   font-weight: 700;
   margin: 10px 0;
+}
+
+.exit-ticket-panel,
+.exit-ticket-form {
+  display: grid;
+  gap: 12px;
+}
+
+.exit-ticket-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.exit-ticket-heading span {
+  background: #eef5ff;
+  border-radius: 999px;
+  color: #0b4fc6;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 9px;
+}
+
+.exit-ticket-prompt {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.star-rating {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(5, 48px);
+  justify-content: center;
+}
+
+.star-rating button {
+  background: transparent;
+  border: 0;
+  color: #aab2c2;
+  min-height: 48px;
+  padding: 6px;
+}
+
+.star-rating button.selected {
+  color: #e8a317;
 }
 
 .session-report-page {

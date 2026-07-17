@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
+import { ExitTicketForm } from '../components/ExitTicketForm'
 import { SetupNotice } from '../components/SetupNotice'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { Answer, Participant, Question, Screenshot, Session } from '../types'
+import type { Answer, ExitTicket, Participant, Question, Screenshot, Session } from '../types'
 
 export function ParticipantPage() {
   const { sessionId = '' } = useParams()
@@ -14,6 +15,8 @@ export function ParticipantPage() {
   const [question, setQuestion] = useState<Question | null>(null)
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [screenshot, setScreenshot] = useState<Screenshot | null>(null)
+  const [exitTicket, setExitTicket] = useState<ExitTicket | null>(null)
+  const [exitTicketBusy, setExitTicketBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -21,13 +24,15 @@ export function ParticipantPage() {
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId || !participantId) return
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }] = await Promise.all([
+    const [{ data: sessionData }, { data: participantData }, { data: exitTicketData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('id', participantId).single(),
+      supabase.from('exit_tickets').select('*').eq('session_id', sessionId).eq('participant_id', participantId).maybeSingle(),
     ])
     const nextSession = sessionData as Session | null
     setSession(nextSession)
     setParticipant(participantData as Participant | null)
+    setExitTicket((exitTicketData as ExitTicket | null) || null)
 
     if (nextSession?.current_question_id) {
       const [{ data: questionData }, { data: answerData }] = await Promise.all([
@@ -42,6 +47,10 @@ export function ParticipantPage() {
         const { data } = await supabase.from('screenshots').select('*').eq('id', nextQuestion.screenshot_id).single()
         setScreenshot(data as Screenshot | null)
       }
+    } else {
+      setQuestion(null)
+      setAnswer(null)
+      setScreenshot(null)
     }
   }, [participantId, sessionId])
 
@@ -62,6 +71,7 @@ export function ParticipantPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `participant_id=eq.${participantId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `participant_id=eq.${participantId}` }, loadAll)
       .subscribe()
 
     return () => {
@@ -114,6 +124,33 @@ export function ParticipantPage() {
     }
   }
 
+  async function submitExitTicket(value: { responseText: string | null; rating: number | null }) {
+    if (!participant || !session?.exit_ticket_prompt) return
+    setExitTicketBusy(true)
+    setError('')
+    try {
+      const { data, error: insertError } = await requireSupabase()
+        .from('exit_tickets')
+        .insert({
+          session_id: sessionId,
+          participant_id: participant.id,
+          participant_name: participant.name,
+          response_text: value.responseText,
+          rating: value.rating,
+          understanding_score: session.exit_ticket_category === 'learning_assessment' ? value.rating : null,
+          engagement_score: null,
+        })
+        .select('*')
+        .single()
+      if (insertError) throw insertError
+      setExitTicket(data as ExitTicket)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Exit Ticket 送出失敗，可能已經提交過。')
+    } finally {
+      setExitTicketBusy(false)
+    }
+  }
+
   return (
     <main className="participant-page">
       <SetupNotice />
@@ -124,6 +161,16 @@ export function ParticipantPage() {
       </header>
       {screenshot && <img alt="講者派送圖片" className="participant-image" src={screenshot.public_url} />}
       <ParticipantQuestionView answer={answer} question={question} onSubmit={submitAnswer} />
+      {session?.exit_ticket_prompt && session.exit_ticket_category && session.exit_ticket_response_type && (
+        <ExitTicketForm
+          busy={exitTicketBusy}
+          category={session.exit_ticket_category}
+          prompt={session.exit_ticket_prompt}
+          responseType={session.exit_ticket_response_type}
+          ticket={exitTicket}
+          onSubmit={submitExitTicket}
+        />
+      )}
       <form className="panel message-form" onSubmit={sendMessage}>
         <label>
           送出問題或回饋

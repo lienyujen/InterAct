@@ -51,7 +51,7 @@ export function QuestionHistory({ questions, activeQuestionId, selectedQuestionI
               onClick={() => onSelect(question.id)}
             >
               <span>第 {number} 題</span>
-              <strong>{question.title}</strong>
+              <strong>{question.prompt_text || question.title}</strong>
               <small>{answerCounts[question.id] || 0} 份作答</small>
             </button>
           ))}

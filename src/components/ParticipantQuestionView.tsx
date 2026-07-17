@@ -27,7 +27,7 @@ export function ParticipantQuestionView({ question, answer, onSubmit }: Props) {
 
   return (
     <section className="panel participant-question">
-      <h2>{question.title || '互動題'}</h2>
+      <h2>{question.prompt_text || question.title || '互動題'}</h2>
       {question.status !== 'active' && <p className="muted">本題已結束。</p>}
       {answer && <p className="success">已送出答案：{answer.answer_values?.join('、') || answer.answer_value || answer.answer_text}</p>}
       {!answer && question.status === 'active' && question.type === 'short_answer' && (

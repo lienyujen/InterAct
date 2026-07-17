@@ -6,7 +6,7 @@ type Props = {
   open: boolean
   previewUrl: string | null
   onCancel: () => void
-  onCreate: (type: QuestionType, options: string[], allowMultiple: boolean) => void
+  onCreate: (type: QuestionType, options: string[], allowMultiple: boolean, promptText: string) => void
 }
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
@@ -21,12 +21,14 @@ export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) 
   const [type, setType] = useState<QuestionType>('multiple_choice')
   const [options, setOptions] = useState(['A', 'B', 'C', 'D'])
   const [allowMultiple, setAllowMultiple] = useState(false)
+  const [promptText, setPromptText] = useState('')
 
   useEffect(() => {
     if (!open) return
     setType('multiple_choice')
     setOptions(['A', 'B', 'C', 'D'])
     setAllowMultiple(false)
+    setPromptText('')
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -44,7 +46,7 @@ export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) 
         className="modal question-modal"
         onSubmit={(event) => {
           event.preventDefault()
-          onCreate(type, finalOptions, editableOptions && allowMultiple)
+          onCreate(type, finalOptions, editableOptions && allowMultiple, type === 'send_screen' ? '' : promptText.trim())
         }}
       >
         <h2>截圖派題</h2>
@@ -100,8 +102,16 @@ export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) 
             ))}
           </div>
         )}
-        {type === 'true_false' && <p className="muted">是非題會使用「是 / 否」。</p>}
-        {type === 'short_answer' && <p className="muted">問答題不需要選項，與會者會輸入文字回答。</p>}
+        {type !== 'send_screen' && (
+          <label className="question-prompt-field">
+            題目（選填）
+            <input
+              value={promptText}
+              placeholder="未輸入則以AI判讀題目"
+              onChange={(event) => setPromptText(event.target.value)}
+            />
+          </label>
+        )}
         <div className="modal-actions">
           <button className="ghost-button" type="button" onClick={onCancel}>
             取消

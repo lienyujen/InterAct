@@ -168,8 +168,8 @@ export function QuestionResult(props: Props) {
           <h2>{question.title}</h2>
           <span className={`status ${question.status}`}>{question.status}</span>
         </div>
-        {analysis?.question_understanding.detected_question && (
-          <p className="detected-question">{analysis.question_understanding.detected_question}</p>
+        {(analysis?.question_understanding.detected_question || question.prompt_text) && (
+          <p className="detected-question">{analysis?.question_understanding.detected_question || question.prompt_text}</p>
         )}
         <p className="muted">已作答 {answers.length} 人</p>
         <div className="option-results">

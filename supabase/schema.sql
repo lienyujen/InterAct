@@ -9,6 +9,9 @@ create table if not exists public.sessions (
   anonymous_enabled boolean not null default true,
   current_question_id uuid null,
   short_join_url text null,
+  exit_ticket_prompt text null,
+  exit_ticket_category text null check (exit_ticket_category in ('lesson_summary', 'learning_assessment', 'course_satisfaction', 'student_question')),
+  exit_ticket_response_type text null check (exit_ticket_response_type in ('text', 'rating')),
   created_at timestamptz not null default now(),
   ended_at timestamptz null
 );
@@ -57,6 +60,7 @@ create table if not exists public.questions (
   type text not null check (type in ('send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer')),
   status text not null default 'active' check (status in ('draft', 'active', 'stopped', 'closed')),
   title text not null default '',
+  prompt_text text null,
   options jsonb not null default '[]'::jsonb,
   allow_multiple boolean not null default false,
   correct_answer text null,
@@ -103,9 +107,11 @@ create table if not exists public.exit_tickets (
   participant_name text not null,
   most_useful text not null default '',
   still_confused text not null default '',
-  understanding_score int not null check (understanding_score between 1 and 5),
-  engagement_score int not null check (engagement_score between 1 and 5),
+  understanding_score int null check (understanding_score between 1 and 5),
+  engagement_score int null check (engagement_score between 1 and 5),
   next_suggestion text not null default '',
+  response_text text null,
+  rating int null check (rating between 1 and 5),
   submitted_at timestamptz not null default now(),
   unique (session_id, participant_id)
 );

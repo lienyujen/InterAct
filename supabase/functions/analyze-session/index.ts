@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
       supabase.from('answers').select('question_id, participant_id, answer_value, answer_values, answer_text, is_correct').eq('session_id', sessionId).order('submitted_at').limit(10000),
       supabase.from('ai_summaries').select('question_id, output_json').eq('session_id', sessionId).eq('type', 'question_analysis').eq('status', 'success').order('created_at').limit(500),
-      supabase.from('exit_tickets').select('most_useful, still_confused, understanding_score, engagement_score, next_suggestion').eq('session_id', sessionId).order('submitted_at').limit(5000),
+      supabase.from('exit_tickets').select('most_useful, still_confused, understanding_score, engagement_score, next_suggestion, response_text, rating').eq('session_id', sessionId).order('submitted_at').limit(5000),
     ])
 
     for (const result of [participantResult, messageResult, questionResult, answerResult, questionAnalysisResult, exitTicketResult]) {
@@ -159,6 +159,7 @@ Deno.serve(async (req) => {
         question_id: question.id,
         type: question.type,
         title: question.title,
+        prompt_text: question.prompt_text,
         options: question.options,
         allow_multiple: question.allow_multiple,
         correct_answer: question.correct_answer,
@@ -188,7 +189,13 @@ Deno.serve(async (req) => {
     }
 
     summaryInput = {
-      session: { title: session.title, created_at: session.created_at, ended_at: endedAt },
+      session: {
+        title: session.title,
+        created_at: session.created_at,
+        ended_at: endedAt,
+        exit_ticket_prompt: session.exit_ticket_prompt,
+        exit_ticket_category: session.exit_ticket_category,
+      },
       metrics,
       question_results: questionResults,
       danmaku_content_sample: messages.slice(-500).map((message, index) => ({ number: index + 1, content: message.content })),

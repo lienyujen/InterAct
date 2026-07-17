@@ -18,6 +18,13 @@ const questionTypeLabels = {
   short_answer: '問答題',
 }
 
+const exitTicketCategoryLabels = {
+  lesson_summary: '課程總結',
+  learning_assessment: '學習程度評估',
+  course_satisfaction: '課程回饋',
+  student_question: '提出疑問',
+}
+
 function formatDate(value: string | null) {
   return value ? new Date(value) : null
 }
@@ -199,7 +206,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     questions.addRow({
       number: index + 1,
       type: questionTypeLabels[question.type],
-      title: questionAnalysis?.question_understanding.detected_question || question.title,
+      title: questionAnalysis?.question_understanding.detected_question || question.prompt_text || question.title,
       status: question.status,
       options: question.options.join('、'),
       correctAnswer: question.correct_answers?.length ? question.correct_answers.join('、') : question.correct_answer || '',
@@ -263,21 +270,26 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
   const exitTickets = workbook.addWorksheet('Exit Ticket')
   exitTickets.columns = [
     { header: '姓名', key: 'participantName', width: 20 },
-    { header: '最有幫助', key: 'mostUseful', width: 45 },
-    { header: '仍感困惑', key: 'stillConfused', width: 45 },
-    { header: '理解分數', key: 'understandingScore', width: 14 },
-    { header: '參與分數', key: 'engagementScore', width: 14 },
-    { header: '下次建議', key: 'nextSuggestion', width: 45 },
+    { header: '類型', key: 'category', width: 18 },
+    { header: '題目', key: 'prompt', width: 55 },
+    { header: '回答', key: 'response', width: 55 },
+    { header: '星等', key: 'rating', width: 12 },
     { header: '送出時間', key: 'submittedAt', width: 22 },
   ]
   for (const ticket of data.exitTickets) {
+    const legacyResponse = [
+      ticket.most_useful,
+      ticket.still_confused,
+      ticket.next_suggestion,
+    ].filter(Boolean).join('\n')
     exitTickets.addRow({
       participantName: ticket.participant_name,
-      mostUseful: ticket.most_useful,
-      stillConfused: ticket.still_confused,
-      understandingScore: ticket.understanding_score,
-      engagementScore: ticket.engagement_score,
-      nextSuggestion: ticket.next_suggestion,
+      category: data.session.exit_ticket_category
+        ? exitTicketCategoryLabels[data.session.exit_ticket_category]
+        : '舊版綜合回饋',
+      prompt: data.session.exit_ticket_prompt || '舊版 Exit Ticket',
+      response: ticket.response_text || legacyResponse,
+      rating: ticket.rating || ticket.understanding_score || '',
       submittedAt: formatDate(ticket.submitted_at),
     })
   }

@@ -7,6 +7,9 @@ export type Session = {
   anonymous_enabled: boolean
   current_question_id: string | null
   short_join_url: string | null
+  exit_ticket_prompt: string | null
+  exit_ticket_category: ExitTicketCategory | null
+  exit_ticket_response_type: ExitTicketResponseType | null
   created_at: string
   ended_at: string | null
 }
@@ -42,6 +45,8 @@ export type Screenshot = {
 }
 
 export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer'
+export type ExitTicketCategory = 'lesson_summary' | 'learning_assessment' | 'course_satisfaction' | 'student_question'
+export type ExitTicketResponseType = 'text' | 'rating'
 
 export type Question = {
   id: string
@@ -50,6 +55,7 @@ export type Question = {
   type: QuestionType
   status: 'draft' | 'active' | 'stopped' | 'closed'
   title: string
+  prompt_text: string | null
   options: string[]
   allow_multiple: boolean
   correct_answer: string | null
@@ -157,9 +163,11 @@ export type ExitTicket = {
   participant_name: string
   most_useful: string
   still_confused: string
-  understanding_score: number
-  engagement_score: number
+  understanding_score: number | null
+  engagement_score: number | null
   next_suggestion: string
+  response_text: string | null
+  rating: number | null
   submitted_at: string
 }
 

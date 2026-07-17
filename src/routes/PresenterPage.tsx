@@ -151,7 +151,7 @@ export function PresenterPage() {
     }
   }
 
-  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean) {
+  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean, promptText: string) {
     setBusy(true)
     try {
       const supabase = requireSupabase()
@@ -179,6 +179,7 @@ export function PresenterPage() {
           type,
           status: 'active',
           title: questionTitle(type),
+          prompt_text: promptText || null,
           options,
           allow_multiple: allowMultiple,
         })
@@ -303,11 +304,11 @@ export function PresenterPage() {
     cropCapture(selectionRect)
   }
 
-  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean) {
+  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string) {
     if (!captureFile) return
 
     setEditorOpen(false)
-    await uploadQuestionScreenshot(captureFile, type, options, allowMultiple)
+    await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText)
     setCaptureFile(null)
     setCapturePreviewUrl(null)
   }
@@ -395,6 +396,30 @@ export function PresenterPage() {
     }
   }
 
+  async function generateExitTicket() {
+    if (session?.exit_ticket_prompt) return
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setAnalysisError('這個舊場次沒有講者 AI 權限，請建立新場次後再試。')
+      return
+    }
+
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('generate-exit-ticket', {
+        body: { sessionId, presenterToken },
+      })
+      if (error) throw error
+      if (!data?.prompt) throw new Error(data?.message || 'AI 沒有產生 Exit Ticket。')
+      await loadAll()
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : 'Exit Ticket 產生失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function endClass() {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
@@ -450,6 +475,7 @@ export function PresenterPage() {
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
+          onGenerateExitTicket={generateExitTicket}
           onEndClass={endClass}
         />
         <QuestionHistory

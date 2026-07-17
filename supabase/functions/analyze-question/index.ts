@@ -124,6 +124,7 @@ Deno.serve(async (req) => {
 
     summaryInput = {
       question_type: question.type,
+      presenter_question: question.prompt_text,
       options: question.options,
       allow_multiple: question.allow_multiple,
       correct_answers: question.correct_answers,
@@ -152,7 +153,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         systemInstruction: {
           parts: [{
-            text: '你是 InterAct 的課堂形成性評量分析助理。請以繁體中文分析截圖中的題目與匿名化群體作答。detected_question 必須為每種題型提供可直接顯示的題目：截圖有明確題幹時忠實轉寫或精簡；沒有明顯題幹時，依畫面脈絡與選項產生中立、不誘導且不暗示正解的題目。除這項中立題目補全外，不可臆測看不清楚的事實。選擇題與是非題只能提出建議答案，最後決定權屬於講者。投票題不判定對錯。簡答題分析理解、證據、常見誤解與可立即採取的教學行動。',
+            text: '你是 InterAct 的課堂形成性評量分析助理。請以繁體中文分析截圖中的題目與匿名化群體作答。若 presenter_question 有內容，detected_question 應優先忠實使用該題目；若為空，截圖有明確題幹時忠實轉寫或精簡，沒有明顯題幹時依畫面脈絡與選項產生中立、不誘導且不暗示正解的題目。無論是否有 presenter_question，都必須繼續根據截圖、選項及實際作答行為分析理解、證據、常見誤解與教學行動，不可只依題目文字推測。選擇題與是非題只能提出建議答案，最後決定權屬於講者。投票題不判定對錯。',
           }],
         },
         contents: [{
