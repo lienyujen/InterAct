@@ -24,7 +24,7 @@ export function DesktopOverlayPage() {
   const loadOverlay = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId) return
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: messageData }, { data: lotteryData }] = await Promise.all([
+    const [{ data: sessionData }, { data: messageData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase
         .from('messages')
@@ -32,19 +32,9 @@ export function DesktopOverlayPage() {
         .eq('session_id', sessionId)
         .gte('created_at', messageCutoffRef.current)
         .order('created_at'),
-      supabase
-        .from('session_events')
-        .select('*')
-        .eq('session_id', sessionId)
-        .eq('event_type', 'lottery')
-        .gte('created_at', new Date(Date.now() - 10_000).toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
     ])
     setSession(sessionData as Session | null)
     mergeMessages((messageData || []) as Message[])
-    setLotteryEvent((lotteryData as SessionEvent | null) || null)
   }, [mergeMessages, sessionId])
 
   useEffect(() => {
