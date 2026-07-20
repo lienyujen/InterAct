@@ -722,11 +722,8 @@ export function PresenterPage() {
         <QuestionHistory
           activeQuestionId={session.current_question_id}
           answerCounts={answerCounts}
-          busy={busy}
-          onlineCount={onlineParticipants.length}
           questions={questions}
           selectedQuestionId={selectedQuestionId}
-          onDrawUnanswered={drawUnanswered}
           onSelect={selectQuestion}
         />
         <QuestionResult
@@ -734,8 +731,12 @@ export function PresenterPage() {
           analysisBusy={analysisBusy}
           analysisError={analysisError}
           answers={answers}
+          busy={busy}
+          isCurrentQuestion={question?.id === session.current_question_id}
+          onlineCount={onlineParticipants.length}
           question={question}
           onAnalyze={analyzeQuestion}
+          onDrawUnanswered={drawUnanswered}
           onSetCorrectAnswer={setCorrectAnswer}
         />
         {session.exit_ticket_prompt && session.exit_ticket_category && (
