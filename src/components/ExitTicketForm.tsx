@@ -29,7 +29,7 @@ export function ExitTicketForm({ prompt, category, ticket, busy, onSubmit }: Pro
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (rating && responseText.trim()) onSubmit({ responseText: responseText.trim(), rating })
+    if (rating) onSubmit({ responseText: responseText.trim(), rating })
   }
 
   return (
@@ -66,14 +66,14 @@ export function ExitTicketForm({ prompt, category, ticket, busy, onSubmit }: Pro
             </div>
           </fieldset>
           <label className="exit-ticket-question">
-            <span className="exit-ticket-question-title"><b>必答 2</b>{prompt}</span>
+            <span className="exit-ticket-question-title"><b>選填 2</b>{prompt}</span>
             <textarea
               value={responseText}
-              placeholder="請輸入你的回答、建議或回饋"
+              placeholder="選填：可輸入你的回答、建議或回饋"
               onChange={(event) => setResponseText(event.target.value)}
             />
           </label>
-          <button disabled={busy || !rating || !responseText.trim()} type="submit">
+          <button disabled={busy || !rating} type="submit">
             {busy ? '送出中...' : '送出 Exit Ticket'}
           </button>
         </form>
