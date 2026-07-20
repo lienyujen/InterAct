@@ -545,34 +545,73 @@ export function PresenterPage() {
   }
 
   async function drawLottery() {
-    if (!onlineParticipants.length) return
-    const presenterToken = getPresenterToken(sessionId)
-    if (!presenterToken) {
-      setAnalysisError('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+    await runLottery(onlineParticipants.map((participant) => participant.id), '目前沒有在線學生。')
+  }
+
+  async function drawUnanswered(questionId: string) {
+    if (!onlineParticipants.length) {
+      setAnalysisError('目前沒有在線學生。')
       return
     }
 
     setBusy(true)
     setAnalysisError('')
     try {
-      const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
-        body: {
-          action: 'draw_lottery',
-          sessionId,
-          presenterToken,
-          candidateIds: onlineParticipants.map((participant) => participant.id),
-        },
-      })
+      const { data, error } = await requireSupabase()
+        .from('answers')
+        .select('participant_id')
+        .eq('session_id', sessionId)
+        .eq('question_id', questionId)
       if (error) throw error
-      if (!data?.event) throw new Error(data?.message || '抽籤沒有回傳結果。')
-      const nextEvent = data.event as SessionEvent
-      setLotteryEvent(nextEvent)
-      await window.interactDesktop?.showLottery(nextEvent)
+
+      const answeredParticipantIds = new Set((data || []).map((answer) => answer.participant_id))
+      const unansweredIds = onlineParticipants
+        .filter((participant) => !answeredParticipantIds.has(participant.id))
+        .map((participant) => participant.id)
+
+      if (!unansweredIds.length) {
+        setAnalysisError('目前在線學生皆已作答此題。')
+        return
+      }
+      await invokeLottery(unansweredIds)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '未作答學生抽選失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runLottery(candidateIds: string[], emptyMessage: string) {
+    if (!candidateIds.length) {
+      setAnalysisError(emptyMessage)
+      return
+    }
+
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      await invokeLottery(candidateIds)
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : '抽籤失敗。')
     } finally {
       setBusy(false)
     }
+  }
+
+  async function invokeLottery(candidateIds: string[]) {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      throw new Error('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+    }
+
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'draw_lottery', sessionId, presenterToken, candidateIds },
+    })
+    if (error) throw error
+    if (!data?.event) throw new Error(data?.message || '抽籤沒有回傳結果。')
+    const nextEvent = data.event as SessionEvent
+    setLotteryEvent(nextEvent)
+    await window.interactDesktop?.showLottery(nextEvent)
   }
 
   async function selectLotteryCandidate(winnerId: string) {
@@ -683,8 +722,11 @@ export function PresenterPage() {
         <QuestionHistory
           activeQuestionId={session.current_question_id}
           answerCounts={answerCounts}
+          busy={busy}
+          onlineCount={onlineParticipants.length}
           questions={questions}
           selectedQuestionId={selectedQuestionId}
+          onDrawUnanswered={drawUnanswered}
           onSelect={selectQuestion}
         />
         <QuestionResult
