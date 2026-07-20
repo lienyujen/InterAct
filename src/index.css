@@ -657,12 +657,13 @@ h2 {
   font-size: 24px;
   font-weight: 700;
   left: 100%;
-  max-width: 680px;
-  overflow: hidden;
+  max-width: none;
+  overflow: visible;
   padding: 8px 14px;
   position: absolute;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
+  width: max-content;
 }
 
 @keyframes danmaku-move {
@@ -670,7 +671,7 @@ h2 {
     transform: translateX(0);
   }
   to {
-    transform: translateX(calc(-100vw - 760px));
+    transform: translateX(calc(-100vw - 100%));
   }
 }
 
