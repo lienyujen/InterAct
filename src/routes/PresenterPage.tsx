@@ -9,6 +9,7 @@ import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
 import { SetupNotice } from '../components/SetupNotice'
 import { TextDispatchModal } from '../components/TextDispatchModal'
+import { finalizeLottery } from '../lib/lottery'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
@@ -156,12 +157,26 @@ export function PresenterPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `session_id=eq.${sessionId}` }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
+        const event = payload.new as SessionEvent
+        if (event.event_type === 'lottery') setLotteryEvent(event)
+      })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
   }, [loadAll, sessionId])
+
+  useEffect(() => {
+    if (!lotteryEvent || lotteryEvent.payload.finalized !== false) return
+    const timer = window.setTimeout(() => {
+      void finalizeLottery(sessionId, lotteryEvent.id, lotteryEvent.payload.winner_id)
+        .then(setLotteryEvent)
+        .catch((error) => setAnalysisError(error instanceof Error ? error.message : '抽籤停止失敗。'))
+    }, lotteryEvent.payload.duration_ms)
+    return () => window.clearTimeout(timer)
+  }, [lotteryEvent, sessionId])
 
   async function updateSession(values: Partial<Session>) {
     if (!session) return
@@ -550,11 +565,23 @@ export function PresenterPage() {
       })
       if (error) throw error
       if (!data?.event) throw new Error(data?.message || '抽籤沒有回傳結果。')
-      setLotteryEvent(data.event as SessionEvent)
+      const nextEvent = data.event as SessionEvent
+      setLotteryEvent(nextEvent)
+      await window.interactDesktop?.showLottery(nextEvent)
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : '抽籤失敗。')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function selectLotteryCandidate(winnerId: string) {
+    if (!lotteryEvent) return
+    try {
+      setLotteryEvent(await finalizeLottery(sessionId, lotteryEvent.id, winnerId))
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '抽籤停止失敗。')
+      throw error
     }
   }
 
@@ -714,7 +741,7 @@ export function PresenterPage() {
         onCancel={() => setTextDispatchOpen(false)}
         onSend={sendSharedContent}
       />
-      {!window.interactDesktop && <LotteryOverlay event={lotteryEvent} />}
+      {!window.interactDesktop && <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />}
     </main>
   )
 }

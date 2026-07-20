@@ -62,13 +62,15 @@ export type LotteryPayload = {
   winner_name: string
   candidate_count: number
   candidate_names: string[]
+  candidate_ids?: string[]
   duration_ms: number
+  finalized?: boolean
 }
 
 export type SessionEvent = {
   id: string
   session_id: string
-  event_type: 'lottery'
+  event_type: 'lottery' | 'lottery_result'
   payload: LotteryPayload
   created_at: string
 }

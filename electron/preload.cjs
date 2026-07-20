@@ -5,6 +5,14 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   platform: process.platform,
   enterPresenterMode: (sessionId) => ipcRenderer.invoke('window:presenter-mode', sessionId),
   setPresenterExpanded: (expanded) => ipcRenderer.invoke('window:set-expanded', expanded),
+  setLotteryInteraction: (enabled) => ipcRenderer.invoke('lottery:set-interactive', enabled),
+  showLottery: (event) => ipcRenderer.invoke('lottery:show', event),
+  getLatestLottery: () => ipcRenderer.invoke('lottery:get-latest'),
+  onLottery: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('lottery:event', listener)
+    return () => ipcRenderer.removeListener('lottery:event', listener)
+  },
   openSessionReport: (sessionId) => ipcRenderer.invoke('window:open-session-report', sessionId),
   openWordCloud: (sessionId) => ipcRenderer.invoke('window:open-word-cloud', sessionId),
   startWindowDrag: (screenX, screenY) => ipcRenderer.send('window:drag-start', { screenX, screenY }),

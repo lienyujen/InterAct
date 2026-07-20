@@ -103,14 +103,17 @@ Deno.serve(async (req) => {
       const winner = eligible[randomIndex(eligible.length)]
       const animationPool = shuffled(candidates).slice(0, 39)
       if (!animationPool.some((participant) => participant.id === winner.id)) animationPool.push(winner)
+      const orderedPool = shuffled(animationPool)
 
       const payload = {
         round,
         winner_id: winner.id,
         winner_name: winner.name,
         candidate_count: candidates.length,
-        candidate_names: shuffled(animationPool).map((participant) => participant.name),
-        duration_ms: 3200,
+        candidate_names: orderedPool.map((participant) => participant.name),
+        candidate_ids: orderedPool.map((participant) => participant.id),
+        duration_ms: 6000,
+        finalized: false,
       }
       const { data: event, error: insertError } = await supabase
         .from('session_events')
@@ -118,6 +121,58 @@ Deno.serve(async (req) => {
         .select('*')
         .single()
       if (insertError) throw insertError
+      return jsonResponse({ event })
+    }
+
+    if (action === 'select_lottery_winner') {
+      const eventId = typeof input.eventId === 'string' ? input.eventId : ''
+      const winnerId = typeof input.winnerId === 'string' ? input.winnerId : ''
+      if (!eventId || !winnerId) return jsonResponse({ message: '缺少抽籤結果資料。' }, 400)
+
+      const { data: currentEvent, error: eventError } = await supabase
+        .from('session_events')
+        .select('*')
+        .eq('id', eventId)
+        .eq('session_id', sessionId)
+        .eq('event_type', 'lottery')
+        .maybeSingle()
+      if (eventError) throw eventError
+      if (!currentEvent) return jsonResponse({ message: '找不到這次抽籤。' }, 404)
+      if (currentEvent.payload?.finalized) return jsonResponse({ event: currentEvent })
+
+      const candidateIds = Array.isArray(currentEvent.payload?.candidate_ids)
+        ? currentEvent.payload.candidate_ids.filter((id: unknown) => typeof id === 'string')
+        : [currentEvent.payload?.winner_id].filter((id: unknown) => typeof id === 'string')
+      if (!candidateIds.includes(winnerId)) return jsonResponse({ message: '這位學員不在本次抽籤名單中。' }, 400)
+
+      const { data: winner, error: winnerError } = await supabase
+        .from('participants')
+        .select('id, name')
+        .eq('id', winnerId)
+        .eq('session_id', sessionId)
+        .maybeSingle()
+      if (winnerError) throw winnerError
+      if (!winner) return jsonResponse({ message: '找不到抽中的學員。' }, 404)
+
+      const payload = {
+        ...currentEvent.payload,
+        winner_id: winner.id,
+        winner_name: winner.name,
+        finalized: true,
+      }
+      const { data: event, error: updateError } = await supabase
+        .from('session_events')
+        .update({ payload })
+        .eq('id', currentEvent.id)
+        .select('*')
+        .single()
+      if (updateError) throw updateError
+
+      const { error: resultEventError } = await supabase
+        .from('session_events')
+        .insert({ session_id: sessionId, event_type: 'lottery_result', payload })
+      if (resultEventError) throw resultEventError
+
       return jsonResponse({ event })
     }
 

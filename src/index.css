@@ -298,6 +298,26 @@ h2 {
   width: 184px;
 }
 
+.desktop-shell .presenter-page.controls-open .qr-floating {
+  width: 100%;
+}
+
+.desktop-shell .presenter-page.controls-open .qr-panel {
+  justify-items: center;
+  width: 100%;
+}
+
+.desktop-shell .presenter-page.controls-open .qr-panel .panel-heading {
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+.desktop-shell .presenter-page.controls-open .qr-window-actions {
+  position: absolute;
+  right: 0;
+}
+
 .desktop-shell .presenter-controls-overlay {
   max-height: none;
   position: static;
@@ -370,8 +390,22 @@ h2 {
   touch-action: manipulation;
 }
 
+.presenter-page.controls-open .qr-floating {
+  width: 360px;
+}
+
+.presenter-page.controls-open .qr-panel {
+  justify-items: center;
+  width: 100%;
+}
+
+.presenter-page.controls-open .qr-panel .panel-heading {
+  justify-content: center;
+  width: 100%;
+}
+
 .qr-floating .qr-panel {
-  gap: 4px;
+  gap: 0;
   padding: 5px;
 }
 
@@ -1124,6 +1158,22 @@ h2 {
   gap: 7px;
 }
 
+.shared-content-heading {
+  justify-content: space-between;
+}
+
+.shared-content-heading > div {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.shared-content-toggle {
+  font-size: 13px;
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
 .text-dispatch-modal {
   max-width: 620px;
 }
@@ -1158,6 +1208,15 @@ h2 {
   gap: 8px;
 }
 
+.shared-content-time {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 5px;
+  margin-left: auto;
+}
+
 .lottery-overlay {
   align-items: center;
   background: rgb(5 11 24 / 88%);
@@ -1169,6 +1228,10 @@ h2 {
   pointer-events: none;
   position: fixed;
   z-index: 200;
+}
+
+.lottery-overlay.interactive {
+  pointer-events: auto;
 }
 
 .lottery-content {
@@ -1197,6 +1260,24 @@ h2 {
   line-height: 1.05;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+.lottery-name-button {
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1.05;
+  max-width: 90vw;
+  min-height: 0;
+  overflow-wrap: anywhere;
+  padding: 8px 18px;
+}
+
+.lottery-name-button:hover,
+.lottery-name-button:focus-visible {
+  background: rgb(255 255 255 / 10%);
 }
 
 .lottery-content small {

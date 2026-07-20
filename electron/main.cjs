@@ -2,7 +2,7 @@ const { app, BrowserWindow, desktopCapturer, ipcMain, screen } = require('electr
 const path = require('node:path')
 
 const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
-const CONTROL_COLLAPSED = { width: 194, height: 250 }
+const CONTROL_COLLAPSED = { width: 194, height: 242 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
 const WINDOW_MARGIN = 12
 
@@ -13,6 +13,7 @@ let wordCloudWindow = null
 let lastControlBounds = null
 let isQuitting = false
 let releaseTopmostTimer = null
+let latestLotteryEvent = null
 const windowDragState = new Map()
 
 function appUrl(hash) {
@@ -32,7 +33,7 @@ function createWindow() {
     width: 540,
     height: 680,
     minWidth: 194,
-    minHeight: 250,
+    minHeight: 242,
     frame: false,
     transparent: true,
     resizable: false,
@@ -88,13 +89,14 @@ function bringControlToFront() {
 
 function createOverlayWindow(sessionId) {
   overlayWindow?.close()
+  latestLotteryEvent = null
 
   overlayWindow = new BrowserWindow({
     fullscreen: true,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    focusable: false,
+    focusable: true,
     hasShadow: false,
     skipTaskbar: true,
     show: false,
@@ -102,6 +104,7 @@ function createOverlayWindow(sessionId) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   })
 
@@ -261,6 +264,28 @@ ipcMain.handle('window:presenter-mode', (_event, sessionId) => {
 ipcMain.handle('window:set-expanded', (_event, expanded) => {
   setControlBounds(Boolean(expanded))
 })
+
+ipcMain.handle('lottery:set-interactive', (_event, enabled) => {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return
+  const interactive = Boolean(enabled)
+  overlayWindow.setFocusable(interactive)
+  overlayWindow.setIgnoreMouseEvents(!interactive)
+  if (interactive) {
+    overlayWindow.show()
+    overlayWindow.focus()
+  } else {
+    setTimeout(bringControlToFront, 60)
+  }
+})
+
+ipcMain.handle('lottery:show', (_event, lotteryEvent) => {
+  if (!overlayWindow || overlayWindow.isDestroyed() || !lotteryEvent?.id) return
+  latestLotteryEvent = lotteryEvent
+  overlayWindow.webContents.send('lottery:event', lotteryEvent)
+  overlayWindow.webContents.reload()
+})
+
+ipcMain.handle('lottery:get-latest', () => latestLotteryEvent)
 
 ipcMain.handle('window:minimize', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize()

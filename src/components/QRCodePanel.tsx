@@ -35,7 +35,7 @@ export function QRCodePanel({ joinUrl, onClose, onMinimize }: Props) {
         )}
       </div>
       <div className="qr-box">
-        <QRCodeSVG marginSize={4} value={joinUrl} size={172} />
+        <QRCodeSVG marginSize={2} value={joinUrl} size={172} />
       </div>
       <p className="join-url" title={joinUrl}>{joinUrl}</p>
     </section>

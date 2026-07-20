@@ -81,9 +81,14 @@ export function ParticipantPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `participant_id=eq.${participantId}` }, loadAll)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shared_contents', filter: `session_id=eq.${sessionId}` }, loadAll)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
         const event = payload.new as SessionEvent
-        if (event.event_type === 'lottery' && event.payload.winner_id === participantId) setLotteryEvent(event)
+        if (event.event_type !== 'lottery' && event.event_type !== 'lottery_result') return
+        if (event.payload.finalized !== false && event.payload.winner_id === participantId) {
+          setLotteryEvent(event)
+        } else {
+          setLotteryEvent((current) => current?.id === event.id ? null : current)
+        }
       })
       .subscribe()
 
@@ -94,7 +99,7 @@ export function ParticipantPage() {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault()
-    const content = message.trim()
+    const content = Array.from(message.trim()).slice(0, 36).join('')
     if (!participant || !content) return
     setError('')
     try {
@@ -189,8 +194,9 @@ export function ParticipantPage() {
           送出問題或回饋
           <textarea
             value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="送出後這則訊息會即時出現在講者的畫面上"
+            maxLength={36}
+            onChange={(event) => setMessage(Array.from(event.target.value).slice(0, 36).join(''))}
+            placeholder="送出後這訊息會即時出現在講者的畫面上，上限36個字"
           />
         </label>
         {error && <p className="error">{error}</p>}
