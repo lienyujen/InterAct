@@ -2,13 +2,14 @@ const { app, BrowserWindow, desktopCapturer, ipcMain, screen } = require('electr
 const path = require('node:path')
 
 const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
-const CONTROL_COLLAPSED = { width: 300, height: 276 }
+const CONTROL_COLLAPSED = { width: 194, height: 250 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
 const WINDOW_MARGIN = 12
 
 let mainWindow = null
 let overlayWindow = null
 let reportWindow = null
+let wordCloudWindow = null
 let lastControlBounds = null
 let isQuitting = false
 let releaseTopmostTimer = null
@@ -30,8 +31,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 540,
     height: 680,
-    minWidth: 300,
-    minHeight: 276,
+    minWidth: 194,
+    minHeight: 250,
     frame: false,
     transparent: true,
     resizable: false,
@@ -65,6 +66,8 @@ function createWindow() {
     mainWindow = null
     overlayWindow?.close()
     overlayWindow = null
+    wordCloudWindow?.close()
+    wordCloudWindow = null
   })
 }
 
@@ -160,6 +163,46 @@ function createReportWindow(sessionId) {
   })
 }
 
+function createWordCloudWindow(sessionId) {
+  if (wordCloudWindow && !wordCloudWindow.isDestroyed()) {
+    if (wordCloudWindow.isMinimized()) wordCloudWindow.restore()
+    wordCloudWindow.show()
+    wordCloudWindow.moveTop()
+    wordCloudWindow.focus()
+    return
+  }
+
+  const targetDisplay = displayForBounds(mainWindow?.getBounds())
+  const width = Math.min(1180, Math.max(860, targetDisplay.workArea.width - 120))
+  const height = Math.min(780, Math.max(600, targetDisplay.workArea.height - 120))
+  wordCloudWindow = new BrowserWindow({
+    width,
+    height,
+    minWidth: 760,
+    minHeight: 520,
+    frame: false,
+    show: false,
+    resizable: true,
+    maximizable: true,
+    backgroundColor: '#0b1020',
+    title: 'InterAct 彈幕文字雲',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+  })
+
+  loadAppRoute(wordCloudWindow, `/word-cloud/${sessionId}`)
+  wordCloudWindow.once('ready-to-show', () => {
+    wordCloudWindow?.show()
+    wordCloudWindow?.focus()
+  })
+  wordCloudWindow.on('closed', () => {
+    wordCloudWindow = null
+  })
+}
+
 function displayForBounds(bounds) {
   return screen.getDisplayMatching(bounds || mainWindow?.getBounds() || screen.getPrimaryDisplay().bounds)
 }
@@ -222,10 +265,21 @@ ipcMain.handle('window:set-expanded', (_event, expanded) => {
 ipcMain.handle('window:minimize', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize()
 })
-ipcMain.handle('window:close', () => app.quit())
+ipcMain.handle('window:close', (event) => {
+  const targetWindow = BrowserWindow.fromWebContents(event.sender)
+  if (targetWindow && targetWindow === wordCloudWindow) {
+    targetWindow.close()
+    return
+  }
+  app.quit()
+})
 ipcMain.handle('window:open-session-report', (_event, sessionId) => {
   if (!sessionId) throw new Error('缺少場次資料。')
   createReportWindow(sessionId)
+})
+ipcMain.handle('window:open-word-cloud', (_event, sessionId) => {
+  if (!sessionId) throw new Error('缺少場次資料。')
+  createWordCloudWindow(sessionId)
 })
 
 ipcMain.on('window:drag-start', (event, point) => {

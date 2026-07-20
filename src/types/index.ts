@@ -48,6 +48,31 @@ export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_fa
 export type ExitTicketCategory = 'lesson_summary' | 'learning_assessment' | 'course_satisfaction' | 'student_question'
 export type ExitTicketResponseType = 'text' | 'rating'
 
+export type SharedContent = {
+  id: string
+  session_id: string
+  body: string | null
+  url: string | null
+  created_at: string
+}
+
+export type LotteryPayload = {
+  round: number
+  winner_id: string
+  winner_name: string
+  candidate_count: number
+  candidate_names: string[]
+  duration_ms: number
+}
+
+export type SessionEvent = {
+  id: string
+  session_id: string
+  event_type: 'lottery'
+  payload: LotteryPayload
+  created_at: string
+}
+
 export type Question = {
   id: string
   session_id: string

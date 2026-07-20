@@ -1,13 +1,16 @@
-import { DoorOpen, Eye, EyeOff, MessageSquare, MonitorUp, Sparkles, Square, Users } from 'lucide-react'
-import type { Participant, Session } from '../types'
+import { Cloud, Dice5, DoorOpen, Eye, EyeOff, MessageSquare, MonitorUp, Send, Sparkles, Square, Users } from 'lucide-react'
+import type { Session } from '../types'
 
 type Props = {
   session: Session
-  participants: Participant[]
+  onlineCount: number
   busy: boolean
   onToggleDanmaku: () => void
   onToggleAnonymous: () => void
   onCaptureScreen?: () => void
+  onDrawLottery: () => void
+  onOpenTextDispatch: () => void
+  onOpenWordCloud: () => void
   onStopQuestion: () => void
   onGenerateExitTicket: () => void
   onEndClass: () => void
@@ -15,20 +18,35 @@ type Props = {
 
 export function PresenterControlPanel({
   session,
-  participants,
+  onlineCount,
   busy,
   onToggleDanmaku,
   onToggleAnonymous,
   onCaptureScreen,
+  onDrawLottery,
+  onOpenTextDispatch,
+  onOpenWordCloud,
   onStopQuestion,
   onGenerateExitTicket,
   onEndClass,
 }: Props) {
   return (
     <section className="panel control-panel">
-      <div className="metric">
-        <Users size={18} />
-        <span>{participants.length} 人在線</span>
+      <div className="metric-row">
+        <div className="metric">
+          <Users size={18} />
+          <span>{onlineCount} 人在線</span>
+        </div>
+        <button
+          aria-label="抽籤"
+          className="ghost-button metric-action"
+          disabled={busy || !onlineCount}
+          title={onlineCount ? '從在線學員中抽籤' : '目前沒有在線學員'}
+          type="button"
+          onClick={onDrawLottery}
+        >
+          <Dice5 size={19} />
+        </button>
       </div>
       <div className="control-toggle-row">
         <button type="button" onClick={onToggleDanmaku} disabled={busy}>
@@ -39,6 +57,10 @@ export function PresenterControlPanel({
           <MessageSquare size={16} />
           {session.anonymous_enabled ? '取消匿名' : '啟用匿名'}
         </button>
+        <button type="button" onClick={onOpenWordCloud} disabled={busy}>
+          <Cloud size={16} />
+          彈幕文字雲
+        </button>
       </div>
       {onCaptureScreen && (
         <button type="button" onClick={onCaptureScreen} disabled={busy}>
@@ -46,6 +68,10 @@ export function PresenterControlPanel({
           截圖派題
         </button>
       )}
+      <button type="button" onClick={onOpenTextDispatch} disabled={busy}>
+        <Send size={16} />
+        文字派送
+      </button>
       <button type="button" onClick={onStopQuestion} disabled={busy || !session.current_question_id}>
         <Square size={16} />
         停止作答

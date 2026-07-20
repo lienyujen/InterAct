@@ -11,6 +11,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.110.1
         version: 2.110.1
+      d3-cloud:
+        specifier: 1.2.9
+        version: 1.2.9
       exceljs:
         specifier: ^4.4.0
         version: 4.4.0
@@ -33,6 +36,9 @@ importers:
         specifier: ^7.18.1
         version: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
+      '@types/d3-cloud':
+        specifier: 1.2.9
+        version: 1.2.9
       '@types/node':
         specifier: ^24.13.2
         version: 24.13.2
@@ -461,6 +467,12 @@ packages:
   '@types/cacheable-request@6.0.3':
     resolution: {integrity: sha512-IQ3EbTzGxIigb1I3qPZc1rWJnH0BmSKv5QYTalEwweFvyBDLSAe24zP0le/hyi7ecGfZVlIVAg4BZqb8WBwKqw==}
 
+  '@types/d3-cloud@1.2.9':
+    resolution: {integrity: sha512-5EWJvnlCrqTThGp8lYHx+DL00sOjx2HTlXH1WRe93k5pfOIhPQaL63NttaKYIbT7bTXp/USiunjNS/N4ipttIQ==}
+
+  '@types/d3@3.5.53':
+    resolution: {integrity: sha512-8yKQA9cAS6+wGsJpBysmnhlaaxlN42Qizqkw+h2nILSlS+MAG2z4JdO6p+PJrJ+ACvimkmLJL281h157e52psQ==}
+
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
@@ -777,6 +789,12 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  d3-cloud@1.2.9:
+    resolution: {integrity: sha512-leL1GLneC9ZQtnV+6TGWrNlGfI1WX7S2arcTv2vae12DaXo5wjm6GBCkskXbrDlyOymd/A75Pyj1H37MW4BZ/Q==}
+
+  d3-dispatch@1.0.6:
+    resolution: {integrity: sha512-fVjoElzjhCEy+Hbn8KygnmMS7Or0a9sI2UzGwoB7cCtvI1XpVN9GpoYlnb3xt2YV66oXYb1fLJ8GMvP4hdU1RA==}
 
   dayjs@1.11.21:
     resolution: {integrity: sha512-98IT+HOahAisibz/yjKbzuOBwYcjJ7BCLPzARyHiyEBmRz4fatF+KPJszEHXsGYjUG234aH/cOjW1wwTbKUZlA==}
@@ -2295,6 +2313,12 @@ snapshots:
       '@types/node': 24.13.2
       '@types/responselike': 1.0.3
 
+  '@types/d3-cloud@1.2.9':
+    dependencies:
+      '@types/d3': 3.5.53
+
+  '@types/d3@3.5.53': {}
+
   '@types/debug@4.1.13':
     dependencies:
       '@types/ms': 2.1.0
@@ -2674,6 +2698,12 @@ snapshots:
       utrie: 1.0.2
 
   csstype@3.2.3: {}
+
+  d3-cloud@1.2.9:
+    dependencies:
+      d3-dispatch: 1.0.6
+
+  d3-dispatch@1.0.6: {}
 
   dayjs@1.11.21: {}
 

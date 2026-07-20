@@ -7,6 +7,7 @@ import { ParticipantPage } from './routes/ParticipantPage'
 import { PresenterNewPage } from './routes/PresenterNewPage'
 import { PresenterPage } from './routes/PresenterPage'
 import { SessionReportPage } from './routes/SessionReportPage'
+import { WordCloudPage } from './routes/WordCloudPage'
 
 function AppRoutes() {
   const location = useLocation()
@@ -22,6 +23,7 @@ function AppRoutes() {
         <Route path="/presenter/:sessionId" element={<PresenterPage />} />
         <Route path="/desktop-overlay/:sessionId" element={<DesktopOverlayPage />} />
         <Route path="/session-report/:sessionId" element={<SessionReportPage />} />
+        <Route path="/word-cloud/:sessionId" element={<WordCloudPage />} />
         <Route path="/join/:sessionId" element={<JoinPage />} />
         <Route path="/participant/:sessionId" element={<ParticipantPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

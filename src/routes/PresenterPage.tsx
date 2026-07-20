@@ -2,14 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { PresenterControlPanel } from '../components/PresenterControlPanel'
 import { QRCodePanel } from '../components/QRCodePanel'
+import { ExitTicketResult } from '../components/ExitTicketResult'
+import { LotteryOverlay } from '../components/LotteryOverlay'
 import { QuestionEditor } from '../components/QuestionEditor'
 import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
 import { SetupNotice } from '../components/SetupNotice'
+import { TextDispatchModal } from '../components/TextDispatchModal'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { AiSummary, Answer, Participant, Question, QuestionAnalysis, QuestionType, Session } from '../types'
+import { useSessionPresence } from '../lib/useSessionPresence'
+import type { AiSummary, Answer, ExitTicket, Participant, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
 import { useParams } from 'react-router-dom'
 
 export function PresenterPage() {
@@ -21,11 +25,15 @@ export function PresenterPage() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<Question | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
+  const [exitTickets, setExitTickets] = useState<ExitTicket[]>([])
   const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null)
   const [analysisBusy, setAnalysisBusy] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
   const [controlsOpen, setControlsOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [textDispatchOpen, setTextDispatchOpen] = useState(false)
+  const [textDispatchError, setTextDispatchError] = useState('')
+  const [lotteryEvent, setLotteryEvent] = useState<SessionEvent | null>(null)
   const [captureFile, setCaptureFile] = useState<File | null>(null)
   const [capturePreviewUrl, setCapturePreviewUrl] = useState<string | null>(null)
   const [captureSource, setCaptureSource] = useState<InterActCaptureSource | null>(null)
@@ -40,16 +48,22 @@ export function PresenterPage() {
   const [busy, setBusy] = useState(false)
   const fallbackJoinUrl = useMemo(() => buildJoinUrl(session?.code || sessionId), [session?.code, sessionId])
   const [joinUrl, setJoinUrl] = useState(fallbackJoinUrl)
+  const onlineParticipantIds = useSessionPresence(sessionId)
+  const onlineParticipants = useMemo(
+    () => participants.filter((participant) => onlineParticipantIds.includes(participant.id)),
+    [onlineParticipantIds, participants],
+  )
 
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId) return
 
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }, { data: questionListData }, { data: answerQuestionData }] = await Promise.all([
+    const [{ data: sessionData }, { data: participantData }, { data: questionListData }, { data: answerQuestionData }, { data: exitTicketData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at'),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at'),
       supabase.from('answers').select('question_id').eq('session_id', sessionId),
+      supabase.from('exit_tickets').select('*').eq('session_id', sessionId).order('submitted_at'),
     ])
 
     const nextSession = sessionData as Session | null
@@ -57,6 +71,7 @@ export function PresenterPage() {
     setSession(nextSession)
     setParticipants((participantData || []) as Participant[])
     setQuestions(nextQuestions)
+    setExitTickets((exitTicketData || []) as ExitTicket[])
     setAnswerCounts((answerQuestionData || []).reduce<Record<string, number>>((counts, answer) => {
       counts[answer.question_id] = (counts[answer.question_id] || 0) + 1
       return counts
@@ -127,8 +142,8 @@ export function PresenterPage() {
 
   useEffect(() => {
     if (!window.interactDesktop || selectionMode) return
-    window.interactDesktop.setPresenterExpanded(controlsOpen || editorOpen)
-  }, [controlsOpen, editorOpen, selectionMode])
+    window.interactDesktop.setPresenterExpanded(controlsOpen || editorOpen || textDispatchOpen)
+  }, [controlsOpen, editorOpen, selectionMode, textDispatchOpen])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !sessionId) return
@@ -140,6 +155,7 @@ export function PresenterPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `session_id=eq.${sessionId}` }, loadAll)
       .subscribe()
 
     return () => {
@@ -504,6 +520,67 @@ export function PresenterPage() {
     }
   }
 
+  async function openWordCloud() {
+    if (window.interactDesktop) {
+      await window.interactDesktop.openWordCloud(sessionId)
+      return
+    }
+    const cloudUrl = `${window.location.origin}${window.location.pathname}#/word-cloud/${sessionId}`
+    window.open(cloudUrl, `interact-word-cloud-${sessionId}`, 'popup,width=1100,height=720')
+  }
+
+  async function drawLottery() {
+    if (!onlineParticipants.length) return
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setAnalysisError('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+      return
+    }
+
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+        body: {
+          action: 'draw_lottery',
+          sessionId,
+          presenterToken,
+          candidateIds: onlineParticipants.map((participant) => participant.id),
+        },
+      })
+      if (error) throw error
+      if (!data?.event) throw new Error(data?.message || '抽籤沒有回傳結果。')
+      setLotteryEvent(data.event as SessionEvent)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '抽籤失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function sendSharedContent(body: string, url: string) {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setTextDispatchError('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+      return
+    }
+
+    setBusy(true)
+    setTextDispatchError('')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+        body: { action: 'share_content', sessionId, presenterToken, body, url },
+      })
+      if (error) throw error
+      if (!data?.content) throw new Error(data?.message || '文字派送失敗。')
+      setTextDispatchOpen(false)
+    } catch (error) {
+      setTextDispatchError(error instanceof Error ? error.message : '文字派送失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function endClass() {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
@@ -539,7 +616,7 @@ export function PresenterPage() {
   }
 
   return (
-    <main className={`presenter-page ${selectionMode ? 'selecting-capture' : ''}`}>
+    <main className={`presenter-page${controlsOpen ? ' controls-open' : ''}${selectionMode ? ' selecting-capture' : ''}`}>
       {!selectionMode && (
         <aside
           className="qr-floating"
@@ -561,14 +638,20 @@ export function PresenterPage() {
         <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
         <PresenterControlPanel
           busy={busy}
-          participants={participants}
+          onlineCount={onlineParticipants.length}
           session={session}
+          onDrawLottery={drawLottery}
           onStopQuestion={stopQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
           onGenerateExitTicket={generateExitTicket}
           onEndClass={endClass}
+          onOpenTextDispatch={() => {
+            setTextDispatchError('')
+            setTextDispatchOpen(true)
+          }}
+          onOpenWordCloud={openWordCloud}
         />
         <QuestionHistory
           activeQuestionId={session.current_question_id}
@@ -586,6 +669,14 @@ export function PresenterPage() {
           onAnalyze={analyzeQuestion}
           onSetCorrectAnswer={setCorrectAnswer}
         />
+        {session.exit_ticket_prompt && session.exit_ticket_category && (
+          <ExitTicketResult
+            category={session.exit_ticket_category}
+            onlineCount={onlineParticipants.length}
+            prompt={session.exit_ticket_prompt}
+            tickets={exitTickets}
+          />
+        )}
       </aside>
       )}
       {selectionMode && (
@@ -616,6 +707,14 @@ export function PresenterPage() {
         </div>
       )}
       <QuestionEditor open={editorOpen} previewUrl={capturePreviewUrl} onCancel={cancelQuestionEditor} onCreate={createScreenshotQuestion} />
+      <TextDispatchModal
+        busy={busy}
+        error={textDispatchError}
+        open={textDispatchOpen}
+        onCancel={() => setTextDispatchOpen(false)}
+        onSend={sendSharedContent}
+      />
+      {!window.interactDesktop && <LotteryOverlay event={lotteryEvent} />}
     </main>
   )
 }

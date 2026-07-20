@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   enterPresenterMode: (sessionId) => ipcRenderer.invoke('window:presenter-mode', sessionId),
   setPresenterExpanded: (expanded) => ipcRenderer.invoke('window:set-expanded', expanded),
   openSessionReport: (sessionId) => ipcRenderer.invoke('window:open-session-report', sessionId),
+  openWordCloud: (sessionId) => ipcRenderer.invoke('window:open-word-cloud', sessionId),
   startWindowDrag: (screenX, screenY) => ipcRenderer.send('window:drag-start', { screenX, screenY }),
   moveWindowDrag: (screenX, screenY) => ipcRenderer.send('window:drag-move', { screenX, screenY }),
   endWindowDrag: () => ipcRenderer.send('window:drag-end'),
