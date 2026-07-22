@@ -146,22 +146,25 @@ Deno.serve(async (req) => {
       const eligibleIds = (participants || []).map((participant) => participant.id)
       if (!eligibleIds.length) return jsonResponse({ message: '?????????????' }, 400)
 
-      const finalizedAt = new Date().toISOString()
+      const preparedAt = new Date()
+      const finalizedAt = preparedAt.toISOString()
       await Promise.all(
         (priorEvents || [])
           .filter((event) => event.payload?.finalized !== true)
           .map((event) => supabase
             .from('session_events')
-            .update({ payload: { ...event.payload, finalized: true, cancelled: true, finalized_at: finalizedAt } })
+            .update({ payload: { ...event.payload, accepting: false, finalized: true, cancelled: true, finalized_at: finalizedAt } })
             .eq('id', event.id)),
       )
 
       const payload = {
         candidate_count: eligibleIds.length,
         candidate_ids: eligibleIds,
-        started_at: finalizedAt,
+        prepared_at: finalizedAt,
+        expires_at: new Date(preparedAt.getTime() + 5 * 60 * 1000).toISOString(),
         duration_ms: 6000,
         finalized: false,
+        accepting: false,
       }
       const { data: event, error: insertError } = await supabase
         .from('session_events')
@@ -169,6 +172,44 @@ Deno.serve(async (req) => {
         .select('*')
         .single()
       if (insertError) throw insertError
+      return jsonResponse({ event })
+    }
+
+    if (action === 'activate_buzzer') {
+      const eventId = typeof input.eventId === 'string' ? input.eventId : ''
+      if (!eventId) return jsonResponse({ message: '????????' }, 400)
+
+      const { data: currentEvent, error: eventError } = await supabase
+        .from('session_events')
+        .select('*')
+        .eq('id', eventId)
+        .eq('session_id', sessionId)
+        .eq('event_type', 'buzzer')
+        .maybeSingle()
+      if (eventError) throw eventError
+      if (!currentEvent || currentEvent.payload?.finalized || currentEvent.payload?.cancelled) {
+        return jsonResponse({ message: '????????' }, 409)
+      }
+      if (currentEvent.payload?.accepting === true) return jsonResponse({ event: currentEvent })
+      const readyExpiresAt = Date.parse(currentEvent.payload?.expires_at || '')
+      if (!Number.isFinite(readyExpiresAt) || readyExpiresAt <= Date.now()) {
+        return jsonResponse({ message: '????????????????' }, 409)
+      }
+
+      const startedAt = new Date()
+      const payload = {
+        ...currentEvent.payload,
+        accepting: true,
+        started_at: startedAt.toISOString(),
+        expires_at: new Date(startedAt.getTime() + 60 * 1000).toISOString(),
+      }
+      const { data: event, error: updateError } = await supabase
+        .from('session_events')
+        .update({ payload })
+        .eq('id', eventId)
+        .select('*')
+        .single()
+      if (updateError) throw updateError
       return jsonResponse({ event })
     }
 

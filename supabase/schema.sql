@@ -163,6 +163,7 @@ as $$
     set payload = event.payload || jsonb_build_object(
       'winner_id', winner.id,
       'winner_name', winner.name,
+      'accepting', false,
       'finalized', true,
       'finalized_at', now(),
       'duration_ms', 6000
@@ -171,7 +172,10 @@ as $$
     where event.id = p_event_id
       and event.session_id = p_session_id
       and event.event_type = 'buzzer'
+      and coalesce((event.payload ->> 'accepting')::boolean, false) = true
       and coalesce((event.payload ->> 'finalized')::boolean, false) = false
+      and coalesce((event.payload ->> 'cancelled')::boolean, false) = false
+      and (event.payload ->> 'expires_at')::timestamptz > now()
       and coalesce(event.payload -> 'candidate_ids', '[]'::jsonb) ? p_participant_id::text
     returning event.*
   )

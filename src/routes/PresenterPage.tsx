@@ -12,6 +12,7 @@ import { SetupNotice } from '../components/SetupNotice'
 import { TextDispatchModal } from '../components/TextDispatchModal'
 import { finalizeLottery } from '../lib/lottery'
 import { getPresenterToken } from '../lib/presenterAuth'
+import { isBuzzerPending } from '../lib/buzzer'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
@@ -591,6 +592,20 @@ export function PresenterPage() {
     }
   }
 
+  async function activateBuzzer(eventId: string) {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('??????????')
+
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'activate_buzzer', sessionId, presenterToken, eventId },
+    })
+    if (error) throw error
+    if (!data?.event) throw new Error(data?.message || '?????????')
+    const nextEvent = data.event as BuzzerSessionEvent
+    setBuzzerEvent(nextEvent)
+    await window.interactDesktop?.showLottery(nextEvent)
+  }
+
   async function drawUnanswered(questionId: string) {
     if (!onlineParticipants.length) {
       setAnalysisError('?????????')
@@ -747,7 +762,7 @@ export function PresenterPage() {
         <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
         <PresenterControlPanel
           busy={busy}
-          buzzerActive={Boolean(buzzerEvent && !buzzerEvent.payload.finalized && !buzzerEvent.payload.cancelled)}
+          buzzerActive={isBuzzerPending(buzzerEvent)}
           onlineCount={onlineParticipants.length}
           session={session}
           onDrawLottery={drawLottery}
@@ -830,7 +845,12 @@ export function PresenterPage() {
         onSend={sendSharedContent}
       />
       {!window.interactDesktop && <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />}
-      {!window.interactDesktop && <BuzzerOverlay event={buzzerEvent} />}
+      {!window.interactDesktop && (
+        <BuzzerOverlay
+          event={buzzerEvent}
+          onStart={buzzerEvent ? () => activateBuzzer(buzzerEvent.id) : undefined}
+        />
+      )}
     </main>
   )
 }

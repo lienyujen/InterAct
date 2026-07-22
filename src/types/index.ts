@@ -70,9 +70,12 @@ export type LotteryPayload = {
 export type BuzzerPayload = {
   candidate_count: number
   candidate_ids: string[]
-  started_at: string
+  prepared_at: string
+  started_at?: string
+  expires_at: string
   duration_ms: number
   finalized: boolean
+  accepting: boolean
   cancelled?: boolean
   winner_id?: string
   winner_name?: string

@@ -1,18 +1,20 @@
 import { PartyPopper, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { isBuzzerAccepting } from '../lib/buzzer'
 import type { BuzzerSessionEvent } from '../types'
 
 type Props = {
   event: BuzzerSessionEvent | null
   participantId?: string | null
   busy?: boolean
+  onStart?: () => Promise<void> | void
   onBuzz?: () => Promise<void> | void
 }
 
 const RESULT_DURATION_MS = 6000
 
-export function BuzzerOverlay({ event, participantId, busy = false, onBuzz }: Props) {
+export function BuzzerOverlay({ event, participantId, busy = false, onStart, onBuzz }: Props) {
   const [visible, setVisible] = useState(false)
   const [pressed, setPressed] = useState(false)
 
@@ -24,7 +26,16 @@ export function BuzzerOverlay({ event, participantId, busy = false, onBuzz }: Pr
     }
 
     setVisible(true)
-    if (!event.payload.finalized) return
+    if (!event.payload.finalized) {
+      const expiresAt = event.payload.expires_at ? Date.parse(event.payload.expires_at) : 0
+      const remaining = expiresAt - Date.now()
+      if (!Number.isFinite(expiresAt) || remaining <= 0) {
+        setVisible(false)
+        return
+      }
+      const timer = window.setTimeout(() => setVisible(false), remaining)
+      return () => window.clearTimeout(timer)
+    }
 
     const finalizedAt = event.payload.finalized_at ? Date.parse(event.payload.finalized_at) : Date.now()
     const remaining = Math.max(0, RESULT_DURATION_MS - (Date.now() - finalizedAt))
@@ -40,7 +51,19 @@ export function BuzzerOverlay({ event, participantId, busy = false, onBuzz }: Pr
 
   const finalized = event.payload.finalized
   const isWinner = Boolean(participantId && event.payload.winner_id === participantId)
-  const canBuzz = Boolean(participantId && onBuzz && !finalized && !pressed && !busy)
+  const accepting = isBuzzerAccepting(event)
+  const presenterCanStart = Boolean(!participantId && onStart && !accepting && !finalized && !pressed && !busy)
+  const canBuzz = Boolean(participantId && onBuzz && accepting && !pressed && !busy)
+
+  async function start() {
+    if (!presenterCanStart || !onStart) return
+    setPressed(true)
+    try {
+      await onStart()
+    } catch {
+      setPressed(false)
+    }
+  }
 
   async function buzz() {
     if (!canBuzz || !onBuzz) return
@@ -64,16 +87,16 @@ export function BuzzerOverlay({ event, participantId, busy = false, onBuzz }: Pr
           </>
         ) : (
           <>
-            <p>{participantId ? '??????' : '????'}</p>
+            <p>{participantId ? (accepting ? '??????' : '????????') : (accepting ? '?????' : '??????')}</p>
             <button
-              aria-label="??"
-              className="buzzer-button"
-              disabled={!canBuzz}
+              aria-label={participantId ? '??' : '????'}
+              className={`buzzer-button${accepting ? '' : ' waiting'}`}
+              disabled={participantId ? !canBuzz : !presenterCanStart}
               type="button"
-              onClick={buzz}
+              onClick={participantId ? buzz : start}
             >
               <Zap fill="currentColor" size={84} />
-              <span>{pressed || busy ? '???' : '??'}</span>
+              <span>{pressed || busy ? '???' : participantId ? (accepting ? '??' : '???') : (accepting ? '???' : '????')}</span>
             </button>
             {!participantId && <small>{event.payload.candidate_count} ????</small>}
           </>

@@ -36,6 +36,9 @@ Deno.serve(async (req) => {
 
     const event = Array.isArray(data) ? data[0] : data
     if (!event) return jsonResponse({ message: '????????' }, 404)
+    if (!event.payload?.finalized && !event.payload?.winner_id) {
+      return jsonResponse({ message: '???????????????????', event }, 409)
+    }
     return jsonResponse({ event, won: event.payload?.winner_id === participantId })
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Participant action failed.'

@@ -7,6 +7,7 @@ import { ExitTicketForm } from '../components/ExitTicketForm'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { SharedContentPanel } from '../components/SharedContentPanel'
 import { SetupNotice } from '../components/SetupNotice'
+import { isBuzzerAccepting } from '../lib/buzzer'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
 import type { Answer, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, Question, Screenshot, Session, SessionEvent, SharedContent } from '../types'
@@ -182,7 +183,8 @@ export function ParticipantPage() {
   }
 
   async function claimBuzzer() {
-    if (!participant || !buzzerEvent || buzzerEvent.payload.finalized) return
+    const currentBuzzerEvent = buzzerEvent
+    if (!participant || !currentBuzzerEvent || !isBuzzerAccepting(currentBuzzerEvent)) return
     setBuzzerBusy(true)
     setError('')
     try {
@@ -191,7 +193,7 @@ export function ParticipantPage() {
           action: 'claim_buzzer',
           sessionId,
           participantId: participant.id,
-          eventId: buzzerEvent.id,
+          eventId: currentBuzzerEvent.id,
         },
       })
       if (claimError) throw claimError
