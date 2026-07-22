@@ -1,0 +1,4 @@
+interface:
+  display_name: "InterAct Self Deployment"
+  short_description: "Deploy a private InterAct stack step by step"
+  default_prompt: "Use $interact-self-deploy to guide me through deploying my own InterAct services."

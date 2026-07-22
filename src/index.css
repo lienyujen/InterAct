@@ -923,6 +923,57 @@ h2 {
   max-width: 720px;
 }
 
+.student-social-links {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  position: fixed;
+  right: 14px;
+  top: 14px;
+  z-index: 30;
+}
+
+.student-social-link {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgb(16 24 38 / 12%);
+  display: inline-flex;
+  height: 38px;
+  justify-content: center;
+  transition: box-shadow 160ms ease, transform 160ms ease;
+  width: 38px;
+}
+
+.student-social-link:hover {
+  box-shadow: 0 4px 12px rgb(16 24 38 / 18%);
+  transform: translateY(-1px);
+}
+
+.student-social-link:focus-visible {
+  outline: 3px solid rgb(20 99 255 / 32%);
+  outline-offset: 2px;
+}
+
+.student-social-link svg {
+  fill: currentColor;
+  height: 22px;
+  width: 22px;
+}
+
+.student-social-link.facebook {
+  color: #1877f2;
+}
+
+.student-social-link.youtube {
+  color: #f00;
+}
+
+.student-social-link .youtube-play {
+  fill: #fff;
+}
+
 .participant-header {
   align-items: center;
   display: flex;
@@ -1828,6 +1879,11 @@ h2 {
 }
 
 @media (max-width: 900px) {
+  .student-social-links {
+    right: 12px;
+    top: 12px;
+  }
+
   .stage {
     min-height: 54svh;
   }

@@ -7,6 +7,7 @@ import { ExitTicketForm } from '../components/ExitTicketForm'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { SharedContentPanel } from '../components/SharedContentPanel'
 import { SetupNotice } from '../components/SetupNotice'
+import { StudentSocialLinks } from '../components/StudentSocialLinks'
 import { isBuzzerAccepting } from '../lib/buzzer'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
@@ -210,6 +211,7 @@ export function ParticipantPage() {
   return (
     <main className="participant-page">
       <SetupNotice />
+      <StudentSocialLinks />
       <header className="participant-header">
         <div>
           <h1>{participant?.name || '與會者'}</h1>

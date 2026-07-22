@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SetupNotice } from '../components/SetupNotice'
+import { StudentSocialLinks } from '../components/StudentSocialLinks'
 import { getDeviceId } from '../lib/device'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { Participant, Session } from '../types'
@@ -73,6 +74,7 @@ export function JoinPage() {
   return (
     <main className="center-page">
       <SetupNotice />
+      <StudentSocialLinks />
       <form className="panel form-panel" onSubmit={join}>
         <h1>加入{session?.title || '場次'}</h1>
         <label>
