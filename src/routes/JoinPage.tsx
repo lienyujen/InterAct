@@ -75,11 +75,19 @@ export function JoinPage() {
     <main className="center-page">
       <SetupNotice />
       <StudentSocialLinks />
-      <form className="panel form-panel" onSubmit={join}>
+      <form autoComplete="off" className="panel form-panel" onSubmit={join}>
         <h1>加入{session?.title || '場次'}</h1>
         <label>
           你的姓名
-          <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="請輸入姓名" />
+          <input
+            autoComplete="name"
+            autoFocus
+            inputMode="text"
+            name="participant-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="請輸入姓名"
+          />
         </label>
         {error && <p className="error">{error}</p>}
         <button disabled={busy} type="submit">
