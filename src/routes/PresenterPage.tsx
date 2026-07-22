@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { PresenterControlPanel } from '../components/PresenterControlPanel'
+import { BuzzerOverlay } from '../components/BuzzerOverlay'
 import { QRCodePanel } from '../components/QRCodePanel'
 import { ExitTicketResult } from '../components/ExitTicketResult'
 import { LotteryOverlay } from '../components/LotteryOverlay'
@@ -14,7 +15,7 @@ import { getPresenterToken } from '../lib/presenterAuth'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
-import type { AiSummary, Answer, ExitTicket, Participant, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
+import type { AiSummary, Answer, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
 import { useParams } from 'react-router-dom'
 
 export function PresenterPage() {
@@ -34,7 +35,8 @@ export function PresenterPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [textDispatchOpen, setTextDispatchOpen] = useState(false)
   const [textDispatchError, setTextDispatchError] = useState('')
-  const [lotteryEvent, setLotteryEvent] = useState<SessionEvent | null>(null)
+  const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
+  const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
   const [captureFile, setCaptureFile] = useState<File | null>(null)
   const [capturePreviewUrl, setCapturePreviewUrl] = useState<string | null>(null)
   const [captureSource, setCaptureSource] = useState<InterActCaptureSource | null>(null)
@@ -159,7 +161,13 @@ export function PresenterPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
         const event = payload.new as SessionEvent
-        if (event.event_type === 'lottery') setLotteryEvent(event)
+        if (event.event_type === 'buzzer') {
+          setBuzzerEvent(event)
+          setLotteryEvent(null)
+        } else if (event.event_type === 'lottery') {
+          setLotteryEvent(event)
+          setBuzzerEvent(null)
+        }
       })
       .subscribe()
 
@@ -173,7 +181,7 @@ export function PresenterPage() {
     const timer = window.setTimeout(() => {
       void finalizeLottery(sessionId, lotteryEvent.id, lotteryEvent.payload.winner_id)
         .then(setLotteryEvent)
-        .catch((error) => setAnalysisError(error instanceof Error ? error.message : '抽籤停止失敗。'))
+        .catch((error) => setAnalysisError(error instanceof Error ? error.message : '???????'))
     }, lotteryEvent.payload.duration_ms)
     return () => window.clearTimeout(timer)
   }, [lotteryEvent, sessionId])
@@ -231,11 +239,11 @@ export function PresenterPage() {
 
   function questionTitle(type: QuestionType) {
     const labels: Record<QuestionType, string> = {
-      send_screen: '派送畫面',
-      poll: '投票題',
-      multiple_choice: '選擇題',
-      true_false: '是非題',
-      short_answer: '問答題',
+      send_screen: '????',
+      poll: '???',
+      multiple_choice: '???',
+      true_false: '???',
+      short_answer: '???',
     }
 
     return labels[type]
@@ -491,7 +499,7 @@ export function PresenterPage() {
     if (!question) return
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
-      setAnalysisError('這個舊場次沒有講者 AI 權限，請建立新場次後再試。')
+      setAnalysisError('????????? AI ?????????????')
       return
     }
 
@@ -502,10 +510,10 @@ export function PresenterPage() {
         body: { sessionId, questionId: question.id, presenterToken },
       })
       if (error) throw error
-      if (!data?.analysis) throw new Error(data?.message || 'AI 沒有回傳分析結果。')
+      if (!data?.analysis) throw new Error(data?.message || 'AI ?????????')
       setAnalysis(data.analysis as QuestionAnalysis)
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : 'AI 分析失敗。')
+      setAnalysisError(error instanceof Error ? error.message : 'AI ?????')
     } finally {
       setAnalysisBusy(false)
     }
@@ -515,7 +523,7 @@ export function PresenterPage() {
     if (session?.exit_ticket_prompt) return
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
-      setAnalysisError('這個舊場次沒有講者 AI 權限，請建立新場次後再試。')
+      setAnalysisError('????????? AI ?????????????')
       return
     }
 
@@ -526,10 +534,10 @@ export function PresenterPage() {
         body: { sessionId, presenterToken },
       })
       if (error) throw error
-      if (!data?.prompt) throw new Error(data?.message || 'AI 沒有產生 Exit Ticket。')
+      if (!data?.prompt) throw new Error(data?.message || 'AI ???? Exit Ticket?')
       await loadAll()
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : 'Exit Ticket 產生失敗。')
+      setAnalysisError(error instanceof Error ? error.message : 'Exit Ticket ?????')
     } finally {
       setBusy(false)
     }
@@ -545,12 +553,47 @@ export function PresenterPage() {
   }
 
   async function drawLottery() {
-    await runLottery(onlineParticipants.map((participant) => participant.id), '目前沒有在線學生。')
+    await runLottery(onlineParticipants.map((participant) => participant.id), '?????????')
+  }
+
+  async function startBuzzer() {
+    if (!onlineParticipants.length) {
+      setAnalysisError('?????????')
+      return
+    }
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setAnalysisError('????????????????????????')
+      return
+    }
+
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+        body: {
+          action: 'start_buzzer',
+          sessionId,
+          presenterToken,
+          candidateIds: onlineParticipants.map((participant) => participant.id),
+        },
+      })
+      if (error) throw error
+      if (!data?.event) throw new Error(data?.message || '?????????')
+      const nextEvent = data.event as BuzzerSessionEvent
+      setLotteryEvent(null)
+      setBuzzerEvent(nextEvent)
+      await window.interactDesktop?.showLottery(nextEvent)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '???????')
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function drawUnanswered(questionId: string) {
     if (!onlineParticipants.length) {
-      setAnalysisError('目前沒有在線學生。')
+      setAnalysisError('?????????')
       return
     }
 
@@ -570,12 +613,12 @@ export function PresenterPage() {
         .map((participant) => participant.id)
 
       if (!unansweredIds.length) {
-        setAnalysisError('目前在線學生皆已作答此題。')
+        setAnalysisError('?????????????')
         return
       }
       await invokeLottery(unansweredIds)
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : '未作答學生抽選失敗。')
+      setAnalysisError(error instanceof Error ? error.message : '??????????')
     } finally {
       setBusy(false)
     }
@@ -592,7 +635,7 @@ export function PresenterPage() {
     try {
       await invokeLottery(candidateIds)
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : '抽籤失敗。')
+      setAnalysisError(error instanceof Error ? error.message : '?????')
     } finally {
       setBusy(false)
     }
@@ -601,15 +644,15 @@ export function PresenterPage() {
   async function invokeLottery(candidateIds: string[]) {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
-      throw new Error('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+      throw new Error('????????????????????????')
     }
 
     const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
       body: { action: 'draw_lottery', sessionId, presenterToken, candidateIds },
     })
     if (error) throw error
-    if (!data?.event) throw new Error(data?.message || '抽籤沒有回傳結果。')
-    const nextEvent = data.event as SessionEvent
+    if (!data?.event) throw new Error(data?.message || '?????????')
+    const nextEvent = data.event as LotterySessionEvent
     setLotteryEvent(nextEvent)
     await window.interactDesktop?.showLottery(nextEvent)
   }
@@ -619,7 +662,7 @@ export function PresenterPage() {
     try {
       setLotteryEvent(await finalizeLottery(sessionId, lotteryEvent.id, winnerId))
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : '抽籤停止失敗。')
+      setAnalysisError(error instanceof Error ? error.message : '???????')
       throw error
     }
   }
@@ -627,7 +670,7 @@ export function PresenterPage() {
   async function sendSharedContent(body: string, url: string) {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
-      setTextDispatchError('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+      setTextDispatchError('????????????????????????')
       return
     }
 
@@ -638,10 +681,10 @@ export function PresenterPage() {
         body: { action: 'share_content', sessionId, presenterToken, body, url },
       })
       if (error) throw error
-      if (!data?.content) throw new Error(data?.message || '文字派送失敗。')
+      if (!data?.content) throw new Error(data?.message || '???????')
       setTextDispatchOpen(false)
     } catch (error) {
-      setTextDispatchError(error instanceof Error ? error.message : '文字派送失敗。')
+      setTextDispatchError(error instanceof Error ? error.message : '???????')
     } finally {
       setBusy(false)
     }
@@ -650,7 +693,7 @@ export function PresenterPage() {
   async function endClass() {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
-      setAnalysisError('這個舊場次沒有講者 AI 權限，請建立新場次後再試。')
+      setAnalysisError('????????? AI ?????????????')
       return
     }
 
@@ -662,7 +705,7 @@ export function PresenterPage() {
         window.location.hash = `/session-report/${sessionId}`
       }
     } catch (error) {
-      setAnalysisError(error instanceof Error ? error.message : '無法開啟課堂報告。')
+      setAnalysisError(error instanceof Error ? error.message : '?????????')
       setBusy(false)
     }
   }
@@ -676,7 +719,7 @@ export function PresenterPage() {
     return (
       <main className="center-page">
         <SetupNotice />
-        <p className="muted">載入講者頁...</p>
+        <p className="muted">?????...</p>
       </main>
     )
   }
@@ -704,9 +747,11 @@ export function PresenterPage() {
         <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
         <PresenterControlPanel
           busy={busy}
+          buzzerActive={Boolean(buzzerEvent && !buzzerEvent.payload.finalized && !buzzerEvent.payload.cancelled)}
           onlineCount={onlineParticipants.length}
           session={session}
           onDrawLottery={drawLottery}
+          onStartBuzzer={startBuzzer}
           onStopQuestion={stopQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
@@ -762,7 +807,7 @@ export function PresenterPage() {
           onPointerMove={updateSelection}
           onPointerUp={finishSelection}
         >
-          <p className="capture-selection-hint">拖曳框選要派送的畫面區域</p>
+          <p className="capture-selection-hint">????????????</p>
           {selectionRect && (
             <div
               className="capture-selection-box"
@@ -785,6 +830,7 @@ export function PresenterPage() {
         onSend={sendSharedContent}
       />
       {!window.interactDesktop && <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />}
+      {!window.interactDesktop && <BuzzerOverlay event={buzzerEvent} />}
     </main>
   )
 }

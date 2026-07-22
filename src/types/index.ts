@@ -67,13 +67,35 @@ export type LotteryPayload = {
   finalized?: boolean
 }
 
-export type SessionEvent = {
+export type BuzzerPayload = {
+  candidate_count: number
+  candidate_ids: string[]
+  started_at: string
+  duration_ms: number
+  finalized: boolean
+  cancelled?: boolean
+  winner_id?: string
+  winner_name?: string
+  finalized_at?: string
+}
+
+export type LotterySessionEvent = {
   id: string
   session_id: string
   event_type: 'lottery' | 'lottery_result'
   payload: LotteryPayload
   created_at: string
 }
+
+export type BuzzerSessionEvent = {
+  id: string
+  session_id: string
+  event_type: 'buzzer'
+  payload: BuzzerPayload
+  created_at: string
+}
+
+export type SessionEvent = LotterySessionEvent | BuzzerSessionEvent
 
 export type Question = {
   id: string

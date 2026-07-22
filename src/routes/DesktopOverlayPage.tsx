@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { DanmakuLayer } from '../components/DanmakuLayer'
+import { BuzzerOverlay } from '../components/BuzzerOverlay'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { finalizeLottery } from '../lib/lottery'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { Message, Session, SessionEvent } from '../types'
+import type { BuzzerSessionEvent, LotterySessionEvent, Message, Session, SessionEvent } from '../types'
 
 export function DesktopOverlayPage() {
   const { sessionId = '' } = useParams()
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [lotteryEvent, setLotteryEvent] = useState<SessionEvent | null>(null)
+  const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
+  const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
   const messageCutoffRef = useRef(new Date().toISOString())
 
   const mergeMessages = useCallback((incoming: Message[]) => {
@@ -19,6 +21,16 @@ export function DesktopOverlayPage() {
       for (const message of incoming) byId.set(message.id, message)
       return [...byId.values()].sort((left, right) => left.created_at.localeCompare(right.created_at))
     })
+  }, [])
+
+  const showActivityEvent = useCallback((event: SessionEvent) => {
+    if (event.event_type === 'buzzer') {
+      setBuzzerEvent(event)
+      setLotteryEvent(null)
+    } else if (event.event_type === 'lottery' || event.event_type === 'lottery_result') {
+      setLotteryEvent(event)
+      setBuzzerEvent(null)
+    }
   }, [])
 
   const loadOverlay = useCallback(async () => {
@@ -41,18 +53,18 @@ export function DesktopOverlayPage() {
     loadOverlay()
   }, [loadOverlay])
 
-  useEffect(() => window.interactDesktop?.onLottery(setLotteryEvent), [])
+  useEffect(() => window.interactDesktop?.onLottery(showActivityEvent), [showActivityEvent])
 
   useEffect(() => {
     const pollLatestLottery = async () => {
       const event = await window.interactDesktop?.getLatestLottery()
       if (!event) return
-      setLotteryEvent((current) => current?.id === event.id ? current : event)
+      showActivityEvent(event)
     }
     void pollLatestLottery()
     const timer = window.setInterval(() => void pollLatestLottery(), 250)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [showActivityEvent])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !sessionId) return
@@ -65,14 +77,14 @@ export function DesktopOverlayPage() {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
         const event = payload.new as SessionEvent
-        if (event.event_type === 'lottery') setLotteryEvent(event)
+        showActivityEvent(event)
       })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadOverlay, mergeMessages, sessionId])
+  }, [loadOverlay, mergeMessages, sessionId, showActivityEvent])
 
   useEffect(() => {
     const interactive = Boolean(lotteryEvent && lotteryEvent.payload.finalized === false)
@@ -92,6 +104,7 @@ export function DesktopOverlayPage() {
     <>
       <DanmakuLayer messages={messages} session={session} />
       <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />
+      <BuzzerOverlay event={buzzerEvent} />
     </>
   )
 }

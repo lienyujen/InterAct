@@ -1,10 +1,10 @@
 import { PartyPopper } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { SessionEvent } from '../types'
+import type { LotterySessionEvent } from '../types'
 
 type Props = {
-  event: SessionEvent | null
+  event: LotterySessionEvent | null
   participantId?: string | null
   onSelect?: (winnerId: string) => Promise<void> | void
 }
@@ -67,21 +67,21 @@ export function LotteryOverlay({ event, participantId, onSelect }: Props) {
       <div className="lottery-rays" />
       <div className="lottery-content">
         <PartyPopper size={isWinnerDevice ? 54 : 68} />
-        <p>{revealed ? (isWinnerDevice ? '恭喜！' : '抽中的是') : '抽籤中'}</p>
+        <p>{revealed ? (isWinnerDevice ? '???' : '????') : '???'}</p>
         {interactive ? (
           <button
             className="lottery-name-button"
             disabled={selectionPending}
-            title="點選目前姓名立即停止抽籤"
+            title="????????????"
             type="button"
             onClick={selectDisplayedCandidate}
           >
             {displayedCandidate.name}
           </button>
         ) : (
-          <strong>{isWinnerDevice && !revealed ? '請稍候...' : displayedCandidate.name}</strong>
+          <strong>{isWinnerDevice && !revealed ? '???...' : displayedCandidate.name}</strong>
         )}
-        {!isWinnerDevice && <small>第 {event.payload.round} 輪．{event.payload.candidate_count} 人參與</small>}
+        {!isWinnerDevice && <small>? {event.payload.round} ??{event.payload.candidate_count} ???</small>}
       </div>
       {revealed && Array.from({ length: 18 }, (_, index) => (
         <i className="celebration-piece" key={index} style={{ '--piece-index': index } as CSSProperties} />

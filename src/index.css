@@ -649,10 +649,22 @@ h2 {
   justify-content: space-between;
 }
 
+.metric-actions {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+}
+
 .metric-action {
   min-height: 36px;
   min-width: 40px;
   padding: 6px;
+}
+
+.buzzer-menu-button.active {
+  background: #cf2635;
+  border-color: #cf2635;
+  color: #fff;
 }
 
 .danmaku-layer {
@@ -1329,6 +1341,123 @@ h2 {
 .celebration-piece:nth-child(3n) { background: #ffd166; }
 .celebration-piece:nth-child(3n + 1) { background: #55d6a7; }
 .celebration-piece:nth-child(3n + 2) { background: #ff7f6e; }
+
+.buzzer-overlay {
+  align-items: center;
+  background: rgb(5 11 24 / 88%);
+  color: #fff;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow: hidden;
+  position: fixed;
+  z-index: 210;
+}
+
+.buzzer-content {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 92vw;
+  position: relative;
+  text-align: center;
+  z-index: 2;
+}
+
+.buzzer-content > svg {
+  color: #ffd166;
+}
+
+.buzzer-content p {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.buzzer-content strong {
+  font-size: 72px;
+  line-height: 1.05;
+  max-width: 90vw;
+  overflow-wrap: anywhere;
+}
+
+.buzzer-content small {
+  color: #b7c8e8;
+  font-size: 16px;
+}
+
+.buzzer-button {
+  align-items: center;
+  aspect-ratio: 1;
+  background: #e32636;
+  border: 16px solid #ff6570;
+  border-radius: 50%;
+  box-shadow: 0 18px 0 #8f1420, 0 28px 54px rgb(0 0 0 / 45%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  max-height: 44vh;
+  padding: 24px;
+  touch-action: manipulation;
+  user-select: none;
+  width: min(72vw, 340px);
+}
+
+.buzzer-button span {
+  font-size: 32px;
+  font-weight: 900;
+}
+
+.buzzer-button:not(:disabled):active {
+  box-shadow: 0 6px 0 #8f1420, 0 14px 28px rgb(0 0 0 / 38%);
+  translate: 0 12px;
+}
+
+.buzzer-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.buzzer-rings {
+  border: 3px solid rgb(255 101 112 / 55%);
+  border-radius: 50%;
+  height: min(68vw, 68vh);
+  position: absolute;
+  width: min(68vw, 68vh);
+}
+
+.buzzer-overlay.active .buzzer-rings {
+  animation: buzzer-pulse 1.15s ease-out infinite;
+}
+
+.buzzer-overlay.revealed .buzzer-rings {
+  animation: lottery-pulse 1.5s ease-out infinite;
+  border-color: rgb(255 209 102 / 60%);
+}
+
+@keyframes buzzer-pulse {
+  from { opacity: 0.95; transform: scale(0.72); }
+  to { opacity: 0; transform: scale(1.18); }
+}
+
+@media (max-width: 520px) {
+  .buzzer-content strong {
+    font-size: 42px;
+  }
+
+  .buzzer-button {
+    border-width: 12px;
+    max-height: 38vh;
+    width: min(76vw, 300px);
+  }
+
+  .buzzer-button span {
+    font-size: 28px;
+  }
+}
 
 @keyframes lottery-pulse {
   from { opacity: 0.9; transform: scale(0.8); }
