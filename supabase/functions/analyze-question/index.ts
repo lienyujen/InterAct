@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     sessionId = typeof input.sessionId === 'string' ? input.sessionId : ''
     questionId = typeof input.questionId === 'string' ? input.questionId : ''
     const presenterToken = typeof input.presenterToken === 'string' ? input.presenterToken : ''
-    if (!sessionId || !questionId || !presenterToken) return jsonResponse({ message: '缺少分析所需資料。' }, 400)
+    if (!sessionId || !questionId || !presenterToken) return jsonResponse({ message: '?????????' }, 400)
 
     const supabase = getAdminClient()
     const tokenHash = await hashPresenterToken(presenterToken)
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       .eq('token_hash', tokenHash)
       .maybeSingle()
 
-    if (!keyRecord) return jsonResponse({ message: '講者權限驗證失敗。' }, 403)
+    if (!keyRecord) return jsonResponse({ message: '?????????' }, 403)
 
     const { data: question, error: questionError } = await supabase
       .from('questions')
@@ -97,9 +97,9 @@ Deno.serve(async (req) => {
       .eq('id', questionId)
       .eq('session_id', sessionId)
       .single()
-    if (questionError || !question) return jsonResponse({ message: '找不到題目。' }, 404)
-    if (question.status === 'active') return jsonResponse({ message: '請先停止作答再執行分析。' }, 409)
-    if (!question.screenshot_id) return jsonResponse({ message: '這個題目沒有截圖。' }, 400)
+    if (questionError || !question) return jsonResponse({ message: '??????' }, 404)
+    if (question.status === 'active') return jsonResponse({ message: '????????????' }, 409)
+    if (!question.screenshot_id) return jsonResponse({ message: '?????????' }, 400)
 
     const [{ data: screenshot }, { data: answers }, participantResult] = await Promise.all([
       supabase.from('screenshots').select('public_url').eq('id', question.screenshot_id).single(),
@@ -107,8 +107,8 @@ Deno.serve(async (req) => {
       supabase.from('participants').select('id', { count: 'exact', head: true }).eq('session_id', sessionId),
     ])
 
-    if (!screenshot?.public_url) return jsonResponse({ message: '找不到題目截圖。' }, 404)
-    if (!answers?.length) return jsonResponse({ message: '目前沒有可分析的答案。' }, 400)
+    if (!screenshot?.public_url) return jsonResponse({ message: '????????' }, 404)
+    if (!answers?.length) return jsonResponse({ message: '???????????' }, 400)
 
     const distribution = Object.fromEntries(
       (Array.isArray(question.options) ? question.options : []).map((option: string) => [
@@ -136,8 +136,8 @@ Deno.serve(async (req) => {
     }
 
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
-    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash'
-    if (!geminiKey) return jsonResponse({ message: 'Supabase 尚未設定 GEMINI_API_KEY。' }, 503)
+    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.6-flash'
+    if (!geminiKey) return jsonResponse({ message: 'Supabase ???? GEMINI_API_KEY?' }, 503)
 
     const imageResponse = await fetch(screenshot.public_url)
     if (!imageResponse.ok) throw new Error(`Could not download screenshot (${imageResponse.status}).`)
@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         systemInstruction: {
           parts: [{
-            text: '你是 InterAct 的課堂形成性評量分析助理。請以繁體中文分析截圖中的題目與匿名化群體作答。若 presenter_question 有內容，detected_question 應優先忠實使用該題目；若為空，截圖有明確題幹時忠實轉寫或精簡，沒有明顯題幹時依畫面脈絡與選項產生中立、不誘導且不暗示正解的題目。無論是否有 presenter_question，都必須繼續根據截圖、選項及實際作答行為分析理解、證據、常見誤解與教學行動，不可只依題目文字推測。選擇題與是非題只能提出建議答案，最後決定權屬於講者。投票題不判定對錯。',
+            text: '?? InterAct ????????????????????????????????????? presenter_question ????detected_question ????????????????????????????????????????????????????????????????????? presenter_question????????????????????????????????????????????????????????????????????????????????????',
           }],
         },
         contents: [{
@@ -215,6 +215,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    return jsonResponse({ message: 'AI 分析失敗，請稍後再試。' }, 500)
+    return jsonResponse({ message: 'AI ???????????' }, 500)
   }
 })
