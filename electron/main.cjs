@@ -142,7 +142,7 @@ function createReportWindow(sessionId) {
     resizable: true,
     maximizable: true,
     backgroundColor: '#f7f8fb',
-    title: 'InterAct ??????',
+    title: 'InterAct 課堂互動報告',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -188,7 +188,7 @@ function createWordCloudWindow(sessionId) {
     resizable: true,
     maximizable: true,
     backgroundColor: '#0b1020',
-    title: 'InterAct ?????',
+    title: 'InterAct 彈幕文字雲',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -298,11 +298,11 @@ ipcMain.handle('window:close', (event) => {
   app.quit()
 })
 ipcMain.handle('window:open-session-report', (_event, sessionId) => {
-  if (!sessionId) throw new Error('???????')
+  if (!sessionId) throw new Error('缺少場次資料。')
   createReportWindow(sessionId)
 })
 ipcMain.handle('window:open-word-cloud', (_event, sessionId) => {
-  if (!sessionId) throw new Error('???????')
+  if (!sessionId) throw new Error('缺少場次資料。')
   createWordCloudWindow(sessionId)
 })
 
@@ -352,7 +352,7 @@ ipcMain.handle('capture:start-selection', async () => {
   const captureSource = sources.find((source) => source.displayId === String(targetDisplay.id))
     || sources.find((source) => source.id.startsWith(`screen:${displayIndex}:`))
     || sources[displayIndex]
-  if (!captureSource) throw new Error('????????????')
+  if (!captureSource) throw new Error('找不到可截取的螢幕來源。')
 
   mainWindow.setBounds(targetDisplay.bounds)
   mainWindow.show()

@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     const sessionId = typeof input.sessionId === 'string' ? input.sessionId : ''
     const presenterToken = typeof input.presenterToken === 'string' ? input.presenterToken : ''
     const action = typeof input.action === 'string' ? input.action : ''
-    if (!sessionId || !presenterToken || !action) return jsonResponse({ message: '???????????' }, 400)
+    if (!sessionId || !presenterToken || !action) return jsonResponse({ message: '缺少講者操作所需資料。' }, 400)
 
     const supabase = getAdminClient()
     const tokenHash = await hashPresenterToken(presenterToken)
@@ -48,12 +48,12 @@ Deno.serve(async (req) => {
       .eq('session_id', sessionId)
       .eq('token_hash', tokenHash)
       .maybeSingle()
-    if (!keyRecord) return jsonResponse({ message: '?????????' }, 403)
+    if (!keyRecord) return jsonResponse({ message: '講者權限驗證失敗。' }, 403)
 
     if (action === 'share_content') {
       const body = typeof input.body === 'string' ? input.body.trim().slice(0, 5000) : ''
       const url = normalizedUrl(input.url)
-      if (!body && !url) return jsonResponse({ message: '?????????' }, 400)
+      if (!body && !url) return jsonResponse({ message: '請輸入文字或網址。' }, 400)
 
       const { data, error } = await supabase
         .from('shared_contents')
@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       const candidateIds = Array.isArray(input.candidateIds)
         ? [...new Set(input.candidateIds.filter((id: unknown) => typeof id === 'string'))].slice(0, 2000)
         : []
-      if (!candidateIds.length) return jsonResponse({ message: '?????????' }, 400)
+      if (!candidateIds.length) return jsonResponse({ message: '目前沒有在線學員。' }, 400)
 
       const [{ data: participants, error: participantError }, { data: priorEvents, error: eventError }] = await Promise.all([
         supabase.from('participants').select('id, name').eq('session_id', sessionId).in('id', candidateIds),
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
       if (eventError) throw eventError
 
       const candidates = (participants || []) as ParticipantRecord[]
-      if (!candidates.length) return jsonResponse({ message: '?????????????' }, 400)
+      if (!candidates.length) return jsonResponse({ message: '目前沒有可抽選的在線學員。' }, 400)
 
       const latestRound = Math.max(1, ...((priorEvents || []).map((event) => Number(event.payload?.round) || 1)))
       const drawnThisRound = new Set(
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       const candidateIds = Array.isArray(input.candidateIds)
         ? [...new Set(input.candidateIds.filter((id: unknown) => typeof id === 'string'))].slice(0, 2000)
         : []
-      if (!candidateIds.length) return jsonResponse({ message: '?????????' }, 400)
+      if (!candidateIds.length) return jsonResponse({ message: '目前沒有在線學員。' }, 400)
 
       const [{ data: participants, error: participantError }, { data: priorEvents, error: eventError }] = await Promise.all([
         supabase.from('participants').select('id').eq('session_id', sessionId).in('id', candidateIds),
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       if (eventError) throw eventError
 
       const eligibleIds = (participants || []).map((participant) => participant.id)
-      if (!eligibleIds.length) return jsonResponse({ message: '?????????????' }, 400)
+      if (!eligibleIds.length) return jsonResponse({ message: '目前沒有可搶答的在線學員。' }, 400)
 
       const preparedAt = new Date()
       const finalizedAt = preparedAt.toISOString()
@@ -177,7 +177,7 @@ Deno.serve(async (req) => {
 
     if (action === 'activate_buzzer') {
       const eventId = typeof input.eventId === 'string' ? input.eventId : ''
-      if (!eventId) return jsonResponse({ message: '????????' }, 400)
+      if (!eventId) return jsonResponse({ message: '找不到這次搶答。' }, 400)
 
       const { data: currentEvent, error: eventError } = await supabase
         .from('session_events')
@@ -188,12 +188,12 @@ Deno.serve(async (req) => {
         .maybeSingle()
       if (eventError) throw eventError
       if (!currentEvent || currentEvent.payload?.finalized || currentEvent.payload?.cancelled) {
-        return jsonResponse({ message: '????????' }, 409)
+        return jsonResponse({ message: '這次搶答已失效。' }, 409)
       }
       if (currentEvent.payload?.accepting === true) return jsonResponse({ event: currentEvent })
       const readyExpiresAt = Date.parse(currentEvent.payload?.expires_at || '')
       if (!Number.isFinite(readyExpiresAt) || readyExpiresAt <= Date.now()) {
-        return jsonResponse({ message: '????????????????' }, 409)
+        return jsonResponse({ message: '這次搶答準備已逾時，請重新開啟。' }, 409)
       }
 
       const startedAt = new Date()
@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
     if (action === 'select_lottery_winner') {
       const eventId = typeof input.eventId === 'string' ? input.eventId : ''
       const winnerId = typeof input.winnerId === 'string' ? input.winnerId : ''
-      if (!eventId || !winnerId) return jsonResponse({ message: '?????????' }, 400)
+      if (!eventId || !winnerId) return jsonResponse({ message: '缺少抽籤結果資料。' }, 400)
 
       const { data: currentEvent, error: eventError } = await supabase
         .from('session_events')
@@ -226,13 +226,13 @@ Deno.serve(async (req) => {
         .eq('event_type', 'lottery')
         .maybeSingle()
       if (eventError) throw eventError
-      if (!currentEvent) return jsonResponse({ message: '????????' }, 404)
+      if (!currentEvent) return jsonResponse({ message: '找不到這次抽籤。' }, 404)
       if (currentEvent.payload?.finalized) return jsonResponse({ event: currentEvent })
 
       const candidateIds = Array.isArray(currentEvent.payload?.candidate_ids)
         ? currentEvent.payload.candidate_ids.filter((id: unknown) => typeof id === 'string')
         : [currentEvent.payload?.winner_id].filter((id: unknown) => typeof id === 'string')
-      if (!candidateIds.includes(winnerId)) return jsonResponse({ message: '??????????????' }, 400)
+      if (!candidateIds.includes(winnerId)) return jsonResponse({ message: '這位學員不在本次抽籤名單中。' }, 400)
 
       const { data: winner, error: winnerError } = await supabase
         .from('participants')
@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
         .eq('session_id', sessionId)
         .maybeSingle()
       if (winnerError) throw winnerError
-      if (!winner) return jsonResponse({ message: '?????????' }, 404)
+      if (!winner) return jsonResponse({ message: '找不到抽中的學員。' }, 404)
 
       const payload = {
         ...currentEvent.payload,
@@ -265,11 +265,11 @@ Deno.serve(async (req) => {
       return jsonResponse({ event })
     }
 
-    return jsonResponse({ message: '?????????' }, 400)
+    return jsonResponse({ message: '不支援的講者操作。' }, 400)
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Presenter action failed.'
     console.error('presenter-action failed', detail)
-    if (/Only HTTP/.test(detail)) return jsonResponse({ message: '??????????? http ? https?' }, 400)
-    return jsonResponse({ message: '?????????????' }, 500)
+    if (/Only HTTP/.test(detail)) return jsonResponse({ message: '網址格式不正確，僅支援 http 或 https。' }, 400)
+    return jsonResponse({ message: '講者操作失敗，請稍後再試。' }, 500)
   }
 })

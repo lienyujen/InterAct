@@ -125,7 +125,7 @@ export function ParticipantPage() {
       })
       setMessage('')
     } catch (err) {
-      setError(err instanceof Error ? err.message : '????')
+      setError(err instanceof Error ? err.message : '送出失敗')
     }
   }
 
@@ -151,7 +151,7 @@ export function ParticipantPage() {
       if (insertError) throw insertError
       setAnswer(data as Answer)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '?????????????')
+      setError(err instanceof Error ? err.message : '作答失敗，可能已經提交過。')
     }
   }
 
@@ -176,7 +176,7 @@ export function ParticipantPage() {
       if (insertError) throw insertError
       setExitTicket(data as ExitTicket)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Exit Ticket ?????????????')
+      setError(err instanceof Error ? err.message : 'Exit Ticket 送出失敗，可能已經提交過。')
     } finally {
       setExitTicketBusy(false)
     }
@@ -197,10 +197,10 @@ export function ParticipantPage() {
         },
       })
       if (claimError) throw claimError
-      if (!data?.event) throw new Error(data?.message || '?????')
+      if (!data?.event) throw new Error(data?.message || '搶答失敗。')
       setBuzzerEvent(data.event as BuzzerSessionEvent)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '???????????')
+      setError(err instanceof Error ? err.message : '搶答失敗，請稍後再試。')
       throw err
     } finally {
       setBuzzerBusy(false)
@@ -212,11 +212,11 @@ export function ParticipantPage() {
       <SetupNotice />
       <header className="participant-header">
         <div>
-          <h1>{participant?.name || '???'}</h1>
+          <h1>{participant?.name || '與會者'}</h1>
         </div>
       </header>
       <SharedContentPanel contents={sharedContents} />
-      {screenshot && <img alt="??????" className="participant-image" src={screenshot.public_url} />}
+      {screenshot && <img alt="講者派送圖片" className="participant-image" src={screenshot.public_url} />}
       <ParticipantQuestionView answer={answer} question={question} onSubmit={submitAnswer} />
       {session?.exit_ticket_prompt && session.exit_ticket_category && (
         <ExitTicketForm
@@ -229,16 +229,16 @@ export function ParticipantPage() {
       )}
       <form className="panel message-form" onSubmit={sendMessage}>
         <label>
-          ???????
+          送出問題或回饋
           <textarea
             value={message}
             maxLength={36}
             onChange={(event) => setMessage(Array.from(event.target.value).slice(0, 36).join(''))}
-            placeholder="?????????????????????36??"
+            placeholder="送出後這訊息會即時出現在講者的畫面上，上限36個字"
           />
         </label>
         {error && <p className="error">{error}</p>}
-        <button type="submit">??</button>
+        <button type="submit">送出</button>
       </form>
       <LotteryOverlay event={lotteryEvent} participantId={participant?.id} />
       <BuzzerOverlay

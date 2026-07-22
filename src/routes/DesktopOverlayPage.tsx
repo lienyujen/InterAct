@@ -138,12 +138,12 @@ export function DesktopOverlayPage() {
   async function activateBuzzer() {
     if (!buzzerEvent || !isBuzzerPending(buzzerEvent) || isBuzzerAccepting(buzzerEvent)) return
     const presenterToken = getPresenterToken(sessionId)
-    if (!presenterToken) throw new Error('??????????')
+    if (!presenterToken) throw new Error('找不到講者操作權限。')
     const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
       body: { action: 'activate_buzzer', sessionId, presenterToken, eventId: buzzerEvent.id },
     })
     if (error) throw error
-    if (!data?.event) throw new Error(data?.message || '?????????')
+    if (!data?.event) throw new Error(data?.message || '搶答沒有成功開始。')
     const nextEvent = data.event as BuzzerSessionEvent
     setBuzzerEvent(nextEvent)
     await window.interactDesktop?.showLottery(nextEvent)
