@@ -7,6 +7,8 @@ description: Deploy a complete self-hosted InterAct installation with separate S
 
 Deploy one instructor at a time. Never reuse the original developer's database or paid API keys. Complete each phase and verify its checkpoint before continuing.
 
+For a first-time Windows user, use `docs/InterAct-從零部署與打包教學.md` in the InterAct repository as the master checklist. Explain one phase at a time and wait for its checkpoint instead of presenting all secrets or commands at once.
+
 ## Required Inputs
 
 Collect these values without pasting secret values into chat or source files:
