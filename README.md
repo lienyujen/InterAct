@@ -88,6 +88,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-deployment-skill.ps1
 
 The tracked skill source is at [`skills/interact-self-deploy/SKILL.md`](skills/interact-self-deploy/SKILL.md). It includes separate scripts and verification checkpoints for every service. Never put a Gemini key, Reurl key, Supabase secret key, or service-role key in `.env`, GitHub Pages variables, frontend code, screenshots, or support messages.
 
-A Traditional Chinese beginner tutorial is available at [`docs/InterAct-install-for-novice.md`](docs/InterAct-從零部署與打包教學.md).
+A Traditional Chinese beginner tutorial is available at [`docs/InterAct-install-for-novice.md`](docs/InterAct-install-for-novice.md).
 
 The participant interface always displays links to the InterAct creator's [Facebook](https://www.facebook.com/lienyujen) and [YouTube](https://www.youtube.com/@lienlaoshi) pages.
