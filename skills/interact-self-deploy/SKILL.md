@@ -1,6 +1,6 @@
 ---
 name: interact-self-deploy
-description: Deploy a complete self-hosted InterAct installation with separate Supabase, Gemini API, GitHub Pages, Reurl.cc, and Windows portable-app configuration. Use when setting up InterAct for a new instructor, replacing service credentials, cloning or forking InterAct for private testing, diagnosing an incomplete deployment, or rebuilding interact.exe for another person's infrastructure.
+description: Deploy a complete self-hosted InterAct installation with separate Supabase, Gemini API, GitHub Pages, Reurl.cc, Windows portable-app, and notarized macOS universal-DMG configuration. Use when setting up InterAct for a new instructor, replacing service credentials, cloning or forking InterAct for private testing, diagnosing an incomplete deployment, or rebuilding a desktop app for another person's infrastructure.
 ---
 
 # InterAct Self Deployment
@@ -8,6 +8,8 @@ description: Deploy a complete self-hosted InterAct installation with separate S
 Deploy one instructor at a time. Never reuse the original developer's database or paid API keys. Complete each phase and verify its checkpoint before continuing.
 
 For a first-time Windows user, use `docs/InterAct-從零部署與打包教學.md` in the InterAct repository as the master checklist. Explain one phase at a time and wait for its checkpoint instead of presenting all secrets or commands at once.
+
+For a first-time Mac user, use `docs/InterAct-macOS-setup.md`. Run the matching `.sh` scripts and use the `Release notarized macOS DMG` workflow for public distribution. Never publish the unsigned local test build.
 
 ## Required Inputs
 
@@ -27,15 +29,19 @@ Treat the Supabase publishable key and URLs as public configuration. Treat Gemin
 2. Read [references/gemini.md](references/gemini.md), then run `scripts/deploy-gemini.ps1`. Do not continue until an AI question analysis succeeds.
 3. Read [references/github-pages.md](references/github-pages.md), then run `scripts/configure-github-pages.ps1`. Do not continue until the participant URL loads from GitHub Pages.
 4. Read [references/reurl.md](references/reurl.md), then run `scripts/deploy-reurl.ps1`. Create a new InterAct session and verify its QR panel shows a `reurl.cc` URL.
-5. Read [references/windows.md](references/windows.md), then run `scripts/package-windows.ps1`. Confirm the resulting root `interact.exe` opens and its QR code targets the new GitHub Pages site.
+5. Choose one desktop release:
+   - Windows: read [references/windows.md](references/windows.md), then run `scripts/package-windows.ps1`.
+   - macOS: read [references/macos.md](references/macos.md), set the required Actions secrets, then run the `Release notarized macOS DMG` workflow.
+6. Confirm the desktop app opens, its QR code targets the new GitHub Pages site, and screen capture works with the operating-system permission enabled.
 
 ## Operating Rules
 
-- Run scripts from the InterAct repository root in PowerShell.
+- Run Windows scripts from the InterAct repository root in PowerShell.
+- Run macOS scripts from the InterAct repository root in Terminal.
 - Use a new, empty Supabase project for the bootstrap script.
 - Keep Edge Functions public at the gateway with `verify_jwt = false`; authorization is enforced by presenter tokens and server-side checks inside the functions.
 - Never expose `GEMINI_API_KEY` or `REURL_API_KEY` through a `VITE_` variable.
-- Rebuild both GitHub Pages and `interact.exe` whenever Supabase or the public app URL changes.
+- Rebuild GitHub Pages and the chosen desktop app whenever Supabase or the public app URL changes.
 - Preserve the fixed participant Facebook and YouTube links when preparing trial builds.
 
 ## Final Verification

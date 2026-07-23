@@ -63,6 +63,8 @@ pnpm desktop:dev
 
 The desktop app opens the presenter flow and adds `Windows 截圖派送` on the presenter control panel. Captured images use the same Supabase Storage and Realtime flow as uploaded images.
 
+For macOS, the repository includes a manually triggered workflow that builds a Developer ID-signed, Apple-notarized universal DMG for both Apple Silicon and Intel Macs. See the [macOS beginner deployment guide](docs/InterAct-macOS-setup.md). Public releases require Apple credentials stored only as GitHub Actions secrets.
+
 ## Build
 
 ```bash
@@ -89,5 +91,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-deployment-skill.ps1
 The tracked skill source is at [`skills/interact-self-deploy/SKILL.md`](skills/interact-self-deploy/SKILL.md). It includes separate scripts and verification checkpoints for every service. Never put a Gemini key, Reurl key, Supabase secret key, or service-role key in `.env`, GitHub Pages variables, frontend code, screenshots, or support messages.
 
 A Traditional Chinese beginner tutorial is available at [`docs/InterAct-從零部署與打包教學.md`](docs/InterAct-從零部署與打包教學.md).
+
+The macOS tutorial is available at [`docs/InterAct-macOS-setup.md`](docs/InterAct-macOS-setup.md).
 
 The participant interface always displays links to the InterAct creator's [Facebook](https://www.facebook.com/lienyujen) and [YouTube](https://www.youtube.com/@lienlaoshi) pages.

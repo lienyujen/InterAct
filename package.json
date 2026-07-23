@@ -9,6 +9,7 @@
     "desktop:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env INTERACT_DESKTOP_DEV=1 electron .\"",
     "desktop:start": "pnpm build && electron .",
     "desktop:package": "pnpm build && electron-builder --win portable --x64",
+    "desktop:package:mac": "pnpm build && electron-builder --mac dmg zip --universal --publish never",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview"
@@ -57,6 +58,25 @@
           "target": "portable",
           "arch": [
             "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.education",
+      "hardenedRuntime": true,
+      "notarize": true,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
           ]
         }
       ]
