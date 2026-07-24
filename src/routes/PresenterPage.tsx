@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { PresenterControlPanel } from '../components/PresenterControlPanel'
+import { BuzzerOverlay } from '../components/BuzzerOverlay'
 import { QRCodePanel } from '../components/QRCodePanel'
+import { ExitTicketResult } from '../components/ExitTicketResult'
+import { LotteryOverlay } from '../components/LotteryOverlay'
 import { QuestionEditor } from '../components/QuestionEditor'
 import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
 import { SetupNotice } from '../components/SetupNotice'
+import { TextDispatchModal } from '../components/TextDispatchModal'
+import { finalizeLottery } from '../lib/lottery'
 import { getPresenterToken } from '../lib/presenterAuth'
+import { isBuzzerPending } from '../lib/buzzer'
 import { buildJoinUrl } from '../lib/qrcode'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { AiSummary, Answer, Participant, Question, QuestionAnalysis, QuestionType, Session } from '../types'
+import { useSessionPresence } from '../lib/useSessionPresence'
+import type { AiSummary, Answer, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
 import { useParams } from 'react-router-dom'
 
 export function PresenterPage() {
@@ -21,11 +28,16 @@ export function PresenterPage() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<Question | null>(null)
   const [answers, setAnswers] = useState<Answer[]>([])
+  const [exitTickets, setExitTickets] = useState<ExitTicket[]>([])
   const [analysis, setAnalysis] = useState<QuestionAnalysis | null>(null)
   const [analysisBusy, setAnalysisBusy] = useState(false)
   const [analysisError, setAnalysisError] = useState('')
   const [controlsOpen, setControlsOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
+  const [textDispatchOpen, setTextDispatchOpen] = useState(false)
+  const [textDispatchError, setTextDispatchError] = useState('')
+  const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
+  const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
   const [captureFile, setCaptureFile] = useState<File | null>(null)
   const [capturePreviewUrl, setCapturePreviewUrl] = useState<string | null>(null)
   const [captureSource, setCaptureSource] = useState<InterActCaptureSource | null>(null)
@@ -40,16 +52,22 @@ export function PresenterPage() {
   const [busy, setBusy] = useState(false)
   const fallbackJoinUrl = useMemo(() => buildJoinUrl(session?.code || sessionId), [session?.code, sessionId])
   const [joinUrl, setJoinUrl] = useState(fallbackJoinUrl)
+  const onlineParticipantIds = useSessionPresence(sessionId)
+  const onlineParticipants = useMemo(
+    () => participants.filter((participant) => onlineParticipantIds.includes(participant.id)),
+    [onlineParticipantIds, participants],
+  )
 
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId) return
 
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }, { data: questionListData }, { data: answerQuestionData }] = await Promise.all([
+    const [{ data: sessionData }, { data: participantData }, { data: questionListData }, { data: answerQuestionData }, { data: exitTicketData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at'),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at'),
       supabase.from('answers').select('question_id').eq('session_id', sessionId),
+      supabase.from('exit_tickets').select('*').eq('session_id', sessionId).order('submitted_at'),
     ])
 
     const nextSession = sessionData as Session | null
@@ -57,6 +75,7 @@ export function PresenterPage() {
     setSession(nextSession)
     setParticipants((participantData || []) as Participant[])
     setQuestions(nextQuestions)
+    setExitTickets((exitTicketData || []) as ExitTicket[])
     setAnswerCounts((answerQuestionData || []).reduce<Record<string, number>>((counts, answer) => {
       counts[answer.question_id] = (counts[answer.question_id] || 0) + 1
       return counts
@@ -127,8 +146,8 @@ export function PresenterPage() {
 
   useEffect(() => {
     if (!window.interactDesktop || selectionMode) return
-    window.interactDesktop.setPresenterExpanded(controlsOpen || editorOpen)
-  }, [controlsOpen, editorOpen, selectionMode])
+    window.interactDesktop.setPresenterExpanded(controlsOpen || editorOpen || textDispatchOpen)
+  }, [controlsOpen, editorOpen, selectionMode, textDispatchOpen])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !sessionId) return
@@ -140,12 +159,33 @@ export function PresenterPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `session_id=eq.${sessionId}` }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
+        const event = payload.new as SessionEvent
+        if (event.event_type === 'buzzer') {
+          setBuzzerEvent(event)
+          setLotteryEvent(null)
+        } else if (event.event_type === 'lottery') {
+          setLotteryEvent(event)
+          setBuzzerEvent(null)
+        }
+      })
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
   }, [loadAll, sessionId])
+
+  useEffect(() => {
+    if (!lotteryEvent || lotteryEvent.payload.finalized !== false) return
+    const timer = window.setTimeout(() => {
+      void finalizeLottery(sessionId, lotteryEvent.id, lotteryEvent.payload.winner_id)
+        .then(setLotteryEvent)
+        .catch((error) => setAnalysisError(error instanceof Error ? error.message : '抽籤停止失敗。'))
+    }, lotteryEvent.payload.duration_ms)
+    return () => window.clearTimeout(timer)
+  }, [lotteryEvent, sessionId])
 
   async function updateSession(values: Partial<Session>) {
     if (!session) return
@@ -504,6 +544,167 @@ export function PresenterPage() {
     }
   }
 
+  async function openWordCloud() {
+    if (window.interactDesktop) {
+      await window.interactDesktop.openWordCloud(sessionId)
+      return
+    }
+    const cloudUrl = `${window.location.origin}${window.location.pathname}#/word-cloud/${sessionId}`
+    window.open(cloudUrl, `interact-word-cloud-${sessionId}`, 'popup,width=1100,height=720')
+  }
+
+  async function drawLottery() {
+    await runLottery(onlineParticipants.map((participant) => participant.id), '目前沒有在線學生。')
+  }
+
+  async function startBuzzer() {
+    if (!onlineParticipants.length) {
+      setAnalysisError('目前沒有在線學生。')
+      return
+    }
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setAnalysisError('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+      return
+    }
+
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+        body: {
+          action: 'start_buzzer',
+          sessionId,
+          presenterToken,
+          candidateIds: onlineParticipants.map((participant) => participant.id),
+        },
+      })
+      if (error) throw error
+      if (!data?.event) throw new Error(data?.message || '搶答沒有成功開始。')
+      const nextEvent = data.event as BuzzerSessionEvent
+      setLotteryEvent(null)
+      setBuzzerEvent(nextEvent)
+      await window.interactDesktop?.showLottery(nextEvent)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '搶答啟動失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function activateBuzzer(eventId: string) {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者操作權限。')
+
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'activate_buzzer', sessionId, presenterToken, eventId },
+    })
+    if (error) throw error
+    if (!data?.event) throw new Error(data?.message || '搶答沒有成功開始。')
+    const nextEvent = data.event as BuzzerSessionEvent
+    setBuzzerEvent(nextEvent)
+    await window.interactDesktop?.showLottery(nextEvent)
+  }
+
+  async function drawUnanswered(questionId: string) {
+    if (!onlineParticipants.length) {
+      setAnalysisError('目前沒有在線學生。')
+      return
+    }
+
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      const { data, error } = await requireSupabase()
+        .from('answers')
+        .select('participant_id')
+        .eq('session_id', sessionId)
+        .eq('question_id', questionId)
+      if (error) throw error
+
+      const answeredParticipantIds = new Set((data || []).map((answer) => answer.participant_id))
+      const unansweredIds = onlineParticipants
+        .filter((participant) => !answeredParticipantIds.has(participant.id))
+        .map((participant) => participant.id)
+
+      if (!unansweredIds.length) {
+        setAnalysisError('目前在線學生皆已作答此題。')
+        return
+      }
+      await invokeLottery(unansweredIds)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '未作答學生抽選失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runLottery(candidateIds: string[], emptyMessage: string) {
+    if (!candidateIds.length) {
+      setAnalysisError(emptyMessage)
+      return
+    }
+
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      await invokeLottery(candidateIds)
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '抽籤失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function invokeLottery(candidateIds: string[]) {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      throw new Error('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+    }
+
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'draw_lottery', sessionId, presenterToken, candidateIds },
+    })
+    if (error) throw error
+    if (!data?.event) throw new Error(data?.message || '抽籤沒有回傳結果。')
+    const nextEvent = data.event as LotterySessionEvent
+    setLotteryEvent(nextEvent)
+    await window.interactDesktop?.showLottery(nextEvent)
+  }
+
+  async function selectLotteryCandidate(winnerId: string) {
+    if (!lotteryEvent) return
+    try {
+      setLotteryEvent(await finalizeLottery(sessionId, lotteryEvent.id, winnerId))
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : '抽籤停止失敗。')
+      throw error
+    }
+  }
+
+  async function sendSharedContent(body: string, url: string) {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) {
+      setTextDispatchError('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+      return
+    }
+
+    setBusy(true)
+    setTextDispatchError('')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+        body: { action: 'share_content', sessionId, presenterToken, body, url },
+      })
+      if (error) throw error
+      if (!data?.content) throw new Error(data?.message || '文字派送失敗。')
+      setTextDispatchOpen(false)
+    } catch (error) {
+      setTextDispatchError(error instanceof Error ? error.message : '文字派送失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function endClass() {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
@@ -539,7 +740,7 @@ export function PresenterPage() {
   }
 
   return (
-    <main className={`presenter-page ${selectionMode ? 'selecting-capture' : ''}`}>
+    <main className={`presenter-page${controlsOpen ? ' controls-open' : ''}${selectionMode ? ' selecting-capture' : ''}`}>
       {!selectionMode && (
         <aside
           className="qr-floating"
@@ -561,14 +762,22 @@ export function PresenterPage() {
         <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
         <PresenterControlPanel
           busy={busy}
-          participants={participants}
+          buzzerActive={isBuzzerPending(buzzerEvent)}
+          onlineCount={onlineParticipants.length}
           session={session}
+          onDrawLottery={drawLottery}
+          onStartBuzzer={startBuzzer}
           onStopQuestion={stopQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
           onGenerateExitTicket={generateExitTicket}
           onEndClass={endClass}
+          onOpenTextDispatch={() => {
+            setTextDispatchError('')
+            setTextDispatchOpen(true)
+          }}
+          onOpenWordCloud={openWordCloud}
         />
         <QuestionHistory
           activeQuestionId={session.current_question_id}
@@ -582,10 +791,22 @@ export function PresenterPage() {
           analysisBusy={analysisBusy}
           analysisError={analysisError}
           answers={answers}
+          busy={busy}
+          isCurrentQuestion={question?.id === session.current_question_id}
+          onlineCount={onlineParticipants.length}
           question={question}
           onAnalyze={analyzeQuestion}
+          onDrawUnanswered={drawUnanswered}
           onSetCorrectAnswer={setCorrectAnswer}
         />
+        {session.exit_ticket_prompt && session.exit_ticket_category && (
+          <ExitTicketResult
+            category={session.exit_ticket_category}
+            onlineCount={onlineParticipants.length}
+            prompt={session.exit_ticket_prompt}
+            tickets={exitTickets}
+          />
+        )}
       </aside>
       )}
       {selectionMode && (
@@ -616,6 +837,20 @@ export function PresenterPage() {
         </div>
       )}
       <QuestionEditor open={editorOpen} previewUrl={capturePreviewUrl} onCancel={cancelQuestionEditor} onCreate={createScreenshotQuestion} />
+      <TextDispatchModal
+        busy={busy}
+        error={textDispatchError}
+        open={textDispatchOpen}
+        onCancel={() => setTextDispatchOpen(false)}
+        onSend={sendSharedContent}
+      />
+      {!window.interactDesktop && <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />}
+      {!window.interactDesktop && (
+        <BuzzerOverlay
+          event={buzzerEvent}
+          onStart={buzzerEvent ? () => activateBuzzer(buzzerEvent.id) : undefined}
+        />
+      )}
     </main>
   )
 }

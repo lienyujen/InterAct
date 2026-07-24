@@ -48,6 +48,58 @@ export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_fa
 export type ExitTicketCategory = 'lesson_summary' | 'learning_assessment' | 'course_satisfaction' | 'student_question'
 export type ExitTicketResponseType = 'text' | 'rating'
 
+export type SharedContent = {
+  id: string
+  session_id: string
+  body: string | null
+  url: string | null
+  created_at: string
+}
+
+export type LotteryPayload = {
+  round: number
+  winner_id: string
+  winner_name: string
+  candidate_count: number
+  candidate_names: string[]
+  candidate_ids?: string[]
+  duration_ms: number
+  finalized?: boolean
+}
+
+export type BuzzerPayload = {
+  candidate_count: number
+  candidate_ids: string[]
+  prepared_at: string
+  started_at?: string
+  expires_at: string
+  duration_ms: number
+  finalized: boolean
+  accepting: boolean
+  cancelled?: boolean
+  winner_id?: string
+  winner_name?: string
+  finalized_at?: string
+}
+
+export type LotterySessionEvent = {
+  id: string
+  session_id: string
+  event_type: 'lottery' | 'lottery_result'
+  payload: LotteryPayload
+  created_at: string
+}
+
+export type BuzzerSessionEvent = {
+  id: string
+  session_id: string
+  event_type: 'buzzer'
+  payload: BuzzerPayload
+  created_at: string
+}
+
+export type SessionEvent = LotterySessionEvent | BuzzerSessionEvent
+
 export type Question = {
   id: string
   session_id: string
@@ -175,6 +227,7 @@ export type SessionReportData = {
   session: Session
   participants: Participant[]
   messages: Message[]
+  sharedContents: SharedContent[]
   screenshots: Screenshot[]
   questions: Question[]
   answers: Answer[]

@@ -1,4 +1,4 @@
-import { CheckCircle2, Sparkles } from 'lucide-react'
+import { CheckCircle2, Dice5, Sparkles } from 'lucide-react'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import type { Answer, Question, QuestionAnalysis } from '../types'
 
@@ -8,7 +8,11 @@ type Props = {
   analysis: QuestionAnalysis | null
   analysisBusy: boolean
   analysisError: string
+  busy: boolean
+  isCurrentQuestion: boolean
+  onlineCount: number
   onAnalyze: () => void
+  onDrawUnanswered: (questionId: string) => void
   onSetCorrectAnswer: (answer: string) => void
 }
 
@@ -20,6 +24,36 @@ function ItemList({ items }: { items: string[] }) {
     <ul className="analysis-list">
       {items.map((item) => <li key={item}>{item}</li>)}
     </ul>
+  )
+}
+
+function QuestionStatusActions({
+  busy,
+  isCurrentQuestion,
+  onlineCount,
+  onDrawUnanswered,
+  question,
+}: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered'> & { question: Question }) {
+  const canDrawUnanswered = isCurrentQuestion
+    && question.type !== 'send_screen'
+    && (question.status === 'stopped' || question.status === 'closed')
+
+  return (
+    <div className="question-heading-actions">
+      {canDrawUnanswered && (
+        <button
+          aria-label="抽選本題未作答學生"
+          className="question-unanswered-draw"
+          disabled={busy || !onlineCount}
+          title={onlineCount ? '抽選目前在線且未作答本題的學生' : '目前沒有在線學生'}
+          type="button"
+          onClick={() => onDrawUnanswered(question.id)}
+        >
+          <Dice5 size={20} />
+        </button>
+      )}
+      <span className={`status ${question.status}`}>{question.status}</span>
+    </div>
   )
 }
 
@@ -136,7 +170,7 @@ export function QuestionResult(props: Props) {
         <section className="panel result-panel">
           <div className="panel-heading">
             <h2>問答題</h2>
-            <span className={`status ${question.status}`}>{question.status}</span>
+            <QuestionStatusActions {...props} question={question} />
           </div>
           <p className="muted">已作答 {answers.length} 人</p>
           <div className="answer-list">
@@ -166,7 +200,7 @@ export function QuestionResult(props: Props) {
       <section className="panel result-panel">
         <div className="panel-heading">
           <h2>{question.title}</h2>
-          <span className={`status ${question.status}`}>{question.status}</span>
+          <QuestionStatusActions {...props} question={question} />
         </div>
         {(analysis?.question_understanding.detected_question || question.prompt_text) && (
           <p className="detected-question">{analysis?.question_understanding.detected_question || question.prompt_text}</p>

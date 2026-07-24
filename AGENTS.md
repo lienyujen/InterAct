@@ -37,3 +37,5 @@ Core features:
 - CSV export is required.
 
 Build in phases. Keep the app simple and working before adding polish.
+
+For a new self-hosted deployment, follow `skills/interact-self-deploy/SKILL.md` and keep each deployer's Supabase, Gemini, Reurl, and GitHub credentials separate.

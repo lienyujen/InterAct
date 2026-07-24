@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Send } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
+import { BuzzerOverlay } from '../components/BuzzerOverlay'
 import { ExitTicketForm } from '../components/ExitTicketForm'
+import { LotteryOverlay } from '../components/LotteryOverlay'
+import { SharedContentPanel } from '../components/SharedContentPanel'
 import { SetupNotice } from '../components/SetupNotice'
+import { StudentSocialLinks } from '../components/StudentSocialLinks'
+import { isBuzzerAccepting } from '../lib/buzzer'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { Answer, ExitTicket, Participant, Question, Screenshot, Session } from '../types'
+import { useSessionPresence } from '../lib/useSessionPresence'
+import type { Answer, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, Question, Screenshot, Session, SessionEvent, SharedContent } from '../types'
 
 export function ParticipantPage() {
   const { sessionId = '' } = useParams()
@@ -16,23 +23,32 @@ export function ParticipantPage() {
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [screenshot, setScreenshot] = useState<Screenshot | null>(null)
   const [exitTicket, setExitTicket] = useState<ExitTicket | null>(null)
+  const [sharedContents, setSharedContents] = useState<SharedContent[]>([])
+  const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
+  const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
+  const [buzzerBusy, setBuzzerBusy] = useState(false)
   const [exitTicketBusy, setExitTicketBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  useSessionPresence(sessionId, participant)
 
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId || !participantId) return
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }, { data: exitTicketData }] = await Promise.all([
+    const [{ data: sessionData }, { data: participantData }, { data: exitTicketData }, { data: sharedContentData }, { data: buzzerData }] = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('id', participantId).single(),
       supabase.from('exit_tickets').select('*').eq('session_id', sessionId).eq('participant_id', participantId).maybeSingle(),
+      supabase.from('shared_contents').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(20),
+      supabase.from('session_events').select('*').eq('session_id', sessionId).eq('event_type', 'buzzer').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ])
     const nextSession = sessionData as Session | null
     setSession(nextSession)
     setParticipant(participantData as Participant | null)
     setExitTicket((exitTicketData as ExitTicket | null) || null)
+    setSharedContents((sharedContentData || []) as SharedContent[])
+    setBuzzerEvent((buzzerData as BuzzerSessionEvent | null) || null)
 
     if (nextSession?.current_question_id) {
       const [{ data: questionData }, { data: answerData }] = await Promise.all([
@@ -63,7 +79,7 @@ export function ParticipantPage() {
   }, [loadAll])
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !sessionId) return
+    if (!isSupabaseConfigured || !sessionId || !participantId) return
     const supabase = requireSupabase()
     const channel = supabase
       .channel(`participant:${sessionId}:${participantId}`)
@@ -72,6 +88,23 @@ export function ParticipantPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `participant_id=eq.${participantId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `participant_id=eq.${participantId}` }, loadAll)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shared_contents', filter: `session_id=eq.${sessionId}` }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
+        const event = payload.new as SessionEvent
+        if (event.event_type === 'buzzer') {
+          setBuzzerEvent(event)
+          setLotteryEvent(null)
+          return
+        }
+        if (event.event_type === 'lottery' || event.event_type === 'lottery_result') {
+          setBuzzerEvent(null)
+          if (event.payload.finalized !== false && event.payload.winner_id === participantId) {
+            setLotteryEvent(event)
+          } else {
+            setLotteryEvent((current) => current?.id === event.id ? null : current)
+          }
+        }
+      })
       .subscribe()
 
     return () => {
@@ -81,7 +114,7 @@ export function ParticipantPage() {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault()
-    const content = message.trim()
+    const content = Array.from(message.trim()).slice(0, 36).join('')
     if (!participant || !content) return
     setError('')
     try {
@@ -124,7 +157,7 @@ export function ParticipantPage() {
     }
   }
 
-  async function submitExitTicket(value: { responseText: string | null; rating: number | null }) {
+  async function submitExitTicket(value: { responseText: string; rating: number }) {
     if (!participant || !session?.exit_ticket_prompt) return
     setExitTicketBusy(true)
     setError('')
@@ -137,7 +170,7 @@ export function ParticipantPage() {
           participant_name: participant.name,
           response_text: value.responseText,
           rating: value.rating,
-          understanding_score: session.exit_ticket_category === 'learning_assessment' ? value.rating : null,
+          understanding_score: value.rating,
           engagement_score: null,
         })
         .select('*')
@@ -151,22 +184,48 @@ export function ParticipantPage() {
     }
   }
 
+  async function claimBuzzer() {
+    const currentBuzzerEvent = buzzerEvent
+    if (!participant || !currentBuzzerEvent || !isBuzzerAccepting(currentBuzzerEvent)) return
+    setBuzzerBusy(true)
+    setError('')
+    try {
+      const { data, error: claimError } = await requireSupabase().functions.invoke('participant-action', {
+        body: {
+          action: 'claim_buzzer',
+          sessionId,
+          participantId: participant.id,
+          eventId: currentBuzzerEvent.id,
+        },
+      })
+      if (claimError) throw claimError
+      if (!data?.event) throw new Error(data?.message || '搶答失敗。')
+      setBuzzerEvent(data.event as BuzzerSessionEvent)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '搶答失敗，請稍後再試。')
+      throw err
+    } finally {
+      setBuzzerBusy(false)
+    }
+  }
+
   return (
     <main className="participant-page">
       <SetupNotice />
+      <StudentSocialLinks />
       <header className="participant-header">
         <div>
           <h1>{participant?.name || '與會者'}</h1>
         </div>
       </header>
+      <SharedContentPanel contents={sharedContents} />
       {screenshot && <img alt="講者派送圖片" className="participant-image" src={screenshot.public_url} />}
       <ParticipantQuestionView answer={answer} question={question} onSubmit={submitAnswer} />
-      {session?.exit_ticket_prompt && session.exit_ticket_category && session.exit_ticket_response_type && (
+      {session?.exit_ticket_prompt && session.exit_ticket_category && (
         <ExitTicketForm
           busy={exitTicketBusy}
           category={session.exit_ticket_category}
           prompt={session.exit_ticket_prompt}
-          responseType={session.exit_ticket_response_type}
           ticket={exitTicket}
           onSubmit={submitExitTicket}
         />
@@ -176,13 +235,21 @@ export function ParticipantPage() {
           送出問題或回饋
           <textarea
             value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="送出後這則訊息會即時出現在講者的畫面上"
+            maxLength={36}
+            onChange={(event) => setMessage(Array.from(event.target.value).slice(0, 36).join(''))}
+            placeholder="送出後這訊息會即時出現在講者的畫面上，上限36個字"
           />
         </label>
         {error && <p className="error">{error}</p>}
-        <button type="submit">送出</button>
+        <button type="submit"><Send size={18} />送出</button>
       </form>
+      <LotteryOverlay event={lotteryEvent} participantId={participant?.id} />
+      <BuzzerOverlay
+        busy={buzzerBusy}
+        event={buzzerEvent}
+        participantId={participant?.id}
+        onBuzz={claimBuzzer}
+      />
     </main>
   )
 }

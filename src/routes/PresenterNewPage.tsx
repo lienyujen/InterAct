@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { SetupNotice } from '../components/SetupNotice'
 import { savePresenterToken } from '../lib/presenterAuth'
@@ -40,7 +41,9 @@ export function PresenterNewPage() {
     <main className="center-page">
       <SetupNotice />
       <form className="panel form-panel" onSubmit={createSession}>
+        <span className="form-heading-icon"><Sparkles size={24} /></span>
         <h1>建立新場次</h1>
+        <p className="muted">建立場次，讓學生掃碼即可加入</p>
         <label>
           場次名稱
           <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：AI 教學工作坊" />
@@ -48,6 +51,7 @@ export function PresenterNewPage() {
         {error && <p className="error">{error}</p>}
         <button disabled={busy} type="submit">
           {busy ? '建立中...' : '建立場次'}
+          {!busy && <ArrowRight size={18} />}
         </button>
       </form>
     </main>

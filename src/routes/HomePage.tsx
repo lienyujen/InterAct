@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { ArrowRight, LogIn, Presentation } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { SetupNotice } from '../components/SetupNotice'
 
@@ -22,11 +23,11 @@ export function HomePage() {
         <p className="lede">建立場次、顯示 QR Code、收集現場提問，並用彈幕和選擇題讓教學現場動起來。</p>
         <div className="home-actions">
           <Link className="primary-link" to="/presenter/new">
-            建立新場次
+            <Presentation size={19} />建立新場次
           </Link>
           <form className="join-form" onSubmit={join}>
             <input value={sessionId} onChange={(event) => setSessionId(event.target.value)} placeholder="輸入 session id" />
-            <button type="submit">加入場次</button>
+            <button type="submit"><LogIn size={18} />加入場次<ArrowRight size={17} /></button>
           </form>
         </div>
       </section>

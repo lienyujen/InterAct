@@ -70,3 +70,24 @@ pnpm build
 ```
 
 The app uses `HashRouter`, so GitHub Pages refreshes do not 404.
+
+## Self-hosted Deployment
+
+Each InterAct installation uses four independent accounts and does not share the original developer's quota or classroom data:
+
+1. Supabase hosts the database, Realtime, Storage, and Edge Functions.
+2. Google AI Studio supplies the Gemini API key stored only as a Supabase secret.
+3. GitHub Pages hosts the participant website using repository variables.
+4. Reurl.cc supplies the optional short URL key stored only as a Supabase secret.
+
+Install the reusable deployment skill, restart Codex, then invoke `$interact-self-deploy`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-deployment-skill.ps1
+```
+
+The tracked skill source is at [`skills/interact-self-deploy/SKILL.md`](skills/interact-self-deploy/SKILL.md). It includes separate scripts and verification checkpoints for every service. Never put a Gemini key, Reurl key, Supabase secret key, or service-role key in `.env`, GitHub Pages variables, frontend code, screenshots, or support messages.
+
+A Traditional Chinese beginner tutorial is available at [`docs/InterAct-從零部署與打包教學.md`](docs/InterAct-從零部署與打包教學.md).
+
+The participant interface always displays links to the InterAct creator's [Facebook](https://www.facebook.com/lienyujen) and [YouTube](https://www.youtube.com/@lienlaoshi) pages.

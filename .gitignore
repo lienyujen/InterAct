@@ -11,7 +11,9 @@ node_modules
 dist
 dist-ssr
 release
+/release-build/
 /interact.exe
+.codex-tmp/
 .env
 *.local
 

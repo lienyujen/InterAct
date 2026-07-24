@@ -2,16 +2,18 @@ const { app, BrowserWindow, desktopCapturer, ipcMain, screen } = require('electr
 const path = require('node:path')
 
 const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
-const CONTROL_COLLAPSED = { width: 300, height: 276 }
+const CONTROL_COLLAPSED = { width: 194, height: 242 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
 const WINDOW_MARGIN = 12
 
 let mainWindow = null
 let overlayWindow = null
 let reportWindow = null
+let wordCloudWindow = null
 let lastControlBounds = null
 let isQuitting = false
 let releaseTopmostTimer = null
+let latestLotteryEvent = null
 const windowDragState = new Map()
 
 function appUrl(hash) {
@@ -30,8 +32,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 540,
     height: 680,
-    minWidth: 300,
-    minHeight: 276,
+    minWidth: 194,
+    minHeight: 242,
     frame: false,
     transparent: true,
     resizable: false,
@@ -65,6 +67,8 @@ function createWindow() {
     mainWindow = null
     overlayWindow?.close()
     overlayWindow = null
+    wordCloudWindow?.close()
+    wordCloudWindow = null
   })
 }
 
@@ -85,13 +89,14 @@ function bringControlToFront() {
 
 function createOverlayWindow(sessionId) {
   overlayWindow?.close()
+  latestLotteryEvent = null
 
   overlayWindow = new BrowserWindow({
     fullscreen: true,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    focusable: false,
+    focusable: true,
     hasShadow: false,
     skipTaskbar: true,
     show: false,
@@ -99,6 +104,7 @@ function createOverlayWindow(sessionId) {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   })
 
@@ -157,6 +163,46 @@ function createReportWindow(sessionId) {
   })
   reportWindow.on('closed', () => {
     reportWindow = null
+  })
+}
+
+function createWordCloudWindow(sessionId) {
+  if (wordCloudWindow && !wordCloudWindow.isDestroyed()) {
+    if (wordCloudWindow.isMinimized()) wordCloudWindow.restore()
+    wordCloudWindow.show()
+    wordCloudWindow.moveTop()
+    wordCloudWindow.focus()
+    return
+  }
+
+  const targetDisplay = displayForBounds(mainWindow?.getBounds())
+  const width = Math.min(1180, Math.max(860, targetDisplay.workArea.width - 120))
+  const height = Math.min(780, Math.max(600, targetDisplay.workArea.height - 120))
+  wordCloudWindow = new BrowserWindow({
+    width,
+    height,
+    minWidth: 760,
+    minHeight: 520,
+    frame: false,
+    show: false,
+    resizable: true,
+    maximizable: true,
+    backgroundColor: '#0b1020',
+    title: 'InterAct 彈幕文字雲',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+  })
+
+  loadAppRoute(wordCloudWindow, `/word-cloud/${sessionId}`)
+  wordCloudWindow.once('ready-to-show', () => {
+    wordCloudWindow?.show()
+    wordCloudWindow?.focus()
+  })
+  wordCloudWindow.on('closed', () => {
+    wordCloudWindow = null
   })
 }
 
@@ -219,13 +265,45 @@ ipcMain.handle('window:set-expanded', (_event, expanded) => {
   setControlBounds(Boolean(expanded))
 })
 
+ipcMain.handle('lottery:set-interactive', (_event, enabled) => {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return
+  const interactive = Boolean(enabled)
+  overlayWindow.setFocusable(interactive)
+  overlayWindow.setIgnoreMouseEvents(!interactive)
+  if (interactive) {
+    overlayWindow.show()
+    overlayWindow.focus()
+  } else {
+    setTimeout(bringControlToFront, 60)
+  }
+})
+
+ipcMain.handle('lottery:show', (_event, lotteryEvent) => {
+  if (!overlayWindow || overlayWindow.isDestroyed() || !lotteryEvent?.id) return
+  latestLotteryEvent = lotteryEvent
+  overlayWindow.webContents.send('lottery:event', lotteryEvent)
+})
+
+ipcMain.handle('lottery:get-latest', () => latestLotteryEvent)
+
 ipcMain.handle('window:minimize', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize()
 })
-ipcMain.handle('window:close', () => app.quit())
+ipcMain.handle('window:close', (event) => {
+  const targetWindow = BrowserWindow.fromWebContents(event.sender)
+  if (targetWindow && targetWindow === wordCloudWindow) {
+    targetWindow.close()
+    return
+  }
+  app.quit()
+})
 ipcMain.handle('window:open-session-report', (_event, sessionId) => {
   if (!sessionId) throw new Error('缺少場次資料。')
   createReportWindow(sessionId)
+})
+ipcMain.handle('window:open-word-cloud', (_event, sessionId) => {
+  if (!sessionId) throw new Error('缺少場次資料。')
+  createWordCloudWindow(sessionId)
 })
 
 ipcMain.on('window:drag-start', (event, point) => {

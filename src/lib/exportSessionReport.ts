@@ -127,6 +127,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     ['答對數', metrics.correct_answer_count],
     ['整體正確率', metrics.correct_rate === null ? '尚未設定正確答案' : metrics.correct_rate / 100],
     ['Exit Ticket 份數', metrics.exit_ticket_count],
+    ['文字／連結派送數', data.sharedContents.length],
   ])
   const interactionStart = 11
   overview.getCell(`B${interactionStart + 5}`).numFmt = '0.0%'
@@ -266,6 +267,27 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
   }
   messages.getColumn('createdAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
   styleTableSheet(messages)
+
+  const sharedContents = workbook.addWorksheet('文字派送')
+  sharedContents.columns = [
+    { header: '派送時間', key: 'createdAt', width: 22 },
+    { header: '內容類型', key: 'contentType', width: 16 },
+    { header: '文字內容', key: 'body', width: 75 },
+    { header: '網址', key: 'url', width: 65 },
+  ]
+  for (const content of data.sharedContents) {
+    sharedContents.addRow({
+      createdAt: formatDate(content.created_at),
+      contentType: content.body && content.url ? '文字＋連結' : content.url ? '連結' : '文字',
+      body: content.body || '',
+      url: content.url
+        ? { text: content.url, hyperlink: content.url, tooltip: '開啟派送網址' }
+        : '',
+    })
+  }
+  sharedContents.getColumn('createdAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
+  sharedContents.getColumn('url').font = { color: { argb: COLORS.primary }, underline: true }
+  styleTableSheet(sharedContents)
 
   const exitTickets = workbook.addWorksheet('Exit Ticket')
   exitTickets.columns = [

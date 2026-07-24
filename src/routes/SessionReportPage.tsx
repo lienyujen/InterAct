@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BookOpen, ChartNoAxesCombined, Clock, Download, ListChecks, LoaderCircle, MessageSquareText, RefreshCw, Users, X } from 'lucide-react'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { requireSupabase } from '../lib/supabase'
-import type { AiSummary, Answer, ExitTicket, Message, Participant, Question, Screenshot, Session, SessionAnalysis, SessionMetrics, SessionReportData } from '../types'
+import type { AiSummary, Answer, ExitTicket, Message, Participant, Question, Screenshot, Session, SessionAnalysis, SessionMetrics, SessionReportData, SharedContent } from '../types'
 import { useParams } from 'react-router-dom'
 
 const PAGE_SIZE = 1000
@@ -68,9 +68,10 @@ export function SessionReportPage() {
     const { data: session, error: sessionError } = await supabase.from('sessions').select('*').eq('id', sessionId).single()
     if (sessionError) throw sessionError
 
-    const [participants, messages, screenshots, questions, answers, aiSummaries, exitTickets] = await Promise.all([
+    const [participants, messages, sharedContents, screenshots, questions, answers, aiSummaries, exitTickets] = await Promise.all([
       fetchAllRows<Participant>('participants', sessionId, 'joined_at'),
       fetchAllRows<Message>('messages', sessionId, 'created_at'),
+      fetchAllRows<SharedContent>('shared_contents', sessionId, 'created_at'),
       fetchAllRows<Screenshot>('screenshots', sessionId, 'created_at'),
       fetchAllRows<Question>('questions', sessionId, 'created_at'),
       fetchAllRows<Answer>('answers', sessionId, 'submitted_at'),
@@ -82,6 +83,7 @@ export function SessionReportPage() {
       session: session as Session,
       participants,
       messages,
+      sharedContents,
       screenshots,
       questions,
       answers,

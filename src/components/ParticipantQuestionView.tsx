@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Send } from 'lucide-react'
 import type { Answer, Question } from '../types'
 
 type Props = {
@@ -33,7 +34,7 @@ export function ParticipantQuestionView({ question, answer, onSubmit }: Props) {
       {!answer && question.status === 'active' && question.type === 'short_answer' && (
         <form className="short-answer-form" onSubmit={submitShortAnswer}>
           <textarea value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} placeholder="請輸入你的回答" />
-          <button type="submit">送出答案</button>
+          <button type="submit"><Send size={18} />送出答案</button>
         </form>
       )}
       {!answer && question.status === 'active' && question.type !== 'short_answer' && question.allow_multiple && (
@@ -63,7 +64,7 @@ export function ParticipantQuestionView({ question, answer, onSubmit }: Props) {
               )
             })}
           </div>
-          <button disabled={!selectedOptions.length} type="submit">送出答案</button>
+          <button disabled={!selectedOptions.length} type="submit"><Send size={18} />送出答案</button>
         </form>
       )}
       {!answer && question.status === 'active' && question.type !== 'short_answer' && !question.allow_multiple && (

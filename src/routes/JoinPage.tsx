@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { ArrowRight, UserRound } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SetupNotice } from '../components/SetupNotice'
+import { StudentSocialLinks } from '../components/StudentSocialLinks'
 import { getDeviceId } from '../lib/device'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import type { Participant, Session } from '../types'
@@ -73,15 +75,27 @@ export function JoinPage() {
   return (
     <main className="center-page">
       <SetupNotice />
-      <form className="panel form-panel" onSubmit={join}>
+      <StudentSocialLinks />
+      <form autoComplete="off" className="panel form-panel" onSubmit={join}>
+        <span className="form-heading-icon"><UserRound size={24} /></span>
         <h1>加入{session?.title || '場次'}</h1>
+        <p className="muted">輸入姓名後即可進入互動課堂</p>
         <label>
           你的姓名
-          <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="請輸入姓名" />
+          <input
+            autoComplete="name"
+            autoFocus
+            inputMode="text"
+            name="participant-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="請輸入姓名"
+          />
         </label>
         {error && <p className="error">{error}</p>}
         <button disabled={busy} type="submit">
           {busy ? '加入中...' : '加入'}
+          {!busy && <ArrowRight size={18} />}
         </button>
       </form>
     </main>

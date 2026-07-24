@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
     }
 
     const geminiKey = Deno.env.get('GEMINI_API_KEY')
-    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash'
+    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.6-flash'
     if (!geminiKey) return jsonResponse({ message: 'Supabase 尚未設定 GEMINI_API_KEY。' }, 503)
 
     const imageResponse = await fetch(screenshot.public_url)

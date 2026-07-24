@@ -15,7 +15,7 @@ export function jsonResponse(body: unknown, status = 200) {
 
 export async function callAiJson(systemPrompt: string, userPayload: unknown, schema?: Record<string, unknown>) {
   const apiKey = Deno.env.get('GEMINI_API_KEY')
-  const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash'
+  const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.6-flash'
 
   if (!apiKey) {
     return {

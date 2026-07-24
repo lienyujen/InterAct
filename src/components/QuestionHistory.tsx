@@ -10,7 +10,13 @@ type Props = {
   onSelect: (questionId: string) => void
 }
 
-export function QuestionHistory({ questions, activeQuestionId, selectedQuestionId, answerCounts, onSelect }: Props) {
+export function QuestionHistory({
+  questions,
+  activeQuestionId,
+  selectedQuestionId,
+  answerCounts,
+  onSelect,
+}: Props) {
   const [open, setOpen] = useState(false)
   const history = useMemo(
     () => questions

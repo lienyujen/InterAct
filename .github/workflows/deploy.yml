@@ -36,12 +36,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify deployment configuration
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_PUBLIC_APP_URL: ${{ vars.VITE_PUBLIC_APP_URL }}
+        run: |
+          test -n "$VITE_SUPABASE_URL" || (echo "Missing repository variable VITE_SUPABASE_URL" && exit 1)
+          test -n "$VITE_SUPABASE_ANON_KEY" || (echo "Missing repository variable VITE_SUPABASE_ANON_KEY" && exit 1)
+          test -n "$VITE_PUBLIC_APP_URL" || (echo "Missing repository variable VITE_PUBLIC_APP_URL" && exit 1)
+
       - name: Build
         run: pnpm build
         env:
-          VITE_SUPABASE_URL: https://vejugrrraqdvgzqbylje.supabase.co
-          VITE_SUPABASE_ANON_KEY: sb_publishable_8hHmc3hPQMMJY_h8ZLD6ww_jWz2w7lO
-          VITE_PUBLIC_APP_URL: https://lienyujen.github.io/InterAct
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_PUBLIC_APP_URL: ${{ vars.VITE_PUBLIC_APP_URL }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
