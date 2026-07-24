@@ -405,10 +405,6 @@ insert into storage.buckets (id, name, public)
 values ('interact-screenshots', 'interact-screenshots', true)
 on conflict (id) do update set public = excluded.public;
 
-create policy "mvp read screenshot objects"
-on storage.objects for select
-using (bucket_id = 'interact-screenshots');
-
 create policy "upload screenshots to active sessions"
 on storage.objects for insert
 to anon, authenticated
