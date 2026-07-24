@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close'),
   listCaptureSources: () => ipcRenderer.invoke('capture:list'),
+  getScreenCapturePermission: () => ipcRenderer.invoke('capture:permission-status'),
+  openScreenCaptureSettings: () => ipcRenderer.invoke('capture:open-permission-settings'),
   startCaptureSelection: () => ipcRenderer.invoke('capture:start-selection'),
   finishCaptureSelection: (expanded) => ipcRenderer.invoke('capture:finish-selection', expanded),
 })

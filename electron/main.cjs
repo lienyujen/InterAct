@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, screen } = require('electron')
+const { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell, systemPreferences } = require('electron')
 const path = require('node:path')
 
 const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
@@ -233,6 +233,13 @@ function setControlBounds(expanded, snapToTopRight = false) {
 }
 
 async function listCaptureSources(targetDisplay = screen.getPrimaryDisplay(), types = ['screen', 'window']) {
+  if (process.platform === 'darwin') {
+    const permission = systemPreferences.getMediaAccessStatus('screen')
+    if (permission === 'denied' || permission === 'restricted') {
+      throw new Error('macOS 尚未允許 InterAct 錄製螢幕。請到「系統設定 > 隱私權與安全性 > 螢幕與系統音訊錄製」開啟權限，然後重新啟動 InterAct。')
+    }
+  }
+
   const captureWidth = Math.round(targetDisplay.size.width * targetDisplay.scaleFactor)
   const captureHeight = Math.round(targetDisplay.size.height * targetDisplay.scaleFactor)
   const sources = await desktopCapturer.getSources({
@@ -337,6 +344,16 @@ ipcMain.on('window:drag-end', (event) => {
   if (window) windowDragState.delete(window.id)
 })
 ipcMain.handle('capture:list', listCaptureSources)
+ipcMain.handle('capture:permission-status', () => (
+  process.platform === 'darwin'
+    ? systemPreferences.getMediaAccessStatus('screen')
+    : 'granted'
+))
+ipcMain.handle('capture:open-permission-settings', async () => {
+  if (process.platform !== 'darwin') return false
+  await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+  return true
+})
 
 ipcMain.handle('capture:start-selection', async () => {
   if (!mainWindow) throw new Error('InterAct presenter window is unavailable.')

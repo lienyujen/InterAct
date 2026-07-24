@@ -31,6 +31,8 @@ declare global {
       minimize: () => Promise<void>
       close: () => Promise<void>
       listCaptureSources: () => Promise<InterActCaptureSource[]>
+      getScreenCapturePermission: () => Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>
+      openScreenCaptureSettings: () => Promise<boolean>
       startCaptureSelection: () => Promise<InterActCaptureSource>
       finishCaptureSelection: (expanded?: boolean) => Promise<void>
     }

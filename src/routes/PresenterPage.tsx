@@ -263,9 +263,17 @@ export function PresenterPage() {
     return new File([bytes], filename, { type: mime })
   }
 
-  async function captureWindowsScreen() {
+  async function captureDesktopScreen() {
     if (!window.interactDesktop) return
 
+    const permission = await window.interactDesktop.getScreenCapturePermission()
+    if (window.interactDesktop.platform === 'darwin' && (permission === 'denied' || permission === 'restricted')) {
+      setAnalysisError('macOS 尚未允許螢幕錄影。請在系統設定開啟 InterAct 的「螢幕與系統音訊錄製」權限，再重新啟動程式。')
+      await window.interactDesktop.openScreenCaptureSettings()
+      return
+    }
+
+    setAnalysisError('')
     setControlsOpen(false)
     setCapturePreviewUrl(null)
     setCaptureFile(null)
@@ -277,8 +285,9 @@ export function PresenterPage() {
     try {
       const source = await window.interactDesktop.startCaptureSelection()
       setCaptureSource(source)
-    } catch {
+    } catch (error) {
       setSelectionMode(false)
+      setAnalysisError(error instanceof Error ? error.message : '截圖功能啟動失敗。')
       await window.interactDesktop.finishCaptureSelection(false)
     }
   }
@@ -770,7 +779,7 @@ export function PresenterPage() {
           onStopQuestion={stopQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
-          onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
+          onCaptureScreen={window.interactDesktop ? captureDesktopScreen : undefined}
           onGenerateExitTicket={generateExitTicket}
           onEndClass={endClass}
           onOpenTextDispatch={() => {
