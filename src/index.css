@@ -64,7 +64,8 @@ body {
 }
 
 .desktop-drag-handle {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag;
+  app-region: drag;
   align-items: center;
   align-self: stretch;
   color: var(--muted);
@@ -571,10 +572,16 @@ h2 {
 }
 
 .desktop-shell .qr-panel .panel-heading {
-  -webkit-app-region: no-drag;
+  -webkit-app-region: drag;
+  app-region: drag;
   cursor: move;
   touch-action: none;
   user-select: none;
+}
+
+.desktop-shell .qr-box {
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .desktop-shell .qr-panel .panel-heading h2 {
@@ -1345,6 +1352,10 @@ h2 {
   border-top: 4px solid var(--primary);
   display: grid;
   gap: 22px;
+}
+
+.participant-ended-shared-panel {
+  border-top: 4px solid var(--success);
 }
 
 .participant-summary-heading {

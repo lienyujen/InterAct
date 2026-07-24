@@ -10,14 +10,20 @@ const timeFormatter = new Intl.DateTimeFormat('zh-TW', {
   hour12: false,
 })
 
-export function SharedContentPanel({ contents }: { contents: SharedContent[] }) {
+type Props = {
+  contents: SharedContent[]
+  defaultExpanded?: boolean
+  heading?: string
+}
+
+export function SharedContentPanel({ contents, defaultExpanded = false, heading = '講者派送' }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const latestContentId = contents[0]?.id
 
   useEffect(() => {
-    setExpanded(false)
-  }, [latestContentId])
+    setExpanded(defaultExpanded)
+  }, [defaultExpanded, latestContentId])
 
   if (!contents.length) return null
   const visibleContents = contents.length >= 2 && !expanded ? contents.slice(0, 1) : contents
@@ -32,7 +38,7 @@ export function SharedContentPanel({ contents }: { contents: SharedContent[] }) 
   return (
     <section className="shared-content-section" aria-live="polite">
       <div className="shared-content-heading">
-        <div><Send size={18} /><h2>講者派送</h2></div>
+        <div><Send size={18} /><h2>{heading}</h2></div>
         {contents.length >= 2 && (
           <button
             aria-expanded={expanded}

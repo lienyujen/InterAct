@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { QuestionType } from '../types'
 
 type Props = {
+  error?: string
   open: boolean
   previewUrl: string | null
   onCancel: () => void
@@ -17,7 +18,7 @@ const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'short_answer', label: '問答題' },
 ]
 
-export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) {
+export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: Props) {
   const [type, setType] = useState<QuestionType>('multiple_choice')
   const [options, setOptions] = useState(['A', 'B', 'C', 'D'])
   const [allowMultiple, setAllowMultiple] = useState(false)
@@ -51,6 +52,7 @@ export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) 
       >
         <h2>截圖派題</h2>
         {previewUrl && <img alt="截圖預覽" className="capture-preview" src={previewUrl} />}
+        {error && <p className="error">{error}</p>}
         <div className="type-grid">
           {questionTypes.map((item) => (
             <button

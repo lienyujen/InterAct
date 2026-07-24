@@ -114,23 +114,27 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (cached) return jsonResponse({ analysis: cached.output_json, metrics: cached.input_json?.metrics, cached: true })
+    if (cached?.input_json?.analysis_version === 2) {
+      return jsonResponse({ analysis: cached.output_json, metrics: cached.input_json?.metrics, cached: true })
+    }
 
-    const [participantResult, messageResult, questionResult, answerResult, questionAnalysisResult, exitTicketResult] = await Promise.all([
+    const [participantResult, messageResult, sharedContentResult, questionResult, answerResult, questionAnalysisResult, exitTicketResult] = await Promise.all([
       supabase.from('participants').select('id').eq('session_id', sessionId).order('joined_at').limit(5000),
       supabase.from('messages').select('participant_id, content, created_at').eq('session_id', sessionId).order('created_at').limit(5000),
+      supabase.from('shared_contents').select('body, url, created_at').eq('session_id', sessionId).order('created_at').limit(1000),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
       supabase.from('answers').select('question_id, participant_id, answer_value, answer_values, answer_text, is_correct').eq('session_id', sessionId).order('submitted_at').limit(10000),
       supabase.from('ai_summaries').select('question_id, output_json').eq('session_id', sessionId).eq('type', 'question_analysis').eq('status', 'success').order('created_at').limit(500),
       supabase.from('exit_tickets').select('most_useful, still_confused, understanding_score, engagement_score, next_suggestion, response_text, rating').eq('session_id', sessionId).order('submitted_at').limit(5000),
     ])
 
-    for (const result of [participantResult, messageResult, questionResult, answerResult, questionAnalysisResult, exitTicketResult]) {
+    for (const result of [participantResult, messageResult, sharedContentResult, questionResult, answerResult, questionAnalysisResult, exitTicketResult]) {
       if (result.error) throw result.error
     }
 
     const participants = participantResult.data || []
     const messages = messageResult.data || []
+    const sharedContents = sharedContentResult.data || []
     const questions = questionResult.data || []
     const answers = answerResult.data || []
     const questionAnalyses = questionAnalysisResult.data || []
@@ -189,6 +193,7 @@ Deno.serve(async (req) => {
     }
 
     summaryInput = {
+      analysis_version: 2,
       session: {
         title: session.title,
         created_at: session.created_at,
@@ -198,12 +203,18 @@ Deno.serve(async (req) => {
       },
       metrics,
       question_results: questionResults,
+      instructor_shared_contents: sharedContents.map((content, index) => ({
+        number: index + 1,
+        sent_at: content.created_at,
+        text: content.body,
+        url: content.url,
+      })),
       danmaku_content_sample: messages.slice(-500).map((message, index) => ({ number: index + 1, content: message.content })),
       exit_tickets: exitTickets.slice(0, 500).map((ticket, index) => ({ response_number: index + 1, ...ticket })),
     }
 
     const result = await callAiJson(
-      '你是 InterAct 的課堂互動與形成性評量分析顧問。請以繁體中文根據匿名化統計、彈幕內容、每題作答結果、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告。所有結論都要指出資料證據；資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
+      '你是 InterAct 的課堂互動與形成性評量分析顧問。請以繁體中文根據匿名化統計、講師派送的課程文字與連結、彈幕內容、每題作答結果、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告。instructor_shared_contents 是講師提供的課程參考資料，可用來理解課程脈絡，但不可當成學生意見或學習證據。所有結論都要指出資料證據；資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
       summaryInput,
       sessionAnalysisSchema,
     )

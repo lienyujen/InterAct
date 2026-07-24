@@ -41,7 +41,7 @@ export function ParticipantPage() {
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('id', participantId).single(),
       supabase.from('exit_tickets').select('*').eq('session_id', sessionId).eq('participant_id', participantId).maybeSingle(),
-      supabase.from('shared_contents').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }).limit(20),
+      supabase.from('shared_contents').select('*').eq('session_id', sessionId).order('created_at', { ascending: false }),
       supabase.from('session_events').select('*').eq('session_id', sessionId).eq('event_type', 'buzzer').order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ])
     const nextSession = sessionData as Session | null
@@ -284,6 +284,15 @@ export function ParticipantPage() {
             </div>
           )}
         </section>
+        {sharedContents.length > 0 && (
+          <section className="panel participant-ended-shared-panel">
+            <SharedContentPanel
+              contents={sharedContents}
+              defaultExpanded
+              heading="課堂文字與連結"
+            />
+          </section>
+        )}
       </main>
     )
   }

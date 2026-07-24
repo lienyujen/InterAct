@@ -1,19 +1,21 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { Minus, QrCode, X } from 'lucide-react'
-import { useWindowDrag } from '../lib/useWindowDrag'
+import type { HTMLAttributes } from 'react'
 
 type Props = {
   joinUrl: string
   onClose?: () => void
   onMinimize?: () => void
+  qrInteractionProps?: Pick<HTMLAttributes<HTMLDivElement>, 'onPointerCancel' | 'onPointerDown' | 'onPointerUp'>
 }
 
-export function QRCodePanel({ joinUrl, onClose, onMinimize }: Props) {
-  const dragHandlers = useWindowDrag()
+export function QRCodePanel({ joinUrl, onClose, onMinimize, qrInteractionProps }: Props) {
   return (
     <section className="panel qr-panel">
-      <div className="panel-heading qr-drag-handle" {...dragHandlers}>
-        <h2><span className="heading-icon"><QrCode size={16} /></span>加入場次</h2>
+      <div className="panel-heading">
+        <h2>
+          <span className="heading-icon"><QrCode size={16} /></span>加入場次
+        </h2>
         {(onMinimize || onClose) && (
           <div
             className="qr-window-actions"
@@ -34,7 +36,7 @@ export function QRCodePanel({ joinUrl, onClose, onMinimize }: Props) {
           </div>
         )}
       </div>
-      <div className="qr-box">
+      <div className="qr-box" {...qrInteractionProps}>
         <QRCodeSVG marginSize={2} value={joinUrl} size={172} />
       </div>
       <p className="join-url" title={joinUrl}>{joinUrl}</p>

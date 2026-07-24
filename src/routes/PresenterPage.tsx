@@ -46,9 +46,8 @@ export function PresenterPage() {
   const activeSelectionPointerId = useRef<number | null>(null)
   const selectionStartRef = useRef<{ x: number; y: number } | null>(null)
   const selectionRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
-  const qrTouchStartRef = useRef<{ pointerId: number; x: number; y: number; startedAt: number } | null>(null)
-  const lastQrTapRef = useRef<{ x: number; y: number; time: number } | null>(null)
-  const lastQrTouchToggleAt = useRef(0)
+  const qrPressStartRef = useRef<{ pointerId: number; x: number; y: number; startedAt: number } | null>(null)
+  const lastQrPressRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const fallbackJoinUrl = useMemo(() => buildJoinUrl(session?.code || sessionId), [session?.code, sessionId])
   const [joinUrl, setJoinUrl] = useState(fallbackJoinUrl)
@@ -203,7 +202,7 @@ export function PresenterPage() {
       const supabase = requireSupabase()
       const screenshotId = crypto.randomUUID()
       const path = `sessions/${sessionId}/screenshots/${screenshotId}-${file.name}`
-      const { error: uploadError } = await supabase.storage.from('interact-screenshots').upload(path, file, { upsert: true })
+      const { error: uploadError } = await supabase.storage.from('interact-screenshots').upload(path, file, { upsert: false })
       if (uploadError) throw uploadError
       const { data: publicData } = supabase.storage.from('interact-screenshots').getPublicUrl(path)
       const { error: insertError } = await supabase
@@ -217,7 +216,7 @@ export function PresenterPage() {
           .eq('id', session.current_question_id)
           .eq('status', 'active')
       }
-      const { data: questionData } = await supabase
+      const { data: questionData, error: questionError } = await supabase
         .from('questions')
         .insert({
           session_id: sessionId,
@@ -231,7 +230,12 @@ export function PresenterPage() {
         })
         .select('*')
         .single()
-      await supabase.from('sessions').update({ current_question_id: questionData?.id }).eq('id', sessionId)
+      if (questionError) throw questionError
+      const { error: sessionError } = await supabase
+        .from('sessions')
+        .update({ current_question_id: questionData.id })
+        .eq('id', sessionId)
+      if (sessionError) throw sessionError
       if (questionData?.id) setSelectedQuestionId(questionData.id)
     } finally {
       setBusy(false)
@@ -269,6 +273,7 @@ export function PresenterPage() {
     setControlsOpen(false)
     setCapturePreviewUrl(null)
     setCaptureFile(null)
+    setAnalysisError('')
     setSelectionRect(null)
     selectionStartRef.current = null
     selectionRectRef.current = null
@@ -389,10 +394,10 @@ export function PresenterPage() {
     cropCapture(rect)
   }
 
-  function beginQrTouch(event: ReactPointerEvent<HTMLElement>) {
-    if (!event.isPrimary || event.pointerType === 'mouse') return
+  function beginQrPress(event: ReactPointerEvent<HTMLElement>) {
+    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return
     if ((event.target as HTMLElement).closest('button, a, input, textarea, select')) return
-    qrTouchStartRef.current = {
+    qrPressStartRef.current = {
       pointerId: event.pointerId,
       x: event.clientX,
       y: event.clientY,
@@ -400,41 +405,41 @@ export function PresenterPage() {
     }
   }
 
-  function finishQrTouch(event: ReactPointerEvent<HTMLElement>) {
-    const start = qrTouchStartRef.current
+  function finishQrPress(event: ReactPointerEvent<HTMLElement>) {
+    const start = qrPressStartRef.current
     if (!start || start.pointerId !== event.pointerId) return
-    qrTouchStartRef.current = null
+    qrPressStartRef.current = null
 
     const now = Date.now()
     const movement = Math.hypot(event.clientX - start.x, event.clientY - start.y)
     if (movement > 18 || now - start.startedAt > 550) {
-      lastQrTapRef.current = null
+      lastQrPressRef.current = null
       return
     }
 
-    const previous = lastQrTapRef.current
+    const previous = lastQrPressRef.current
     if (previous && now - previous.time <= 500 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 48) {
-      lastQrTapRef.current = null
-      lastQrTouchToggleAt.current = now
+      lastQrPressRef.current = null
       setControlsOpen((current) => !current)
       return
     }
 
-    lastQrTapRef.current = { x: event.clientX, y: event.clientY, time: now }
-  }
-
-  function toggleControlsWithMouse() {
-    if (Date.now() - lastQrTouchToggleAt.current < 700) return
-    setControlsOpen((current) => !current)
+    lastQrPressRef.current = { x: event.clientX, y: event.clientY, time: now }
   }
 
   async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string) {
     if (!captureFile) return
 
+    setAnalysisError('')
     setEditorOpen(false)
-    await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText)
-    setCaptureFile(null)
-    setCapturePreviewUrl(null)
+    try {
+      await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText)
+      setCaptureFile(null)
+      setCapturePreviewUrl(null)
+    } catch (error) {
+      setAnalysisError(`截圖派題失敗：${error instanceof Error ? error.message : '請稍後再試。'}`)
+      setEditorOpen(true)
+    }
   }
 
   function cancelQuestionEditor() {
@@ -742,19 +747,18 @@ export function PresenterPage() {
   return (
     <main className={`presenter-page${controlsOpen ? ' controls-open' : ''}${selectionMode ? ' selecting-capture' : ''}`}>
       {!selectionMode && (
-        <aside
-          className="qr-floating"
-          onDoubleClick={toggleControlsWithMouse}
-          onPointerCancel={(event) => {
-            if (qrTouchStartRef.current?.pointerId === event.pointerId) qrTouchStartRef.current = null
-          }}
-          onPointerDown={beginQrTouch}
-          onPointerUp={finishQrTouch}
-        >
+        <aside className="qr-floating">
           <QRCodePanel
             joinUrl={joinUrl}
             onClose={window.interactDesktop ? () => window.interactDesktop?.close() : undefined}
             onMinimize={window.interactDesktop ? () => window.interactDesktop?.minimize() : undefined}
+            qrInteractionProps={{
+              onPointerCancel: (event) => {
+                if (qrPressStartRef.current?.pointerId === event.pointerId) qrPressStartRef.current = null
+              },
+              onPointerDown: beginQrPress,
+              onPointerUp: finishQrPress,
+            }}
           />
         </aside>
       )}
@@ -836,7 +840,13 @@ export function PresenterPage() {
           )}
         </div>
       )}
-      <QuestionEditor open={editorOpen} previewUrl={capturePreviewUrl} onCancel={cancelQuestionEditor} onCreate={createScreenshotQuestion} />
+      <QuestionEditor
+        error={analysisError}
+        open={editorOpen}
+        previewUrl={capturePreviewUrl}
+        onCancel={cancelQuestionEditor}
+        onCreate={createScreenshotQuestion}
+      />
       <TextDispatchModal
         busy={busy}
         error={textDispatchError}

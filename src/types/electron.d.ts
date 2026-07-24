@@ -25,9 +25,6 @@ declare global {
       onLottery: (callback: (event: SessionEvent) => void) => () => void
       openSessionReport: (sessionId: string) => Promise<void>
       openWordCloud: (sessionId: string) => Promise<void>
-      startWindowDrag: (screenX: number, screenY: number) => void
-      moveWindowDrag: (screenX: number, screenY: number) => void
-      endWindowDrag: () => void
       minimize: () => Promise<void>
       close: () => Promise<void>
       listCaptureSources: () => Promise<InterActCaptureSource[]>

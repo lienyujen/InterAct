@@ -5,6 +5,7 @@ const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
 const CONTROL_COLLAPSED = { width: 194, height: 242 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
 const WINDOW_MARGIN = 12
+const OVERLAY_TOP_LEVEL = 'screen-saver'
 
 let mainWindow = null
 let overlayWindow = null
@@ -14,7 +15,6 @@ let lastControlBounds = null
 let isQuitting = false
 let releaseTopmostTimer = null
 let latestLotteryEvent = null
-const windowDragState = new Map()
 
 function appUrl(hash) {
   return isDesktopDev ? `http://127.0.0.1:5173/#${hash}` : null
@@ -63,6 +63,14 @@ function createWindow() {
     setTimeout(bringControlToFront, 60)
   })
 
+  mainWindow.on('move', () => {
+    if (lastControlBounds) lastControlBounds = mainWindow.getBounds()
+  })
+
+  mainWindow.on('will-resize', (event) => {
+    event.preventDefault()
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
     overlayWindow?.close()
@@ -76,7 +84,7 @@ function bringControlToFront() {
   if (!mainWindow || mainWindow.isDestroyed() || reportWindow) return
 
   if (releaseTopmostTimer) clearTimeout(releaseTopmostTimer)
-  mainWindow.setAlwaysOnTop(true, 'floating')
+  mainWindow.setAlwaysOnTop(true, OVERLAY_TOP_LEVEL, 1)
   if (mainWindow.isMinimized()) mainWindow.restore()
   mainWindow.show()
   mainWindow.moveTop()
@@ -85,6 +93,14 @@ function bringControlToFront() {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setAlwaysOnTop(false)
     releaseTopmostTimer = null
   }, 250)
+}
+
+function showOverlayInactive() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return
+
+  overlayWindow.setAlwaysOnTop(true, OVERLAY_TOP_LEVEL)
+  overlayWindow.showInactive()
+  overlayWindow.moveTop()
 }
 
 function createOverlayWindow(sessionId) {
@@ -108,11 +124,12 @@ function createOverlayWindow(sessionId) {
     },
   })
 
-  overlayWindow.setIgnoreMouseEvents(true)
-  overlayWindow.setAlwaysOnTop(true, 'floating')
+  overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+  overlayWindow.setAlwaysOnTop(true, OVERLAY_TOP_LEVEL)
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   loadAppRoute(overlayWindow, `/desktop-overlay/${sessionId}`)
   overlayWindow.once('ready-to-show', () => {
-    overlayWindow?.showInactive()
+    showOverlayInactive()
     setTimeout(bringControlToFront, 60)
   })
   overlayWindow.on('closed', () => {
@@ -269,11 +286,13 @@ ipcMain.handle('lottery:set-interactive', (_event, enabled) => {
   if (!overlayWindow || overlayWindow.isDestroyed()) return
   const interactive = Boolean(enabled)
   overlayWindow.setFocusable(interactive)
-  overlayWindow.setIgnoreMouseEvents(!interactive)
+  overlayWindow.setIgnoreMouseEvents(!interactive, { forward: !interactive })
   if (interactive) {
+    overlayWindow.setAlwaysOnTop(true, OVERLAY_TOP_LEVEL)
     overlayWindow.show()
     overlayWindow.focus()
   } else {
+    showOverlayInactive()
     setTimeout(bringControlToFront, 60)
   }
 })
@@ -306,36 +325,6 @@ ipcMain.handle('window:open-word-cloud', (_event, sessionId) => {
   createWordCloudWindow(sessionId)
 })
 
-ipcMain.on('window:drag-start', (event, point) => {
-  const window = BrowserWindow.fromWebContents(event.sender)
-  if (!window || !Number.isFinite(point?.screenX) || !Number.isFinite(point?.screenY)) return
-  windowDragState.set(window.id, {
-    pointerX: point.screenX,
-    pointerY: point.screenY,
-    bounds: window.getBounds(),
-  })
-})
-
-ipcMain.on('window:drag-move', (event, point) => {
-  const window = BrowserWindow.fromWebContents(event.sender)
-  const drag = window ? windowDragState.get(window.id) : null
-  if (!window || !drag || !Number.isFinite(point?.screenX) || !Number.isFinite(point?.screenY)) return
-
-  const rawX = Math.round(drag.bounds.x + point.screenX - drag.pointerX)
-  const rawY = Math.round(drag.bounds.y + point.screenY - drag.pointerY)
-  const display = screen.getDisplayNearestPoint({ x: Math.round(point.screenX), y: Math.round(point.screenY) })
-  const workArea = display.workArea
-  const minimumVisible = 72
-  const x = clamp(rawX, workArea.x - drag.bounds.width + minimumVisible, workArea.x + workArea.width - minimumVisible)
-  const y = clamp(rawY, workArea.y, workArea.y + workArea.height - minimumVisible)
-  window.setPosition(x, y)
-  if (window === mainWindow) lastControlBounds = { ...drag.bounds, x, y }
-})
-
-ipcMain.on('window:drag-end', (event) => {
-  const window = BrowserWindow.fromWebContents(event.sender)
-  if (window) windowDragState.delete(window.id)
-})
 ipcMain.handle('capture:list', listCaptureSources)
 
 ipcMain.handle('capture:start-selection', async () => {
@@ -362,7 +351,8 @@ ipcMain.handle('capture:start-selection', async () => {
 
 ipcMain.handle('capture:finish-selection', (_event, expanded = true) => {
   setControlBounds(Boolean(expanded))
-  overlayWindow?.showInactive()
+  showOverlayInactive()
+  setTimeout(bringControlToFront, 60)
 })
 
 app.whenReady().then(() => {

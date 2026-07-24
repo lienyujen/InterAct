@@ -212,6 +212,30 @@ export function SessionReportPage() {
         <p>{analysis.engagement_analysis.summary}</p>
       </section>
 
+      <section className="report-section">
+        <h2>課堂文字與連結派送</h2>
+        {reportData.sharedContents.length ? (
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead><tr><th>派送時間</th><th>文字內容</th><th>連結</th></tr></thead>
+              <tbody>
+                {reportData.sharedContents.map((content) => (
+                  <tr key={content.id}>
+                    <td>{new Date(content.created_at).toLocaleString('zh-TW')}</td>
+                    <td>{content.body || '—'}</td>
+                    <td>
+                      {content.url
+                        ? <a href={content.url} rel="noreferrer" target="_blank">{content.url}</a>
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="muted">本場次沒有派送文字或連結。</p>}
+      </section>
+
       <div className="report-two-column">
         <section className="report-section">
           <h2>互動觀察</h2>
