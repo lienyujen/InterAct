@@ -9,9 +9,11 @@ function createCode() {
 }
 
 function isDesktopOrigin(req: Request) {
+  if (req.headers.get('x-interact-client') !== 'windows-app') return false
+
   const origin = req.headers.get('origin')
   if (origin === 'null' || origin === 'file://') return true
-  if (!origin) return false
+  if (!origin) return true
 
   try {
     const url = new URL(origin)
