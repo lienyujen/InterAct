@@ -40,8 +40,19 @@ export function JoinPage() {
     setError('')
     try {
       if (!session) throw new Error('找不到這個場次。')
+      if (session.status !== 'active') throw new Error('這堂課已經結束，無法再加入。')
       const sessionId = session.id
       const supabase = requireSupabase()
+      const { data: latestSession, error: sessionError } = await supabase
+        .from('sessions')
+        .select('status')
+        .eq('id', sessionId)
+        .single()
+      if (sessionError) throw sessionError
+      if (latestSession.status !== 'active') {
+        setSession((current) => current ? { ...current, status: 'ended' } : current)
+        throw new Error('這堂課已經結束，無法再加入。')
+      }
       const deviceId = getDeviceId()
       const { data: existing } = await supabase
         .from('participants')
@@ -70,6 +81,19 @@ export function JoinPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (session?.status === 'ended') {
+    return (
+      <main className="center-page">
+        <SetupNotice />
+        <StudentSocialLinks />
+        <section className="panel form-panel session-closed-card">
+          <h1>下課啦！</h1>
+          <p className="muted">這堂課已經結束，無法再加入或送出內容。</p>
+        </section>
+      </main>
+    )
   }
 
   return (

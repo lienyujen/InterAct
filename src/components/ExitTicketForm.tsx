@@ -68,6 +68,7 @@ export function ExitTicketForm({ prompt, category, ticket, busy, onSubmit }: Pro
           <label className="exit-ticket-question">
             <span className="exit-ticket-question-title"><b>選填 2</b>{prompt}</span>
             <textarea
+              maxLength={2000}
               value={responseText}
               placeholder="選填：可輸入你的回答、建議或回饋"
               onChange={(event) => setResponseText(event.target.value)}

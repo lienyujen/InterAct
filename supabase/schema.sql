@@ -206,34 +206,183 @@ alter table public.shared_contents enable row level security;
 alter table public.session_events enable row level security;
 
 create policy "mvp read sessions" on public.sessions for select using (true);
-create policy "mvp insert sessions" on public.sessions for insert with check (true);
-create policy "mvp update sessions" on public.sessions for update using (true) with check (true);
+revoke insert on public.sessions from anon, authenticated;
+create policy "update active sessions only" on public.sessions for update
+to anon, authenticated
+using (status = 'active')
+with check (status = 'active' and ended_at is null);
 
 create policy "mvp read participants" on public.participants for select using (true);
-create policy "mvp insert participants" on public.participants for insert with check (true);
-create policy "mvp update participants" on public.participants for update using (true) with check (true);
+create policy "join active sessions" on public.participants for insert
+to anon, authenticated
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = participants.session_id and sessions.status = 'active'
+  )
+  and char_length(btrim(name)) between 1 and 80
+  and char_length(device_id) between 1 and 200
+);
+create policy "update participants in active sessions" on public.participants for update
+to anon, authenticated
+using (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = participants.session_id and sessions.status = 'active'
+  )
+)
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = participants.session_id and sessions.status = 'active'
+  )
+  and char_length(btrim(name)) between 1 and 80
+  and char_length(device_id) between 1 and 200
+);
 
 create policy "mvp read messages" on public.messages for select using (true);
-create policy "mvp insert messages" on public.messages for insert with check (true);
-create policy "mvp update messages" on public.messages for update using (true) with check (true);
+create policy "send messages to active sessions" on public.messages for insert
+to anon, authenticated
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = messages.session_id and sessions.status = 'active'
+  )
+  and exists (
+    select 1 from public.participants
+    where participants.id = messages.participant_id
+      and participants.session_id = messages.session_id
+      and participants.name = messages.participant_name
+  )
+  and char_length(btrim(content)) between 1 and 36
+);
 
 create policy "mvp read screenshots" on public.screenshots for select using (true);
-create policy "mvp insert screenshots" on public.screenshots for insert with check (true);
-create policy "mvp update screenshots" on public.screenshots for update using (true) with check (true);
+create policy "add screenshots to active sessions" on public.screenshots for insert
+to anon, authenticated
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = screenshots.session_id and sessions.status = 'active'
+  )
+);
+create policy "update screenshots in active sessions" on public.screenshots for update
+to anon, authenticated
+using (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = screenshots.session_id and sessions.status = 'active'
+  )
+)
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = screenshots.session_id and sessions.status = 'active'
+  )
+);
 
 create policy "mvp read questions" on public.questions for select using (true);
-create policy "mvp insert questions" on public.questions for insert with check (true);
-create policy "mvp update questions" on public.questions for update using (true) with check (true);
+create policy "add questions to active sessions" on public.questions for insert
+to anon, authenticated
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = questions.session_id and sessions.status = 'active'
+  )
+);
+create policy "update questions in active sessions" on public.questions for update
+to anon, authenticated
+using (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = questions.session_id and sessions.status = 'active'
+  )
+)
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = questions.session_id and sessions.status = 'active'
+  )
+);
 
 create policy "mvp read answers" on public.answers for select using (true);
-create policy "mvp insert answers" on public.answers for insert with check (true);
-create policy "mvp update answers" on public.answers for update using (true) with check (true);
+create policy "answer active questions" on public.answers for insert
+to anon, authenticated
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = answers.session_id and sessions.status = 'active'
+  )
+  and exists (
+    select 1 from public.questions
+    where questions.id = answers.question_id
+      and questions.session_id = answers.session_id
+      and questions.status = 'active'
+  )
+  and exists (
+    select 1 from public.participants
+    where participants.id = answers.participant_id
+      and participants.session_id = answers.session_id
+      and participants.name = answers.participant_name
+  )
+  and is_correct is null
+  and coalesce(char_length(answer_value), 0) <= 500
+  and coalesce(char_length(answer_text), 0) <= 1000
+  and coalesce(array_length(answer_values, 1), 0) <= 20
+  and not exists (
+    select 1
+    from unnest(coalesce(answer_values, '{}'::text[])) as submitted_value
+    where char_length(submitted_value) > 500
+  )
+);
+create policy "grade answers before class ends" on public.answers for update
+to anon, authenticated
+using (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = answers.session_id and sessions.status = 'active'
+  )
+  and exists (
+    select 1 from public.questions
+    where questions.id = answers.question_id
+      and questions.session_id = answers.session_id
+      and questions.status in ('stopped', 'closed')
+  )
+)
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = answers.session_id and sessions.status = 'active'
+  )
+  and exists (
+    select 1 from public.questions
+    where questions.id = answers.question_id
+      and questions.session_id = answers.session_id
+      and questions.status in ('stopped', 'closed')
+  )
+);
 
 create policy "mvp read ai summaries" on public.ai_summaries for select using (true);
-create policy "mvp insert ai summaries" on public.ai_summaries for insert with check (true);
+revoke insert on public.ai_summaries from anon, authenticated;
 
 create policy "mvp read exit tickets" on public.exit_tickets for select using (true);
-create policy "mvp insert exit tickets" on public.exit_tickets for insert with check (true);
+create policy "submit exit tickets to active sessions" on public.exit_tickets for insert
+to anon, authenticated
+with check (
+  exists (
+    select 1 from public.sessions
+    where sessions.id = exit_tickets.session_id
+      and sessions.status = 'active'
+      and sessions.exit_ticket_prompt is not null
+  )
+  and exists (
+    select 1 from public.participants
+    where participants.id = exit_tickets.participant_id
+      and participants.session_id = exit_tickets.session_id
+      and participants.name = exit_tickets.participant_name
+  )
+  and coalesce(char_length(response_text), 0) <= 2000
+);
 
 create policy "public read shared contents" on public.shared_contents for select to anon, authenticated using (true);
 create policy "public read session events" on public.session_events for select to anon, authenticated using (true);
@@ -247,6 +396,7 @@ alter publication supabase_realtime add table public.messages;
 alter publication supabase_realtime add table public.screenshots;
 alter publication supabase_realtime add table public.questions;
 alter publication supabase_realtime add table public.answers;
+alter publication supabase_realtime add table public.ai_summaries;
 alter publication supabase_realtime add table public.exit_tickets;
 alter publication supabase_realtime add table public.shared_contents;
 alter publication supabase_realtime add table public.session_events;
@@ -259,11 +409,40 @@ create policy "mvp read screenshot objects"
 on storage.objects for select
 using (bucket_id = 'interact-screenshots');
 
-create policy "mvp insert screenshot objects"
+create policy "upload screenshots to active sessions"
 on storage.objects for insert
-with check (bucket_id = 'interact-screenshots');
+to anon, authenticated
+with check (
+  bucket_id = 'interact-screenshots'
+  and (storage.foldername(name))[1] = 'sessions'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  and exists (
+    select 1 from public.sessions
+    where sessions.id = ((storage.foldername(name))[2])::uuid
+      and sessions.status = 'active'
+  )
+);
 
-create policy "mvp update screenshot objects"
+create policy "replace screenshots in active sessions"
 on storage.objects for update
-using (bucket_id = 'interact-screenshots')
-with check (bucket_id = 'interact-screenshots');
+to anon, authenticated
+using (
+  bucket_id = 'interact-screenshots'
+  and (storage.foldername(name))[1] = 'sessions'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  and exists (
+    select 1 from public.sessions
+    where sessions.id = ((storage.foldername(name))[2])::uuid
+      and sessions.status = 'active'
+  )
+)
+with check (
+  bucket_id = 'interact-screenshots'
+  and (storage.foldername(name))[1] = 'sessions'
+  and (storage.foldername(name))[2] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  and exists (
+    select 1 from public.sessions
+    where sessions.id = ((storage.foldername(name))[2])::uuid
+      and sessions.status = 'active'
+  )
+);

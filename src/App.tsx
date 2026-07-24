@@ -11,19 +11,20 @@ import { WordCloudPage } from './routes/WordCloudPage'
 
 function AppRoutes() {
   const location = useLocation()
+  const isDesktop = Boolean(window.interactDesktop)
   const isDesktopOverlay = location.pathname.startsWith('/desktop-overlay/')
-  const isDesktopPresenter = window.interactDesktop && location.pathname.startsWith('/presenter/') && location.pathname !== '/presenter/new'
+  const isDesktopPresenter = isDesktop && location.pathname.startsWith('/presenter/') && location.pathname !== '/presenter/new'
 
   return (
-    <div className={window.interactDesktop ? 'desktop-shell' : undefined}>
+    <div className={isDesktop ? 'desktop-shell' : undefined}>
       {!isDesktopOverlay && !isDesktopPresenter && <DesktopWindowChrome />}
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/presenter/new" element={<PresenterNewPage />} />
-        <Route path="/presenter/:sessionId" element={<PresenterPage />} />
-        <Route path="/desktop-overlay/:sessionId" element={<DesktopOverlayPage />} />
-        <Route path="/session-report/:sessionId" element={<SessionReportPage />} />
-        <Route path="/word-cloud/:sessionId" element={<WordCloudPage />} />
+        <Route path="/presenter/new" element={isDesktop ? <PresenterNewPage /> : <Navigate to="/" replace />} />
+        <Route path="/presenter/:sessionId" element={isDesktop ? <PresenterPage /> : <Navigate to="/" replace />} />
+        <Route path="/desktop-overlay/:sessionId" element={isDesktop ? <DesktopOverlayPage /> : <Navigate to="/" replace />} />
+        <Route path="/session-report/:sessionId" element={isDesktop ? <SessionReportPage /> : <Navigate to="/" replace />} />
+        <Route path="/word-cloud/:sessionId" element={isDesktop ? <WordCloudPage /> : <Navigate to="/" replace />} />
         <Route path="/join/:sessionId" element={<JoinPage />} />
         <Route path="/participant/:sessionId" element={<ParticipantPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

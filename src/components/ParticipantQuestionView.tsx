@@ -33,7 +33,12 @@ export function ParticipantQuestionView({ question, answer, onSubmit }: Props) {
       {answer && <p className="success">已送出答案：{answer.answer_values?.join('、') || answer.answer_value || answer.answer_text}</p>}
       {!answer && question.status === 'active' && question.type === 'short_answer' && (
         <form className="short-answer-form" onSubmit={submitShortAnswer}>
-          <textarea value={textAnswer} onChange={(event) => setTextAnswer(event.target.value)} placeholder="請輸入你的回答" />
+          <textarea
+            maxLength={1000}
+            value={textAnswer}
+            onChange={(event) => setTextAnswer(event.target.value)}
+            placeholder="請輸入你的回答"
+          />
           <button type="submit"><Send size={18} />送出答案</button>
         </form>
       )}
