@@ -394,10 +394,23 @@ h2 {
 
 .desktop-shell .qr-floating {
   max-height: none;
+  min-width: 0;
   position: static;
   right: auto;
   top: auto;
-  width: 184px;
+  width: 100%;
+}
+
+.desktop-shell .presenter-page:not(.controls-open) .qr-panel,
+.desktop-shell .presenter-page:not(.controls-open) .qr-box {
+  min-width: 0;
+  width: 100%;
+}
+
+.desktop-shell .presenter-page:not(.controls-open) .qr-box svg {
+  height: auto;
+  max-width: 100%;
+  width: 156px;
 }
 
 .desktop-shell .presenter-page.controls-open .qr-floating {
