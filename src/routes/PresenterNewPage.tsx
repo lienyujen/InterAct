@@ -6,6 +6,22 @@ import { SetupNotice } from '../components/SetupNotice'
 import { savePresenterToken } from '../lib/presenterAuth'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 
+async function getFunctionErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return '建立場次失敗'
+
+  const response = (error as Error & { context?: Response }).context
+  if (!response) return error.message
+
+  try {
+    const body = await response.clone().json()
+    if (typeof body?.message === 'string') return body.message
+  } catch {
+    // Fall back to the SDK message when the response is not JSON.
+  }
+
+  return error.message
+}
+
 export function PresenterNewPage() {
   const [title, setTitle] = useState('')
   const [error, setError] = useState('')
@@ -24,6 +40,7 @@ export function PresenterNewPage() {
     try {
       const { data, error: createError } = await requireSupabase().functions.invoke('create-session', {
         body: { title: title.trim() || '未命名場次' },
+        headers: { 'x-interact-client': 'windows-app' },
       })
 
       if (createError) throw createError
@@ -31,7 +48,7 @@ export function PresenterNewPage() {
       savePresenterToken(data.sessionId, data.presenterToken)
       navigate(`/presenter/${data.sessionId}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '建立場次失敗')
+      setError(await getFunctionErrorMessage(err))
     } finally {
       setBusy(false)
     }
