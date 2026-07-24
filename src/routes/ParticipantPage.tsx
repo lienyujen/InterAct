@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Send } from 'lucide-react'
+import { BookOpen, PartyPopper, Send, Sparkles } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
 import { BuzzerOverlay } from '../components/BuzzerOverlay'
@@ -12,7 +12,7 @@ import { StudentSocialLinks } from '../components/StudentSocialLinks'
 import { isBuzzerAccepting } from '../lib/buzzer'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
-import type { Answer, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, Question, Screenshot, Session, SessionEvent, SharedContent } from '../types'
+import type { AiSummary, Answer, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, Question, Screenshot, Session, SessionAnalysis, SessionEvent, SharedContent } from '../types'
 
 export function ParticipantPage() {
   const { sessionId = '' } = useParams()
@@ -23,6 +23,7 @@ export function ParticipantPage() {
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [screenshot, setScreenshot] = useState<Screenshot | null>(null)
   const [exitTicket, setExitTicket] = useState<ExitTicket | null>(null)
+  const [sessionSummary, setSessionSummary] = useState<SessionAnalysis | null>(null)
   const [sharedContents, setSharedContents] = useState<SharedContent[]>([])
   const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
   const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
@@ -31,7 +32,7 @@ export function ParticipantPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const navigate = useNavigate()
-  useSessionPresence(sessionId, participant)
+  useSessionPresence(sessionId, session?.status === 'active' ? participant : null)
 
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId || !participantId) return
@@ -49,6 +50,21 @@ export function ParticipantPage() {
     setExitTicket((exitTicketData as ExitTicket | null) || null)
     setSharedContents((sharedContentData || []) as SharedContent[])
     setBuzzerEvent((buzzerData as BuzzerSessionEvent | null) || null)
+
+    if (nextSession?.status === 'ended') {
+      const { data: summaryData } = await supabase
+        .from('ai_summaries')
+        .select('*')
+        .eq('session_id', sessionId)
+        .eq('type', 'exit_ticket_summary')
+        .eq('status', 'success')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      setSessionSummary(((summaryData as AiSummary | null)?.output_json as SessionAnalysis | undefined) || null)
+    } else {
+      setSessionSummary(null)
+    }
 
     if (nextSession?.current_question_id) {
       const [{ data: questionData }, { data: answerData }] = await Promise.all([
@@ -88,6 +104,7 @@ export function ParticipantPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `participant_id=eq.${participantId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `participant_id=eq.${participantId}` }, loadAll)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ai_summaries', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shared_contents', filter: `session_id=eq.${sessionId}` }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
         const event = payload.new as SessionEvent
@@ -112,10 +129,18 @@ export function ParticipantPage() {
     }
   }, [loadAll, participantId, sessionId])
 
+  useEffect(() => {
+    if (session?.status !== 'ended') return
+    setMessage('')
+    setError('')
+    setLotteryEvent(null)
+    setBuzzerEvent(null)
+  }, [session?.status])
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault()
     const content = Array.from(message.trim()).slice(0, 36).join('')
-    if (!participant || !content) return
+    if (!participant || session?.status !== 'active' || !content) return
     setError('')
     try {
       await requireSupabase().from('messages').insert({
@@ -132,7 +157,7 @@ export function ParticipantPage() {
   }
 
   async function submitAnswer(value: string | string[]) {
-    if (!participant || !question) return
+    if (!participant || session?.status !== 'active' || !question || question.status !== 'active') return
     const isShortAnswer = question.type === 'short_answer'
     const answerValues = Array.isArray(value) ? value : null
     const singleValue = Array.isArray(value) ? null : value
@@ -158,7 +183,7 @@ export function ParticipantPage() {
   }
 
   async function submitExitTicket(value: { responseText: string; rating: number }) {
-    if (!participant || !session?.exit_ticket_prompt) return
+    if (!participant || session?.status !== 'active' || !session.exit_ticket_prompt) return
     setExitTicketBusy(true)
     setError('')
     try {
@@ -186,7 +211,7 @@ export function ParticipantPage() {
 
   async function claimBuzzer() {
     const currentBuzzerEvent = buzzerEvent
-    if (!participant || !currentBuzzerEvent || !isBuzzerAccepting(currentBuzzerEvent)) return
+    if (session?.status !== 'active' || !participant || !currentBuzzerEvent || !isBuzzerAccepting(currentBuzzerEvent)) return
     setBuzzerBusy(true)
     setError('')
     try {
@@ -207,6 +232,60 @@ export function ParticipantPage() {
     } finally {
       setBuzzerBusy(false)
     }
+  }
+
+  if (session?.status === 'ended') {
+    return (
+      <main className="participant-page participant-ended-page">
+        <SetupNotice />
+        <StudentSocialLinks />
+        <section className="participant-ended-hero">
+          <span className="participant-ended-icon"><PartyPopper size={34} /></span>
+          <p className="eyebrow">課程已結束</p>
+          <h1>下課啦！</h1>
+          <p>{participant?.name ? `${participant.name}，謝謝你的參與。` : '謝謝你的參與。'}</p>
+        </section>
+        <section className="panel participant-summary-panel" aria-live="polite">
+          <div className="participant-summary-heading">
+            <span className="heading-icon"><Sparkles size={18} /></span>
+            <div>
+              <p className="eyebrow">AI 課程總結</p>
+              <h2>今天的課程重點</h2>
+            </div>
+          </div>
+          {sessionSummary ? (
+            <div className="participant-summary-content">
+              <p className="participant-summary-lead">{sessionSummary.executive_summary}</p>
+              <div className="participant-summary-section">
+                <h3><BookOpen size={18} />學習整理</h3>
+                <p>{sessionSummary.learning_analysis.overall_understanding}</p>
+              </div>
+              {sessionSummary.learning_analysis.strengths.length > 0 && (
+                <div className="participant-summary-section">
+                  <h3>本次掌握的重點</h3>
+                  <ul>
+                    {sessionSummary.learning_analysis.strengths.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+              )}
+              {sessionSummary.learning_analysis.misconceptions.length > 0 && (
+                <div className="participant-summary-section">
+                  <h3>可以再複習</h3>
+                  <ul>
+                    {sessionSummary.learning_analysis.misconceptions.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="participant-summary-pending">
+              <Sparkles size={22} />
+              <p>老師正在整理本次課程重點，完成後會自動顯示在這裡。</p>
+            </div>
+          )}
+        </section>
+      </main>
+    )
   }
 
   return (
