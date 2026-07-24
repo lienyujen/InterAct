@@ -533,7 +533,18 @@ h2 {
 
 .qr-floating .qr-panel {
   gap: 4px;
+  grid-template-columns: minmax(0, 1fr);
   padding: 8px;
+}
+
+.qr-floating .qr-panel > * {
+  min-width: 0;
+}
+
+.qr-floating .qr-box,
+.qr-floating .join-url {
+  justify-self: stretch;
+  width: 100%;
 }
 
 .qr-floating .qr-box svg {
