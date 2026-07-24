@@ -7,6 +7,8 @@ const CONTROL_EXPANDED = { width: 420, height: 760 }
 const WINDOW_MARGIN = 12
 const OVERLAY_TOP_LEVEL = 'screen-saver'
 
+app.setAppUserModelId('tw.interact.presenter')
+
 let mainWindow = null
 let overlayWindow = null
 let reportWindow = null
