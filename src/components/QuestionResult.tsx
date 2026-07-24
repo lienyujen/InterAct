@@ -27,7 +27,6 @@ function ItemList({ items }: { items: string[] }) {
   )
 }
 
-
 function QuestionStatusActions({
   busy,
   isCurrentQuestion,

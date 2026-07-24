@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Send } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
 import { BuzzerOverlay } from '../components/BuzzerOverlay'
@@ -240,7 +241,7 @@ export function ParticipantPage() {
           />
         </label>
         {error && <p className="error">{error}</p>}
-        <button type="submit">送出</button>
+        <button type="submit"><Send size={18} />送出</button>
       </form>
       <LotteryOverlay event={lotteryEvent} participantId={participant?.id} />
       <BuzzerOverlay

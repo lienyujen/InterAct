@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { ArrowRight, UserRound } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SetupNotice } from '../components/SetupNotice'
 import { StudentSocialLinks } from '../components/StudentSocialLinks'
@@ -76,7 +77,9 @@ export function JoinPage() {
       <SetupNotice />
       <StudentSocialLinks />
       <form autoComplete="off" className="panel form-panel" onSubmit={join}>
+        <span className="form-heading-icon"><UserRound size={24} /></span>
         <h1>加入{session?.title || '場次'}</h1>
+        <p className="muted">輸入姓名後即可進入互動課堂</p>
         <label>
           你的姓名
           <input
@@ -92,6 +95,7 @@ export function JoinPage() {
         {error && <p className="error">{error}</p>}
         <button disabled={busy} type="submit">
           {busy ? '加入中...' : '加入'}
+          {!busy && <ArrowRight size={18} />}
         </button>
       </form>
     </main>

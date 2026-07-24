@@ -227,6 +227,7 @@ export type SessionReportData = {
   session: Session
   participants: Participant[]
   messages: Message[]
+  sharedContents: SharedContent[]
   screenshots: Screenshot[]
   questions: Question[]
   answers: Answer[]

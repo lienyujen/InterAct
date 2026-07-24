@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { Minus, X } from 'lucide-react'
+import { Minus, QrCode, X } from 'lucide-react'
 import { useWindowDrag } from '../lib/useWindowDrag'
 
 type Props = {
@@ -13,7 +13,7 @@ export function QRCodePanel({ joinUrl, onClose, onMinimize }: Props) {
   return (
     <section className="panel qr-panel">
       <div className="panel-heading qr-drag-handle" {...dragHandlers}>
-        <h2>加入場次</h2>
+        <h2><span className="heading-icon"><QrCode size={16} /></span>加入場次</h2>
         {(onMinimize || onClose) && (
           <div
             className="qr-window-actions"

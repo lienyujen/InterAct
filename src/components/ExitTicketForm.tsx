@@ -1,4 +1,4 @@
-import { Star } from 'lucide-react'
+import { Send, Star } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ExitTicket, ExitTicketCategory } from '../types'
@@ -74,6 +74,7 @@ export function ExitTicketForm({ prompt, category, ticket, busy, onSubmit }: Pro
             />
           </label>
           <button disabled={busy || !rating} type="submit">
+            {!busy && <Send size={18} />}
             {busy ? '送出中...' : '送出 Exit Ticket'}
           </button>
         </form>

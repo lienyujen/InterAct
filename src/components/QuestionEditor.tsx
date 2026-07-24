@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Send, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { QuestionType } from '../types'
 
@@ -114,9 +114,9 @@ export function QuestionEditor({ open, previewUrl, onCancel, onCreate }: Props) 
         )}
         <div className="modal-actions">
           <button className="ghost-button" type="button" onClick={onCancel}>
-            取消
+            <X size={17} />取消
           </button>
-          <button type="submit">派送</button>
+          <button type="submit"><Send size={17} />派送</button>
         </div>
       </form>
     </div>
