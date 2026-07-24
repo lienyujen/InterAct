@@ -8,9 +8,23 @@ function createCode() {
   return Array.from(bytes, (byte) => codeAlphabet[byte % codeAlphabet.length]).join('')
 }
 
+function isDesktopOrigin(req: Request) {
+  const origin = req.headers.get('origin')
+  if (origin === 'null' || origin === 'file://') return true
+  if (!origin) return false
+
+  try {
+    const url = new URL(origin)
+    return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return jsonResponse({ message: 'Method not allowed.' }, 405)
+  if (!isDesktopOrigin(req)) return jsonResponse({ message: '請使用 InterAct Windows App 建立場次。' }, 403)
 
   try {
     const input = await req.json()

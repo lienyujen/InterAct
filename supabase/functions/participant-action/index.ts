@@ -18,13 +18,23 @@ Deno.serve(async (req) => {
     if (!eventId) return jsonResponse({ message: '找不到這次搶答。' }, 400)
 
     const supabase = getAdminClient()
-    const { data: participant, error: participantError } = await supabase
-      .from('participants')
-      .select('id')
-      .eq('id', participantId)
-      .eq('session_id', sessionId)
-      .maybeSingle()
+    const [{ data: session, error: sessionError }, { data: participant, error: participantError }] = await Promise.all([
+      supabase
+        .from('sessions')
+        .select('status')
+        .eq('id', sessionId)
+        .maybeSingle(),
+      supabase
+        .from('participants')
+        .select('id')
+        .eq('id', participantId)
+        .eq('session_id', sessionId)
+        .maybeSingle(),
+    ])
+    if (sessionError) throw sessionError
     if (participantError) throw participantError
+    if (!session) return jsonResponse({ message: '找不到場次。' }, 404)
+    if (session.status !== 'active') return jsonResponse({ message: '課程已經結束，無法再搶答。' }, 409)
     if (!participant) return jsonResponse({ message: '找不到這位學員。' }, 404)
 
     const { data, error } = await supabase.rpc('claim_buzzer', {
