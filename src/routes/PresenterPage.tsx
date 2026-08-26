@@ -23,6 +23,7 @@ import { isBuzzerPending } from '../lib/buzzer'
 import { buildJoinUrl } from '../lib/qrcode'
 import { createRealtimeCaptionConnection } from '../lib/liveCaptions'
 import { createInterpretationAudioBroadcaster } from '../lib/liveInterpretation'
+import { logDiagnostic } from '../lib/diagnostics'
 import { createCaptionTextNormalizer } from '../lib/traditionalChinese'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
@@ -108,7 +109,7 @@ export function PresenterPage() {
   const [liveCaptions, setLiveCaptions] = useState<Record<string, string>>({})
   const captionConnectionsRef = useRef<Array<{ close: () => void }>>([])
   const interpretationBroadcastersRef = useRef<Array<{ close: () => void }>>([])
-  const pendingCaptionWritesRef = useRef<Set<Promise<void>>>(new Set())
+  const captionWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
   const captionRetryTimersRef = useRef<number[]>([])
   const captionDisplayTimersRef = useRef<Map<string, number>>(new Map())
   const captionHideTimersRef = useRef<Map<string, number>>(new Map())
@@ -430,7 +431,7 @@ export function PresenterPage() {
     }
   }
 
-  const stopCourseRecording = useCallback(async (persistState = true) => {
+  const stopCourseRecording = useCallback(async (persistState = true, waitForWrites = true) => {
     captionRunIdRef.current += 1
     for (const timer of captionRetryTimersRef.current) window.clearTimeout(timer)
     captionRetryTimersRef.current = []
@@ -440,9 +441,9 @@ export function PresenterPage() {
     captionConnectionsRef.current = []
     for (const track of captionStreamRef.current?.getTracks() || []) track.stop()
     captionStreamRef.current = null
-    if (pendingCaptionWritesRef.current.size) {
-      await Promise.allSettled([...pendingCaptionWritesRef.current])
-    }
+    const pendingWrites = captionWriteQueueRef.current
+    captionWriteQueueRef.current = Promise.resolve()
+    if (waitForWrites) await pendingWrites.catch(() => {})
     clearCaptionDisplayTimers()
     setLiveCaptions({})
     setCaptionError('')
@@ -475,6 +476,7 @@ export function PresenterPage() {
     setCaptionError('')
     setLiveCaptions({})
     const runId = ++captionRunIdRef.current
+    let reconnectScheduled = false
     try {
       await captionChannelRef.current?.send({ type: 'broadcast', event: 'caption', payload: { cleared: true } })
       const { error: startingError } = await requireSupabase().functions.invoke('presenter-action', {
@@ -519,6 +521,7 @@ export function PresenterPage() {
                 sourceLanguage: targetSession.caption_source_language,
                 text,
               },
+              timeout: 12_000,
             })
             if (error) throw error
             return
@@ -528,6 +531,11 @@ export function PresenterPage() {
               continue
             }
             console.error('Unable to persist caption segment', error)
+            logDiagnostic('caption_persist_failed', {
+              sessionId,
+              language,
+              message: await edgeFunctionErrorMessage(error, '字幕儲存失敗。'),
+            })
             setCaptionError('字幕仍會顯示，但有一段逐字稿儲存失敗；請檢查網路後再結束課程。')
           }
         }
@@ -536,16 +544,37 @@ export function PresenterPage() {
         const normalizedText = normalizeCaptionText(language, text)
         publishLiveCaption(language, normalizedText, final)
         if (final) {
-          const write = persistCaption(language, normalizedText)
-          pendingCaptionWritesRef.current.add(write)
-          void write.finally(() => pendingCaptionWritesRef.current.delete(write))
+          captionWriteQueueRef.current = captionWriteQueueRef.current
+            .catch(() => {})
+            .then(() => persistCaption(language, normalizedText))
         }
       }
       const onError = (message: string) => {
+        logDiagnostic('caption_service_error', { sessionId, message })
         setCaptionError(message)
         void requireSupabase().functions.invoke('presenter-action', {
           body: { action: 'update_session', sessionId, presenterToken, captionStatus: 'error' },
+          timeout: 12_000,
         })
+      }
+      const onDisconnected = (message: string) => {
+        if (reconnectScheduled || captionRunIdRef.current !== runId) return
+        reconnectScheduled = true
+        logDiagnostic('caption_transport_disconnected', { sessionId, message })
+        setCaptionError('即時字幕連線中斷，正在自動重新連線…')
+        const timer = window.setTimeout(() => {
+          captionRetryTimersRef.current = captionRetryTimersRef.current.filter((item) => item !== timer)
+          if (captionRunIdRef.current !== runId) return
+          void (async () => {
+            await stopCourseRecording(false, false)
+            await startCourseRecording(targetSession, microphoneId)
+          })().catch((error: unknown) => {
+            const reconnectMessage = error instanceof Error ? error.message : '即時字幕自動重連失敗。'
+            logDiagnostic('caption_reconnect_failed', { sessionId, message: reconnectMessage })
+            setCaptionError(reconnectMessage)
+          })
+        }, 2_500)
+        captionRetryTimersRef.current.push(timer)
       }
 
       const targets = [...new Set([
@@ -563,6 +592,7 @@ export function PresenterPage() {
           stream,
           onCaption,
           onError,
+          onDisconnected,
         })
       captionConnectionsRef.current = [transcriptionConnection]
       const connectTranslation = async (language: string, retryCount = 0): Promise<void> => {
@@ -588,6 +618,7 @@ export function PresenterPage() {
                 }
               : undefined,
             onCaption,
+            onDisconnected,
             onError: (message) => {
               const retryDelay = realtimeRetryDelay(message)
               if (!retryScheduled && retryDelay !== null && retryCount < 2 && captionRunIdRef.current === runId) {
@@ -1210,12 +1241,15 @@ export function PresenterPage() {
     try {
       const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
         body: { action: 'share_content', sessionId, presenterToken, body, url },
+        timeout: 15_000,
       })
-      if (error) throw error
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, '文字派送失敗。'))
       if (!data?.content) throw new Error(data?.message || '文字派送失敗。')
       setTextDispatchOpen(false)
     } catch (error) {
-      setTextDispatchError(error instanceof Error ? error.message : '文字派送失敗。')
+      const message = error instanceof Error ? error.message : '文字派送失敗。'
+      logDiagnostic('shared_content_failed', { sessionId, message })
+      setTextDispatchError(message)
     } finally {
       setBusy(false)
     }

@@ -22,4 +22,5 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   listCaptureSources: () => ipcRenderer.invoke('capture:list'),
   startCaptureSelection: () => ipcRenderer.invoke('capture:start-selection'),
   finishCaptureSelection: (expanded) => ipcRenderer.invoke('capture:finish-selection', expanded),
+  logDiagnostic: (details) => ipcRenderer.invoke('diagnostics:write', details),
 })

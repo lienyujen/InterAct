@@ -12,6 +12,20 @@ function logFatalError(scope, error) {
   }
 }
 
+function writeDiagnostic(details) {
+  try {
+    const logPath = path.join(app.getPath('userData'), 'diagnostics.log')
+    if (fs.existsSync(logPath) && fs.statSync(logPath).size > 2 * 1024 * 1024) {
+      if (fs.existsSync(`${logPath}.previous`)) fs.rmSync(`${logPath}.previous`)
+      fs.renameSync(logPath, `${logPath}.previous`)
+    }
+    const safeDetails = details && typeof details === 'object' ? details : { event: String(details) }
+    fs.appendFileSync(logPath, `${JSON.stringify({ at: new Date().toISOString(), ...safeDetails })}\n`)
+  } catch {
+    // Best-effort logging only; never interrupt a live class.
+  }
+}
+
 // Without these, any uncaught error anywhere in the main process (e.g. a timer
 // callback touching an already-destroyed BrowserWindow) exits the whole app
 // instantly with no dialog and no trace — every window vanishes mid-class.
@@ -522,6 +536,10 @@ ipcMain.handle('window:presenter-mode', (_event, sessionId) => {
   setPresenterTopmost(true)
   setControlBounds(false, true)
   createOverlayWindow(sessionId)
+})
+
+ipcMain.handle('diagnostics:write', (_event, details) => {
+  writeDiagnostic(details)
 })
 
 ipcMain.handle('window:set-expanded', (_event, expanded, settingsOpen = false, interactiveOpen = false) => {

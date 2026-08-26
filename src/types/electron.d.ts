@@ -32,6 +32,7 @@ declare global {
       listCaptureSources: () => Promise<InterActCaptureSource[]>
       startCaptureSelection: () => Promise<InterActCaptureSource>
       finishCaptureSelection: (expanded?: boolean) => Promise<void>
+      logDiagnostic: (details: Record<string, string | number | boolean | null | undefined>) => Promise<void>
     }
   }
 }
