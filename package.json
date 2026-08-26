@@ -11,7 +11,9 @@
     "desktop:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env INTERACT_DESKTOP_DEV=1 electron .\"",
     "desktop:start": "pnpm build && electron .",
     "desktop:package": "pnpm build && electron-builder --win portable --x64",
+    "desktop:package:plus": "pnpm build:plus && cross-env APP_EDITION=plus electron-builder --win portable --x64",
     "build": "tsc -b && vite build",
+    "build:plus": "tsc -b && cross-env VITE_APP_EDITION=plus vite build",
     "lint": "oxlint",
     "preview": "vite preview"
   },
