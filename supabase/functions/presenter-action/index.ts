@@ -5,6 +5,9 @@ import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response'])
+const speakerLanguages = new Set(['zh-tw', 'en'])
+const captionDisplayLanguages = new Set(['zh-tw', 'en', 'es', 'ja', 'ko', 'vi', 'de', 'id', 'th', 'fr'])
+const interpretationLanguagesSupported = new Set(['zh-tw', 'en', 'es', 'ja', 'ko', 'vi', 'de', 'id', 'th', 'fr'])
 const questionTranslationSchema = {
   type: 'object',
   additionalProperties: false,
@@ -153,6 +156,60 @@ Deno.serve(async (req) => {
       const values: Record<string, boolean | number | string | string[] | null> = {}
       if (typeof input.danmakuEnabled === 'boolean') values.danmaku_enabled = input.danmakuEnabled
       if (typeof input.anonymousEnabled === 'boolean') values.anonymous_enabled = input.anonymousEnabled
+      if (typeof input.recordingEnabled === 'boolean') {
+        values.recording_enabled = input.recordingEnabled
+        if (!input.recordingEnabled) values.captions_enabled = false
+      }
+      if (typeof input.captionsEnabled === 'boolean') {
+        values.captions_enabled = input.captionsEnabled
+      }
+      if (input.recordingEnabled === true) values.caption_started_at = new Date().toISOString()
+      if (['idle', 'starting', 'live', 'error'].includes(input.captionStatus)) values.caption_status = input.captionStatus
+      const hasCaptionConfiguration = [
+        input.captionSourceLanguage,
+        input.captionDisplayLanguage,
+        input.captionFontSize,
+        input.captionFontBold,
+        input.captionPosition,
+        input.interpretationAudioEnabled,
+        input.interpretationLanguages,
+      ].some((value) => value !== undefined)
+      if (hasCaptionConfiguration) {
+        const sourceLanguage = typeof input.captionSourceLanguage === 'string'
+          ? input.captionSourceLanguage.trim().toLowerCase()
+          : ''
+        if (!speakerLanguages.has(sourceLanguage)) return jsonResponse({ message: '講師字幕語言不支援。' }, 400)
+        const displayLanguage = typeof input.captionDisplayLanguage === 'string'
+          ? input.captionDisplayLanguage.trim().toLowerCase()
+          : ''
+        if (!captionDisplayLanguages.has(displayLanguage)) return jsonResponse({ message: '字幕顯示語言不支援。' }, 400)
+        const interpretationLanguages: string[] = Array.isArray(input.interpretationLanguages)
+          ? [...new Set((input.interpretationLanguages as unknown[]).filter((language: unknown): language is string => (
+            typeof language === 'string' && interpretationLanguagesSupported.has(language) && language !== sourceLanguage
+          )))]
+          : []
+        const interpretationAudioEnabled = Boolean(input.interpretationAudioEnabled) && interpretationLanguages.length > 0
+        values.caption_source_language = sourceLanguage
+        values.caption_display_language = displayLanguage
+        if (input.captionFontSize !== undefined) {
+          const captionFontSize = Number(input.captionFontSize)
+          if (!Number.isInteger(captionFontSize) || captionFontSize < 24 || captionFontSize > 96) {
+            return jsonResponse({ message: '字幕字型大小不正確。' }, 400)
+          }
+          values.caption_font_size = captionFontSize
+        }
+        if (typeof input.captionFontBold === 'boolean') values.caption_font_bold = input.captionFontBold
+        if (input.captionPosition !== undefined) {
+          const captionPosition = typeof input.captionPosition === 'string' ? input.captionPosition : ''
+          if (!['top', 'center', 'bottom'].includes(captionPosition)) {
+            return jsonResponse({ message: '字幕位置不正確。' }, 400)
+          }
+          values.caption_position = captionPosition
+        }
+        values.interpretation_enabled = interpretationAudioEnabled
+        values.interpretation_audio_enabled = interpretationAudioEnabled
+        values.interpretation_languages = interpretationAudioEnabled ? interpretationLanguages : []
+      }
       if (!Object.keys(values).length) return jsonResponse({ message: '沒有可更新的場次設定。' }, 400)
 
       const { data, error } = await supabase
@@ -165,6 +222,31 @@ Deno.serve(async (req) => {
       if (error) throw error
       if (!data) return jsonResponse({ message: '場次已結束，無法變更設定。' }, 409)
       return jsonResponse({ session: data })
+    }
+
+    if (action === 'append_caption') {
+      const segmentId = validUuid(input.segmentId) ? input.segmentId : crypto.randomUUID()
+      const text = typeof input.text === 'string' ? input.text.trim().slice(0, 4000) : ''
+      const language = typeof input.language === 'string' ? input.language.trim().toLowerCase().slice(0, 20) : ''
+      const sourceLanguage = typeof input.sourceLanguage === 'string' ? input.sourceLanguage.trim().toLowerCase().slice(0, 20) : ''
+      if (!text || !language || !sourceLanguage) return jsonResponse({ message: '字幕內容不完整。' }, 400)
+
+      const { data, error } = await supabase
+        .from('caption_segments')
+        .upsert({
+          id: segmentId,
+          session_id: sessionId,
+          language,
+          source_language: sourceLanguage,
+          text,
+          is_translation: language !== sourceLanguage,
+          started_at: typeof input.startedAt === 'string' ? input.startedAt : null,
+          ended_at: new Date().toISOString(),
+        }, { onConflict: 'id' })
+        .select('*')
+        .single()
+      if (error) throw error
+      return jsonResponse({ segment: data })
     }
 
     if (action === 'prepare_screenshot_upload') {
@@ -651,6 +733,9 @@ Deno.serve(async (req) => {
             status: 'ended',
             ended_at: endedAt,
             danmaku_enabled: false,
+            recording_enabled: false,
+            captions_enabled: false,
+            caption_status: 'idle',
             current_question_id: null,
           })
           .eq('id', sessionId)

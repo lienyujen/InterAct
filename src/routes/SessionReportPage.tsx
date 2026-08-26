@@ -3,10 +3,18 @@ import { ArrowLeft, BookOpen, ChartNoAxesCombined, Clock, Download, ListChecks, 
 import { getPresenterToken } from '../lib/presenterAuth'
 import { useSessionReportBack } from '../lib/sessionReportNavigation'
 import { requireSupabase } from '../lib/supabase'
-import type { AiSummary, Answer, AudioResponse, ExitTicket, Message, Participant, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionReportData, SharedContent } from '../types'
+import type { AiSummary, Answer, AudioResponse, CaptionSegment, ExitTicket, Message, Participant, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionReportData, SharedContent } from '../types'
 import { useParams, useSearchParams } from 'react-router-dom'
 
 const PAGE_SIZE = 1000
+
+type ReportThinkingLevel = 'LOW' | 'MEDIUM' | 'HIGH'
+
+const reportModes: { level: ReportThinkingLevel; label: string; hint: string }[] = [
+  { level: 'LOW', label: '快速', hint: 'gemini-3.7-flash · thinking low：最不容易逾時，建議先用這個' },
+  { level: 'MEDIUM', label: '標準', hint: 'gemini-3.7-flash · thinking medium：分析較深入，較慢' },
+  { level: 'HIGH', label: '深入', hint: 'gemini-3.7-flash · thinking high：最深入，最可能逾時' },
+]
 
 const questionTypeLabels: Record<Question['type'], string> = {
   send_screen: '派送畫面',
@@ -69,6 +77,7 @@ export function SessionReportPage() {
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
+  const [thinkingLevel, setThinkingLevel] = useState<ReportThinkingLevel>('LOW')
   const automaticLoadKeyRef = useRef('')
 
   const loadReportData = useCallback(async () => {
@@ -76,10 +85,11 @@ export function SessionReportPage() {
     const { data: session, error: sessionError } = await supabase.from('sessions').select('*').eq('id', sessionId).single()
     if (sessionError) throw sessionError
 
-    const [participants, messages, sharedContents, screenshots, questions, answers, aiSummaries, exitTickets] = await Promise.all([
+    const [participants, messages, sharedContents, captionSegments, screenshots, questions, answers, aiSummaries, exitTickets] = await Promise.all([
       fetchAllRows<Participant>('participants', sessionId, 'joined_at'),
       fetchAllRows<Message>('messages', sessionId, 'created_at'),
       fetchAllRows<SharedContent>('shared_contents', sessionId, 'created_at'),
+      fetchAllRows<CaptionSegment>('caption_segments', sessionId, 'created_at'),
       fetchAllRows<Screenshot>('screenshots', sessionId, 'created_at'),
       fetchAllRows<Question>('questions', sessionId, 'created_at'),
       fetchAllRows<Answer>('answers', sessionId, 'submitted_at'),
@@ -105,6 +115,7 @@ export function SessionReportPage() {
       participants,
       messages,
       sharedContents,
+      captionSegments,
       screenshots,
       questions,
       answers,
@@ -115,7 +126,7 @@ export function SessionReportPage() {
     })
   }, [sessionId])
 
-  const generateReport = useCallback(async () => {
+  const generateReport = useCallback(async (level?: ReportThinkingLevel) => {
     setLoading(true)
     setError('')
     try {
@@ -124,7 +135,7 @@ export function SessionReportPage() {
 
       const supabase = requireSupabase()
       const { data, error: functionError } = await supabase.functions.invoke('analyze-session', {
-        body: { sessionId, presenterToken },
+        body: { sessionId, presenterToken, ...(level ? { thinkingLevel: level } : {}) },
       })
       if (functionError) throw new Error(await edgeFunctionMessage(functionError))
       if (!data?.analysis || !data?.metrics) throw new Error(data?.message || 'AI 沒有回傳完整課堂分析。')
@@ -223,10 +234,26 @@ export function SessionReportPage() {
       <main className="session-report-page report-loading">
         <h1>報告尚未產生</h1>
         <p className="error">{error}</p>
+        <fieldset className="report-mode-picker">
+          <legend>分析模式</legend>
+          {reportModes.map((mode) => (
+            <label key={mode.level}>
+              <input
+                checked={thinkingLevel === mode.level}
+                name="report-thinking-level"
+                type="radio"
+                value={mode.level}
+                onChange={() => setThinkingLevel(mode.level)}
+              />
+              <span className="report-mode-label">{mode.label}</span>
+              <span className="report-mode-hint">{mode.hint}</span>
+            </label>
+          ))}
+        </fieldset>
         <div className="report-actions">
-          {generateRequested && (
-            <button type="button" onClick={generateReport}><RefreshCw size={17} />重新分析</button>
-          )}
+          <button type="button" onClick={() => void generateReport(thinkingLevel)}>
+            <RefreshCw size={17} />產生課堂報告
+          </button>
           <button className="ghost-button" type="button" onClick={() => void returnToSessionManager()}>
             <ArrowLeft size={17} />返回場次管理
           </button>

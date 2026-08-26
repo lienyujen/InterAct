@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.shorten-url]
 verify_jwt = false
+
+[functions.openai-realtime-session]
+verify_jwt = false

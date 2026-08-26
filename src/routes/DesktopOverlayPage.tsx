@@ -3,11 +3,12 @@ import { useParams } from 'react-router-dom'
 import { DanmakuLayer } from '../components/DanmakuLayer'
 import { BuzzerOverlay } from '../components/BuzzerOverlay'
 import { LotteryOverlay } from '../components/LotteryOverlay'
+import { LiveCaptionOverlay } from '../components/LiveCaptionOverlay'
 import { isBuzzerAccepting, isBuzzerPending } from '../lib/buzzer'
 import { finalizeLottery } from '../lib/lottery'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
-import type { BuzzerSessionEvent, LotterySessionEvent, Message, Session, SessionEvent } from '../types'
+import type { BuzzerSessionEvent, CaptionSegment, LotterySessionEvent, Message, Session, SessionEvent } from '../types'
 
 export function DesktopOverlayPage() {
   const { sessionId = '' } = useParams()
@@ -15,8 +16,25 @@ export function DesktopOverlayPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
   const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
+  const [liveCaptions, setLiveCaptions] = useState<Record<string, string>>({})
   const messageCutoffRef = useRef(new Date().toISOString())
   const loadingRef = useRef(false)
+  const captionHideTimersRef = useRef<Map<string, number>>(new Map())
+
+  const showCaption = useCallback((language: string, text: string) => {
+    setLiveCaptions((current) => ({ ...current, [language]: text }))
+    window.clearTimeout(captionHideTimersRef.current.get(language))
+    captionHideTimersRef.current.set(language, window.setTimeout(() => {
+      setLiveCaptions((current) => current[language] === text ? { ...current, [language]: '' } : current)
+      captionHideTimersRef.current.delete(language)
+    }, 2000))
+  }, [])
+
+  const clearCaptions = useCallback(() => {
+    for (const timer of captionHideTimersRef.current.values()) window.clearTimeout(timer)
+    captionHideTimersRef.current.clear()
+    setLiveCaptions({})
+  }, [])
 
   const mergeMessages = useCallback((incoming: Message[]) => {
     setMessages((current) => {
@@ -108,6 +126,10 @@ export function DesktopOverlayPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `session_id=eq.${sessionId}` }, (payload) => {
         mergeMessages([payload.new as Message])
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'caption_segments', filter: `session_id=eq.${sessionId}` }, (payload) => {
+        const segment = payload.new as CaptionSegment
+        showCaption(segment.language, segment.text)
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
         const event = payload.new as SessionEvent
         showActivityEvent(event)
@@ -117,7 +139,32 @@ export function DesktopOverlayPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadOverlay, mergeMessages, sessionId, showActivityEvent])
+  }, [loadOverlay, mergeMessages, sessionId, showActivityEvent, showCaption])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !sessionId) return
+    const supabase = requireSupabase()
+    const channel = supabase
+      .channel(`captions:${sessionId}`)
+      .on('broadcast', { event: 'caption' }, ({ payload }) => {
+        if (payload?.cleared) {
+          clearCaptions()
+          return
+        }
+        if (typeof payload?.language === 'string' && typeof payload?.text === 'string') {
+          showCaption(payload.language, payload.text)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [clearCaptions, sessionId, showCaption])
+
+  useEffect(() => () => {
+    for (const timer of captionHideTimersRef.current.values()) window.clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
     const interactive = Boolean(
@@ -170,6 +217,15 @@ export function DesktopOverlayPage() {
   return (
     <div className="desktop-overlay-root">
       <DanmakuLayer messages={messages} session={session} />
+      {session.captions_enabled && (
+        <LiveCaptionOverlay
+          fontBold={session.caption_font_bold}
+          fontSize={session.caption_font_size}
+          position={session.caption_position}
+          status={session.caption_status}
+          text={liveCaptions[session.caption_display_language] || ''}
+        />
+      )}
       <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />
       <BuzzerOverlay event={buzzerEvent} onStart={activateBuzzer} />
     </div>

@@ -14,6 +14,19 @@ export function jsonResponse(body: unknown, status = 200) {
 }
 
 export type AiProfile = 'realtime' | 'deep'
+export type ThinkingLevel = 'LOW' | 'MEDIUM' | 'HIGH'
+
+export const THINKING_LEVELS: ThinkingLevel[] = ['LOW', 'MEDIUM', 'HIGH']
+
+// Deep analysis defaults to LOW: MEDIUM regularly exhausted the request timeout on
+// large sessions, and a report that arrives is worth more than one that never does.
+const defaultThinkingLevel: Record<AiProfile, ThinkingLevel> = { realtime: 'LOW', deep: 'LOW' }
+
+export function parseThinkingLevel(value: unknown): ThinkingLevel | undefined {
+  return typeof value === 'string' && (THINKING_LEVELS as string[]).includes(value.toUpperCase())
+    ? value.toUpperCase() as ThinkingLevel
+    : undefined
+}
 
 type GeminiRequestOptions = {
   primaryTimeoutMs?: number
@@ -21,7 +34,8 @@ type GeminiRequestOptions = {
 }
 
 function retryableStatus(status: number) {
-  return status === 408 || status === 429 || status >= 500
+  // 404 means this key cannot reach that model, which is exactly what the fallback is for.
+  return status === 404 || status === 408 || status === 429 || status >= 500
 }
 
 export function geminiModels(profile: AiProfile) {
@@ -36,8 +50,8 @@ export function geminiModels(profile: AiProfile) {
   return fallback === primary ? [primary] : [primary, fallback]
 }
 
-export function geminiThinkingConfig(profile: AiProfile) {
-  return { thinkingLevel: profile === 'deep' ? 'MEDIUM' : 'LOW' }
+export function geminiThinkingConfig(profile: AiProfile, level?: ThinkingLevel) {
+  return { thinkingLevel: level || defaultThinkingLevel[profile] }
 }
 
 export async function requestGemini(
@@ -90,6 +104,7 @@ export async function callAiJson(
   userPayload: unknown,
   schema?: Record<string, unknown>,
   profile: AiProfile = 'realtime',
+  thinkingLevel?: ThinkingLevel,
 ) {
   const apiKey = Deno.env.get('GEMINI_API_KEY')
 
@@ -106,7 +121,7 @@ export async function callAiJson(
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text: JSON.stringify(userPayload) }] }],
       generationConfig: {
-        thinkingConfig: geminiThinkingConfig(profile),
+        thinkingConfig: geminiThinkingConfig(profile, thinkingLevel),
         responseFormat: { text: { mimeType: 'APPLICATION_JSON', ...(schema ? { schema } : {}) } },
       },
     }), profile)

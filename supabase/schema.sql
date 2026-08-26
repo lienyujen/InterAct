@@ -12,8 +12,21 @@ create table if not exists public.sessions (
   exit_ticket_prompt text null,
   exit_ticket_category text null check (exit_ticket_category in ('lesson_summary', 'learning_assessment', 'course_satisfaction', 'student_question')),
   exit_ticket_response_type text null check (exit_ticket_response_type in ('text', 'rating')),
+  recording_enabled boolean not null default false,
+  captions_enabled boolean not null default false,
+  caption_status text not null default 'idle' check (caption_status in ('idle', 'starting', 'live', 'error')),
+  caption_source_language text not null default 'zh-tw',
+  caption_display_language text not null default 'zh-tw',
+  caption_font_size integer not null default 36 check (caption_font_size between 24 and 96),
+  caption_font_bold boolean not null default false,
+  caption_position text not null default 'bottom' check (caption_position in ('top', 'center', 'bottom')),
+  caption_started_at timestamptz null,
+  interpretation_enabled boolean not null default false,
+  interpretation_audio_enabled boolean not null default false,
+  interpretation_languages text[] not null default '{}'::text[],
   created_at timestamptz not null default now(),
-  ended_at timestamptz null
+  ended_at timestamptz null,
+  constraint sessions_captions_require_recording check (not captions_enabled or recording_enabled)
 );
 
 create table if not exists public.participants (
@@ -216,8 +229,22 @@ create table if not exists public.quiz_item_answers (
   unique (attempt_id, item_id)
 );
 
+create table if not exists public.caption_segments (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  language text not null check (char_length(language) between 2 and 20),
+  source_language text not null check (char_length(source_language) between 2 and 20),
+  text text not null check (char_length(btrim(text)) between 1 and 4000),
+  is_translation boolean not null default false,
+  started_at timestamptz null,
+  ended_at timestamptz null,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists shared_contents_session_created_idx
   on public.shared_contents (session_id, created_at desc);
+create index if not exists caption_segments_session_created_idx
+  on public.caption_segments (session_id, created_at);
 
 create table if not exists public.session_events (
   id uuid primary key default gen_random_uuid(),
@@ -316,6 +343,7 @@ alter table public.audio_responses enable row level security;
 alter table public.ai_summaries enable row level security;
 alter table public.exit_tickets enable row level security;
 alter table public.shared_contents enable row level security;
+alter table public.caption_segments enable row level security;
 alter table public.session_events enable row level security;
 alter table public.quizzes enable row level security;
 alter table public.quiz_items enable row level security;
@@ -432,11 +460,12 @@ with check (
 );
 
 create policy "public read shared contents" on public.shared_contents for select to anon, authenticated using (true);
+create policy "public read caption segments" on public.caption_segments for select to anon, authenticated using (true);
 create policy "public read session events" on public.session_events for select to anon, authenticated using (true);
 
 revoke all on all tables in schema public from anon, authenticated;
 grant select on public.sessions, public.screenshots, public.questions, public.ai_summaries,
-  public.shared_contents, public.session_events,
+  public.shared_contents, public.session_events, public.caption_segments,
   public.quizzes, public.quiz_items to anon, authenticated;
 grant select, insert on public.participants to anon, authenticated;
 grant select, insert on public.messages, public.answers, public.exit_tickets to anon, authenticated;
@@ -456,6 +485,7 @@ alter publication supabase_realtime add table public.ai_summaries;
 alter publication supabase_realtime add table public.exit_tickets;
 alter publication supabase_realtime add table public.shared_contents;
 alter publication supabase_realtime add table public.session_events;
+alter publication supabase_realtime add table public.caption_segments;
 
 insert into storage.buckets (id, name, public)
 values ('interact-screenshots', 'interact-screenshots', true)
