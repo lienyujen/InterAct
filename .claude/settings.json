@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch*)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm build)"
+    ]
+  }
+}
