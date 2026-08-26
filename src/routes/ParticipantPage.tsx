@@ -361,7 +361,7 @@ export function ParticipantPage() {
       if (!data?.attempt) throw new Error(data?.message || '自訂測驗送出失敗。')
       await loadAll()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '自訂測驗送出失敗。')
+      setError(await participantFunctionMessage(caught, '自訂測驗送出失敗。'))
     } finally {
       setQuizBusy(false)
     }
@@ -378,7 +378,7 @@ export function ParticipantPage() {
       if (retryError) throw retryError
       await loadAll()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '無法重新評分。')
+      setError(await participantFunctionMessage(caught, '無法重新評分。'))
     } finally {
       setQuizBusy(false)
     }
@@ -428,7 +428,7 @@ export function ParticipantPage() {
       if (!data?.response) throw new Error(data?.message || '錄音送出失敗。')
       await loadAll()
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '錄音送出失敗，請稍後再試。')
+      setError(await participantFunctionMessage(caught, '錄音送出失敗，請稍後再試。'))
     } finally {
       setAudioBusy(false)
     }
@@ -479,7 +479,7 @@ export function ParticipantPage() {
       if (!data?.event) throw new Error(data?.message || '搶答失敗。')
       setBuzzerEvent(data.event as BuzzerSessionEvent)
     } catch (err) {
-      setError(err instanceof Error ? err.message : '搶答失敗，請稍後再試。')
+      setError(await participantFunctionMessage(err, '搶答失敗，請稍後再試。'))
       throw err
     } finally {
       setBuzzerBusy(false)
