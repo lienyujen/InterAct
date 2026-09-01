@@ -4166,3 +4166,34 @@ h2 {
   justify-content: flex-end;
   margin-top: 14px;
 }
+
+.backend-deploy-button {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.deploy-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.deploy-steps li {
+  align-items: center;
+  display: flex;
+  font-size: 0.84rem;
+  gap: 7px;
+}
+
+.deploy-steps li.is-pending { color: var(--muted); }
+.deploy-steps li.is-done { color: var(--success, #2e7d32); }
+.deploy-steps li.is-failed { color: var(--danger, #c62828); }
+
+.deploy-steps em {
+  font-size: 0.78rem;
+  font-style: normal;
+  opacity: 0.85;
+}

@@ -542,6 +542,40 @@ ipcMain.handle('diagnostics:write', (_event, details) => {
   writeDiagnostic(details)
 })
 
+// The Supabase Management API sends no CORS headers, so the renderer cannot call
+// it. Proxy those requests through the main process, which is not subject to
+// CORS — restricted to that one host so this cannot become a general fetch hole.
+ipcMain.handle('supabase:management', async (_event, request) => {
+  const { path: requestPath, method = 'GET', token, json, files, metadata } = request || {}
+  if (typeof requestPath !== 'string' || !requestPath.startsWith('/v1/projects/')) {
+    return { ok: false, status: 0, body: 'Refused: unsupported management path.' }
+  }
+  if (typeof token !== 'string' || !token) {
+    return { ok: false, status: 0, body: 'Refused: missing token.' }
+  }
+
+  let body
+  const headers = { Authorization: `Bearer ${token}` }
+  if (Array.isArray(files)) {
+    const form = new FormData()
+    form.append('metadata', JSON.stringify(metadata || {}))
+    for (const file of files) {
+      form.append('file', new File([file.contents], file.name))
+    }
+    body = form
+  } else if (json !== undefined) {
+    headers['Content-Type'] = 'application/json'
+    body = JSON.stringify(json)
+  }
+
+  try {
+    const response = await fetch(`https://api.supabase.com${requestPath}`, { method, headers, body })
+    return { ok: response.ok, status: response.status, body: await response.text() }
+  } catch (error) {
+    return { ok: false, status: 0, body: error instanceof Error ? error.message : 'request failed' }
+  }
+})
+
 ipcMain.handle('window:set-expanded', (_event, expanded, settingsOpen = false, interactiveOpen = false) => {
   // Reapplying always-on-top closes native Windows select popups. Temporarily
   // suspend the presenter topmost reinforcement while settings are interactive.

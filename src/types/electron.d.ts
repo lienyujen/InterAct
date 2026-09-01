@@ -33,6 +33,14 @@ declare global {
       startCaptureSelection: () => Promise<InterActCaptureSource>
       finishCaptureSelection: (expanded?: boolean) => Promise<void>
       logDiagnostic: (details: Record<string, string | number | boolean | null | undefined>) => Promise<void>
+      supabaseManagement?: (request: {
+        path: string
+        method?: string
+        token: string
+        json?: unknown
+        files?: Array<{ name: string; contents: string }>
+        metadata?: unknown
+      }) => Promise<{ ok: boolean; status: number; body: string }>
     }
   }
 }

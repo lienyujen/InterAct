@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { CheckCircle2, ExternalLink, KeyRound, LoaderCircle, Save, Server } from 'lucide-react'
+import { CheckCircle2, CircleDashed, ExternalLink, KeyRound, LoaderCircle, Rocket, Save, Server, XCircle } from 'lucide-react'
 import { backendConfig, clearBackendConfig, saveBackendConfig, testBackendConfig } from '../lib/supabase'
+import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setSecrets } from '../lib/backendDeploy'
+import type { DeployStep } from '../lib/backendDeploy'
 
 type Props = {
   onCancel?: () => void
@@ -20,8 +22,88 @@ export function BackendSetup({ onCancel }: Props) {
   const [tested, setTested] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [token, setToken] = useState('')
+  const [geminiKey, setGeminiKey] = useState('')
+  const [openaiKey, setOpenaiKey] = useState('')
+  const [reurlKey, setReurlKey] = useState('')
+  const [steps, setSteps] = useState<DeployStep[]>([])
+  const [deploying, setDeploying] = useState(false)
 
   const cleanRef = normalizeRef(ref)
+
+  async function deployBackend() {
+    setError('')
+    setNotice('')
+    if (!REF_PATTERN.test(cleanRef)) {
+      setError('請先填入正確的專案識別碼。')
+      return
+    }
+    if (!token.trim()) {
+      setError('請填入 Supabase 存取權杖。')
+      return
+    }
+
+    const plan: DeployStep[] = [
+      { slug: '建立資料表與儲存空間', status: 'pending' },
+      ...deployableFunctions.map((slug) => ({ slug, status: 'pending' as const })),
+      { slug: '設定 API 金鑰', status: 'pending' },
+    ]
+    setSteps(plan)
+    setDeploying(true)
+
+    const advance = (index: number, status: DeployStep['status'], message?: string) => {
+      setSteps((current) => current.map((step, i) => i === index ? { ...step, status, message } : step))
+    }
+
+    try {
+      // A network-level failure here would otherwise surface as nothing at all:
+      // the button resets, the steps sit unstarted, and no reason is given.
+      let tokenCheck: Awaited<ReturnType<typeof checkToken>>
+      try {
+        tokenCheck = await checkToken(cleanRef, token.trim())
+      } catch {
+        setError('無法連線到 Supabase 管理 API，請確認網路連線。')
+        setSteps([])
+        return
+      }
+      if (!tokenCheck.ok) {
+        setError(tokenCheck.message)
+        setSteps([])
+        return
+      }
+
+      const tasks: Array<() => Promise<void>> = [
+        () => runSchema(cleanRef, token.trim()),
+        ...deployableFunctions.map((slug) => () => deployFunction(cleanRef, token.trim(), slug)),
+        () => setSecrets(cleanRef, token.trim(), {
+          GEMINI_API_KEY: geminiKey,
+          OPENAI_API_KEY: openaiKey,
+          REURL_API_KEY: reurlKey,
+        }),
+      ]
+
+      let failed = false
+      for (const [index, task] of tasks.entries()) {
+        advance(index, 'running')
+        try {
+          await task()
+          advance(index, 'done')
+        } catch (caught) {
+          advance(index, 'failed', caught instanceof Error ? caught.message : '失敗')
+          failed = true
+          break
+        }
+      }
+      if (failed) {
+        setError('部署中斷。修正上面的問題後可以再按一次，已完成的步驟會直接覆蓋，不會重複。')
+      } else {
+        setNotice('後端部署完成，測試連線後即可儲存。')
+        setToken('')
+      }
+    } finally {
+      setDeploying(false)
+    }
+  }
 
   async function runTest() {
     setError('')
@@ -124,18 +206,63 @@ export function BackendSetup({ onCancel }: Props) {
         </div>
 
         <details className="backend-setup-help">
-          <summary>還沒有 Supabase 專案？</summary>
-          <ol>
-            <li>
-              到 <a href="https://supabase.com/dashboard" rel="noreferrer" target="_blank">
-                Supabase 後台 <ExternalLink size={12} />
-              </a> 免費建立一個專案。
-            </li>
-            <li>開啟 SQL Editor，貼上並執行專案裡的 <code>supabase/schema.sql</code>，建立資料表與儲存空間。</li>
-            <li>部署 <code>supabase/functions</code> 底下的 Edge Functions。</li>
-            <li>在 Edge Functions 的 Secrets 設定 <code>GEMINI_API_KEY</code>（AI 分析用）。<code>OPENAI_API_KEY</code>（即時字幕與口譯）與 <code>REURL_API_KEY</code>（短網址）為選填。</li>
-          </ol>
-          <p className="muted">完整步驟請見專案的部署教學文件。</p>
+          <summary>還沒建立後端？讓 InterAct 幫你部署</summary>
+          <p className="muted">
+            在 <a href="https://supabase.com/dashboard" rel="noreferrer" target="_blank">
+              Supabase 後台 <ExternalLink size={12} />
+            </a> 免費建立專案後，到 <a href="https://supabase.com/dashboard/account/tokens" rel="noreferrer" target="_blank">
+              Access Tokens <ExternalLink size={12} />
+            </a> 產生一組權杖貼在下方，InterAct 會自動建立資料表、部署後端函式並設定金鑰。
+          </p>
+
+          <label>
+            Supabase 存取權杖
+            <input
+              placeholder="sbp_..."
+              type="password"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+            />
+          </label>
+          <p className="field-hint">
+            建議建立 fine-grained token 並只勾選這個專案的 <strong>Edge Functions 寫入</strong>與<strong>資料庫查詢</strong>權限。
+            權杖只在部署當下使用，不會被儲存。
+          </p>
+
+          <label>
+            Gemini API key
+            <input placeholder="AI 分析用" type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} />
+          </label>
+          <label>
+            OpenAI API key（選填）
+            <input placeholder="即時字幕與同步口譯，依音訊時長計費" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} />
+          </label>
+          <label>
+            Reurl API key（選填）
+            <input placeholder="QR Code 短網址" type="password" value={reurlKey} onChange={(e) => setReurlKey(e.target.value)} />
+          </label>
+
+          <button className="backend-deploy-button" disabled={deploying || !canDeployBackend} type="button" onClick={() => void deployBackend()}>
+            {deploying ? <LoaderCircle className="spin" size={17} /> : <Rocket size={17} />}
+            {deploying ? '部署中...' : '開始自動部署'}
+          </button>
+
+          {!canDeployBackend && <p className="field-hint">自動部署只能在 InterAct 桌面版使用。</p>}
+
+          {steps.length > 0 && (
+            <ul className="deploy-steps">
+              {steps.map((step) => (
+                <li key={step.slug} className={`is-${step.status}`}>
+                  {step.status === 'done' && <CheckCircle2 size={14} />}
+                  {step.status === 'failed' && <XCircle size={14} />}
+                  {step.status === 'running' && <LoaderCircle className="spin" size={14} />}
+                  {step.status === 'pending' && <CircleDashed size={14} />}
+                  <span>{step.slug}</span>
+                  {step.message && <em>{step.message}</em>}
+                </li>
+              ))}
+            </ul>
+          )}
         </details>
 
         <div className="backend-setup-footer">
