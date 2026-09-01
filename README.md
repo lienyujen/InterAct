@@ -13,7 +13,7 @@ InterAct 是提供教師、講師、訓練師與演講者使用的即時課堂�
 - 抽籤、搶答與 Exit Ticket
 - Gemini 題目分析與整節課報告
 - Excel 完整報表匯出
-- GitHub Pages 跨網域學員端
+- 免部署學員端：加入連結自帶專案資訊，掃碼即用
 
 ## 技術架構
 
@@ -26,7 +26,7 @@ InterAct 是提供教師、講師、訓練師與演講者使用的即時課堂�
 ## 本機開發
 
 1. 執行 `pnpm install` 安裝相依套件。
-2. 依照 `.env.example` 建立自己的 `.env`，填入 Supabase 與 GitHub Pages 網址。
+2. 依照 `.env.example` 建立自己的 `.env`，填入 Supabase 網址與 publishable key（`VITE_PUBLIC_APP_URL` 選填，不填則使用共用學員端）。
 3. 執行 `pnpm dev` 啟動網頁開發環境。
 4. 執行 `pnpm desktop:dev` 啟動 Windows 講師端開發環境。
 
@@ -50,9 +50,11 @@ powershell -ExecutionPolicy Bypass -File .\skills\interact-self-deploy\scripts\p
 
 1. Supabase：資料庫、Realtime、Storage 與 Edge Functions。
 2. Google AI Studio：Gemini API key，只存於 Supabase secret。
-3. GitHub Pages：學員端公開網址。
-4. Reurl.cc：短網址 API key，只存於 Supabase secret（選用）。
+3. Reurl.cc：短網址 API key，只存於 Supabase secret（選用）。
+4. OpenAI：即時字幕與同步口譯用，只存於 Supabase secret（選用，依音訊時長計費）。
 5. Windows：把自己的公開設定打包進 `InterAct.exe`。
+
+**學員端網頁不需要自行部署。** 加入連結會帶著你的 Supabase 專案識別碼，共用的學員端會據此連到你的專案，課堂資料不會混在一起。
 
 完整繁體中文教學請見 [`docs/InterAct-從零部署與打包教學.md`](docs/InterAct-從零部署與打包教學.md)。可安裝 [`interact-self-deploy`](skills/interact-self-deploy/SKILL.md) skill，讓 Codex 依序引導部署：
 
@@ -63,6 +65,40 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-deployment-skill.ps1
 不要把 Gemini key、Reurl key、Supabase secret key、service-role key 或 GitHub token 放入 `.env`、GitHub Pages variables、前端程式、截圖或公開訊息。
 
 學員端固定顯示 InterAct 作者的 [Facebook](https://www.facebook.com/lienyujen) 與 [YouTube](https://www.youtube.com/@lienlaoshi) 連結。
+
+## 自行託管學員端
+
+預設情況下，QR Code 指向共用的學員端網頁 `https://lienyujen.github.io/InterAct`。它只是一份靜態網頁，會依照加入連結上的參數連到**你自己的** Supabase 專案 —— 你的課堂資料不會經過作者的專案。
+
+想改用自己的網址，打包前設定：
+
+```
+VITE_PUBLIC_APP_URL=https://你的帳號.github.io/你的repo
+```
+
+任何靜態空間都可以（GitHub Pages、Cloudflare Pages、Netlify⋯），把 `pnpm build` 產生的 `dist/` 放上去即可。
+
+**商業使用者請自行託管。** GitHub 的服務條款不允許把 Pages 當成免費空間用於商業用途，所以補習班、企業內訓與收費課程請部署自己的學員端，不要使用共用網址。Cloudflare Pages 免費方案沒有商業限制，是合適的選擇。
+
+## 容量與限制
+
+同時上線人數的瓶頸**不在學員端網頁**，而在你自己的 Supabase 專案。
+
+學員端是靜態檔案、透過 CDN 供應，沒有同時連線上限；GitHub Pages 的 100 GB/月頻寬換算約可負擔 40 萬次首次載入，且瀏覽器會快取。
+
+真正的限制是 Supabase 的 **Realtime 同時連線數**：
+
+| | 免費方案 | Pro（每月 $25）|
+|---|---|---|
+| Realtime 同時連線 | **200** | 500，超出每千條 $10 |
+| Realtime 訊息 | 200 萬/月 | 500 萬/月 |
+| Edge Function 呼叫 | 50 萬/月 | 200 萬/月 |
+| 資料庫 | 500 MB | 8 GB |
+| 儲存空間 | 1 GB | 100 GB |
+
+每位在線學員會佔用一至數條連線，一堂 50 人的課約需 60–80 條。因此**免費方案大致可支撐 150 人同時上課，或兩三堂課並行**；超過就會開始掉連線，需要升級 Pro。
+
+實際數字請以 [Supabase 定價頁](https://supabase.com/pricing) 為準。
 
 ## 授權
 
