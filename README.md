@@ -23,6 +23,19 @@ InterAct 是提供教師、講師、訓練師與演講者使用的即時課堂�
 - Google Gemini：題目與課堂互動分析
 - Reurl.cc：縮短加入網址（選用）
 
+## 快速開始（不需要開發環境）
+
+1. 從 [Releases](https://github.com/lienyujen/InterAct/releases) 下載 `InterAct.zip`，解壓後執行裡面的 `InterAct.exe`。
+2. 在 [Supabase](https://supabase.com/dashboard) 免費建立一個專案。
+3. 開啟 InterAct，出現設定畫面時填入專案識別碼與 publishable key。
+4. 展開「還沒建立後端？讓 InterAct 幫你部署」，貼上一組
+   [Supabase 存取權杖](https://supabase.com/dashboard/account/tokens)與 Gemini API key，按下自動部署。
+
+InterAct 會替你建立資料表、部署 Edge Functions 並設定金鑰，不需要安裝 Node 或 Supabase CLI。
+建議使用 fine-grained token 並只勾選該專案的 Edge Functions 寫入與資料庫權限；權杖只在部署當下使用，不會被儲存。
+
+學員端不必自行部署 —— QR Code 會帶上你的專案識別碼，共用學員端會連回你自己的 Supabase。
+
 ## 本機開發
 
 1. 執行 `pnpm install` 安裝相依套件。
@@ -44,9 +57,9 @@ pnpm desktop:package
 powershell -ExecutionPolicy Bypass -File .\skills\interact-self-deploy\scripts\package-windows.ps1 -SupabaseUrl https://YOUR_PROJECT_REF.supabase.co -PublishableKey sb_publishable_YOUR_VALUE -PublicAppUrl https://YOUR_GITHUB_USER.github.io/InterAct
 ```
 
-## 自行部署
+## 自行部署（進階）
 
-每位部署者都必須使用自己的服務帳號，避免共用開發者的額度與課堂資料：
+想用 CLI 自行掌控每個步驟，或要打包自己的執行檔時，每位部署者都必須使用自己的服務帳號，避免共用開發者的額度與課堂資料：
 
 1. Supabase：資料庫、Realtime、Storage 與 Edge Functions。
 2. Google AI Studio：Gemini API key，只存於 Supabase secret。
