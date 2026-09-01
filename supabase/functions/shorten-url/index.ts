@@ -30,8 +30,19 @@ Deno.serve(async (req) => {
     if (sessionError) throw sessionError
     if (session.short_join_url) return jsonResponse({ shortUrl: session.short_join_url, cached: true })
 
+    // The join hash carries the Supabase project so students can use the shared
+    // page: accept those two parameters, and nothing else, alongside the code.
     const parsedUrl = new URL(longUrl)
-    if (parsedUrl.protocol !== 'https:' || parsedUrl.hash !== `#/join/${session.code}`) {
+    const [hashPath, hashQuery] = parsedUrl.hash.split('?')
+    const allowedQuery = (() => {
+      if (hashQuery === undefined) return true
+      const params = new URLSearchParams(hashQuery)
+      const keys = [...params.keys()]
+      if (keys.some((name) => name !== 'p' && name !== 'k')) return false
+      return /^[a-z0-9]{20}$/.test(params.get('p') || '')
+        && /^sb_publishable_[A-Za-z0-9_-]{8,}$/.test(params.get('k') || '')
+    })()
+    if (parsedUrl.protocol !== 'https:' || hashPath !== `#/join/${session.code}` || !allowedQuery) {
       return jsonResponse({ message: '加入網址格式不正確。' }, 400)
     }
 
