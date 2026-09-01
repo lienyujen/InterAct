@@ -10,6 +10,8 @@ import { PresenterNewPage } from './routes/PresenterNewPage'
 import { PresenterPage } from './routes/PresenterPage'
 import { SessionReportPage } from './routes/SessionReportPage'
 import { WordCloudPage } from './routes/WordCloudPage'
+import { BackendSetup } from './components/BackendSetup'
+import { isSupabaseConfigured } from './lib/supabase'
 import { useSessionReportBack } from './lib/sessionReportNavigation'
 
 function AppRoutes() {
@@ -21,6 +23,17 @@ function AppRoutes() {
   const isDesktopPresenter = isDesktop && location.pathname.startsWith('/presenter/') && location.pathname !== '/presenter/new'
   const isSessionReport = location.pathname.startsWith('/session-report/')
   const isWordCloud = location.pathname.startsWith('/word-cloud/')
+
+  // A downloaded build has no project baked in, so ask the presenter for theirs
+  // before anything else. Students arrive through a link that already carries one.
+  if (isDesktop && !isSupabaseConfigured) {
+    return (
+      <div className="desktop-shell">
+        <DesktopWindowChrome confirmClose={false} />
+        <BackendSetup />
+      </div>
+    )
+  }
 
   return (
     <div className={isDesktop ? 'desktop-shell' : undefined}>
