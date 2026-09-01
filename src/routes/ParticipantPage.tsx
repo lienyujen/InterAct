@@ -551,6 +551,8 @@ export function ParticipantPage() {
             />
           </section>
         )}
+        {/* Files stay downloadable after class until the presenter deletes the session. */}
+        <ParticipantSharedFiles locale={locale} sessionId={sessionId} />
         <ParticipantQuestionHistory
           answers={historyAnswers}
           audioResponses={historyAudioResponses}

@@ -3,6 +3,7 @@ import { Camera, Download, FileUp, LoaderCircle, Sparkles, Upload } from 'lucide
 import { requireSupabase } from '../lib/supabase'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
+import { downloadHref, publicFileUrl } from '../lib/fileLinks'
 import type { SharedFile } from '../types'
 
 type Props = {
@@ -16,10 +17,6 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-function publicUrl(storagePath: string) {
-  const base = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || ''
-  return base ? `${base}/storage/v1/object/public/interact-files/${storagePath}` : ''
-}
 
 export function ParticipantSharedFiles({ sessionId, locale }: Props) {
   const [files, setFiles] = useState<SharedFile[]>([])
@@ -56,7 +53,11 @@ export function ParticipantSharedFiles({ sessionId, locale }: Props) {
       <ul>
         {files.map((file) => (
           <li key={file.id}>
-            <a href={file.file_url || publicUrl(file.storage_path)} rel="noreferrer" target="_blank">
+            <a
+              href={downloadHref(file.file_url || publicFileUrl(file.storage_path), file.name)}
+              rel="noreferrer"
+              target="_blank"
+            >
               {file.name}
             </a>
             <span className="muted">{formatSize(file.file_size)}</span>

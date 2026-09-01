@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { Download, FileUp, FolderUp, LoaderCircle, Send, Sparkles, Square, Trash2, Upload, X } from 'lucide-react'
+import { downloadHref } from '../lib/fileLinks'
 import type { FileResponse, Question, SharedFile } from '../types'
 
 type Tab = 'share' | 'collect'
@@ -156,7 +157,7 @@ export function FileTransferModal({
                     </div>
                     <div className="file-list-actions">
                       {file.file_url && (
-                        <a className="ghost-button" href={file.file_url} rel="noreferrer" target="_blank">
+                        <a className="ghost-button" href={downloadHref(file.file_url, file.name)} rel="noreferrer" target="_blank">
                           <Download size={15} />開啟
                         </a>
                       )}
@@ -226,7 +227,7 @@ export function FileTransferModal({
                           </div>
                           <div className="file-list-actions">
                             {response.file_url && (
-                              <a className="ghost-button" href={response.file_url} rel="noreferrer" target="_blank">
+                              <a className="ghost-button" href={downloadHref(response.file_url, response.name)} rel="noreferrer" target="_blank">
                                 <Download size={15} />下載
                               </a>
                             )}

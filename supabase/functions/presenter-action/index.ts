@@ -68,8 +68,16 @@ const MAX_TRANSFER_BYTES = 200 * 1024 * 1024
 
 // Storage keys must stay ASCII-safe; the original name is kept in the database.
 function storageSafeName(name: string) {
-  const cleaned = name.replace(/[^A-Za-z0-9._-]/g, '_').replace(/_{2,}/g, '_').slice(-80)
-  return cleaned.replace(/^[._-]+/, '') || 'file'
+  // Keep the extension: a fully non-ASCII name would otherwise collapse to nothing
+  // and the browser would save the download with no extension at all.
+  const dot = name.lastIndexOf('.')
+  const ext = dot > 0 ? name.slice(dot + 1).replace(/[^A-Za-z0-9]/g, '').slice(0, 10).toLowerCase() : ''
+  const stem = (dot > 0 ? name.slice(0, dot) : name)
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .replace(/_{2,}/g, '_')
+    .replace(/^[._-]+|[._-]+$/g, '')
+    .slice(-60)
+  return `${stem || 'file'}${ext ? `.${ext}` : ''}`
 }
 
 function withFileUrl<T extends { storage_path?: string }>(row: T) {
