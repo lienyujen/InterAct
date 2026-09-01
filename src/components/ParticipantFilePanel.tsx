@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, FileUp, LoaderCircle, Sparkles, Upload } from 'lucide-react'
+import { Camera, Download, FileUp, LoaderCircle, Sparkles, Upload } from 'lucide-react'
 import { requireSupabase } from '../lib/supabase'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
@@ -90,6 +90,15 @@ export function ParticipantFileUpload({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
+  // Phones and tablets get a shortcut straight to the camera. On a mouse-driven
+  // machine `capture` is ignored, so the button would just be a second file
+  // picker — hide it there rather than offer the same thing twice.
+  const [hasCamera] = useState(() => (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(pointer: coarse)').matches
+  ))
 
   async function upload(files: File[]) {
     if (!files.length) return
@@ -149,15 +158,34 @@ export function ParticipantFileUpload({
       {promptText && <p className="participant-file-prompt">{promptText}</p>}
       {active ? (
         <>
-          <button disabled={busy} type="button" onClick={() => inputRef.current?.click()}>
-            {busy ? <LoaderCircle className="spin" size={17} /> : <Upload size={17} />}
-            {busy ? participantText(locale, 'fileUploading') : participantText(locale, 'chooseFile')}
-          </button>
+          <div className="participant-upload-actions">
+            <button disabled={busy} type="button" onClick={() => inputRef.current?.click()}>
+              {busy ? <LoaderCircle className="spin" size={17} /> : <Upload size={17} />}
+              {busy ? participantText(locale, 'fileUploading') : participantText(locale, 'chooseFile')}
+            </button>
+            {hasCamera && (
+              <button disabled={busy} type="button" onClick={() => cameraRef.current?.click()}>
+                <Camera size={17} />
+                {participantText(locale, 'takePhoto')}
+              </button>
+            )}
+          </div>
           <input
             accept="image/*,.pdf,.txt,.md,.csv,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip"
             hidden
             multiple
             ref={inputRef}
+            type="file"
+            onChange={(event) => {
+              void upload(Array.from(event.target.files || []))
+              event.target.value = ''
+            }}
+          />
+          <input
+            accept="image/*"
+            capture="environment"
+            hidden
+            ref={cameraRef}
             type="file"
             onChange={(event) => {
               void upload(Array.from(event.target.files || []))

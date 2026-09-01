@@ -4072,3 +4072,13 @@ h2 {
   font-size: 0.85rem;
   gap: 6px;
 }
+
+.participant-upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.participant-upload-actions button {
+  flex: 1 1 140px;
+}
