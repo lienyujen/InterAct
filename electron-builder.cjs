@@ -32,7 +32,7 @@ module.exports = {
   ],
   win: {
     icon: 'build/icon.ico',
-    executableName: 'InterAct',
+    executableName: productName,
     requestedExecutionLevel: 'asInvoker',
     target: [
       {
