@@ -1,0 +1,103 @@
+name: Release Windows build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish (must already exist)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and typecheck
+        run: |
+          pnpm lint
+          pnpm exec tsc -b
+
+      # Deliberately built with no Supabase project configured: whoever downloads
+      # this enters their own on first launch. Baking one in would send every
+      # class to that project and bill its owner for everyone's AI usage.
+      - name: Build
+        run: pnpm build
+
+      # The build above is only credential-free because no .env reaches the runner.
+      # Check the bundle rather than trust that, so a committed .env fails the
+      # release instead of shipping one person's project to everyone who downloads it.
+      - name: Verify no project is baked in
+        shell: bash
+        run: |
+          # Matches a real key, not the setup screen's own placeholder and
+          # validation pattern, which legitimately contain the same prefix.
+          if grep -rhoE 'sb_publishable_[A-Za-z0-9_-]{20,}' dist/assets | grep -q .; then
+            echo "::error::A Supabase publishable key is embedded in the build. Refusing to publish."
+            grep -rhoE 'sb_publishable_[A-Za-z0-9_-]{20,}' dist/assets | sed 's/\(.\{22\}\).*/\1.../' | sort -u
+            exit 1
+          fi
+          echo "No Supabase project embedded."
+
+      - name: Package Windows app
+        run: pnpm exec electron-builder --win portable zip --x64 --publish never
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          notes=$(cat <<'MD'
+          ## 下載
+
+          | 檔案 | 說明 |
+          |---|---|
+          | `InterAct.zip` | 解壓後直接執行資料夾內的 `InterAct.exe`，開啟較快，**建議使用** |
+          | `InterAct.exe` | 單一檔案免安裝版，每次啟動需自我解壓，較慢 |
+
+          ## 首次使用
+
+          開啟後會出現設定畫面，填入你自己的 Supabase 專案（專案識別碼與 publishable key）即可開始。
+          學員端網址留空就好 —— QR Code 會自動帶上你的專案，課堂資料只會進你自己的 Supabase。
+
+          尚未建立 Supabase 專案，請參考
+          [部署教學](https://github.com/lienyujen/InterAct/blob/main/docs/InterAct-%E5%BE%9E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%88%87%E6%89%93%E5%8C%85%E6%95%99%E5%AD%B8.md)。
+
+          ## 注意
+
+          執行檔未經程式碼簽章，Windows SmartScreen 可能顯示「不明發行者」，
+          請點「其他資訊 → 仍要執行」。部分公司電腦的資安政策可能直接封鎖。
+
+          個人與教育用途免費；補習班、企業內訓與收費課程屬商業用途，
+          請見 [授權說明](https://github.com/lienyujen/InterAct#授權)。
+          MD
+          )
+          gh release create "$TAG" \
+            --title "InterAct $TAG" \
+            --notes "$notes" \
+            release/InterAct.exe \
+            release/InterAct.zip
