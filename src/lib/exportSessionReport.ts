@@ -19,6 +19,7 @@ const questionTypeLabels = {
   pronunciation: '朗讀發音',
   oral_response: '口語表達',
   custom_quiz: '自訂測驗',
+  file_upload: '檔案上傳',
 }
 
 const quizItemTypeLabels = {

@@ -23,6 +23,8 @@ const messages = {
     testPlayed: '已播放測試音；若沒有聽見，請檢查裝置音量與耳機輸出。', imageAlt: '講者派送圖片', congratulations: '恭喜！',
     winnerIs: '得獎的是', canBuzz: '現在可以搶答', waitPresenter: '請等待主講者開始', submitting: '送出中', buzz: '搶答', preparing: '準備中',
     sessionGoneTitle: '這場次已經莎喲娜啦了！', sessionGoneMessage: '下回請早！',
+    teacherFiles: '教師分享檔案', fileUpload: '上傳檔案', chooseFile: '選擇檔案上傳', fileUploading: '上傳中...',
+    uploadFailed: '檔案上傳失敗，請再試一次。', uploadClosed: '教師已停止收件。', fileFeedback: 'AI 檔案回饋',
   },
   en: {
     language: 'Language', chinese: '繁體中文', english: 'English', courseEnded: 'Class ended', classDismissed: 'That’s a wrap!',
@@ -46,6 +48,8 @@ const messages = {
     testPlayed: 'Test tone played. If you cannot hear it, check your volume and audio output.', imageAlt: 'Image shared by presenter', congratulations: 'Congratulations!',
     winnerIs: 'The winner is', canBuzz: 'Buzz in now', waitPresenter: 'Wait for the presenter to start', submitting: 'Sending', buzz: 'Buzz', preparing: 'Get ready',
     sessionGoneTitle: 'This session has said its sayonara!', sessionGoneMessage: 'Catch the next one bright and early!',
+    teacherFiles: 'Files shared by your instructor', fileUpload: 'Upload a file', chooseFile: 'Choose a file', fileUploading: 'Uploading...',
+    uploadFailed: 'Upload failed. Please try again.', uploadClosed: 'Your instructor has stopped collecting files.', fileFeedback: 'AI feedback on your file',
   },
 } as const
 

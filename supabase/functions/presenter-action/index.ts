@@ -1,5 +1,6 @@
 import { callAiJson, corsHeaders, jsonResponse } from '../_shared/ai.ts'
 import { generateCustomQuiz } from '../_shared/custom-quiz.ts'
+import { analyzeFileResponse, isAnalyzableFile } from '../_shared/file-analysis.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 
 type ParticipantRecord = { id: string; name: string }
@@ -61,6 +62,20 @@ function normalizedUrl(value: unknown) {
 
 function validUuid(value: unknown) {
   return typeof value === 'string' && uuidPattern.test(value)
+}
+
+const MAX_TRANSFER_BYTES = 200 * 1024 * 1024
+
+// Storage keys must stay ASCII-safe; the original name is kept in the database.
+function storageSafeName(name: string) {
+  const cleaned = name.replace(/[^A-Za-z0-9._-]/g, '_').replace(/_{2,}/g, '_').slice(-80)
+  return cleaned.replace(/^[._-]+/, '') || 'file'
+}
+
+function withFileUrl<T extends { storage_path?: string }>(row: T) {
+  const base = Deno.env.get('SUPABASE_URL') || ''
+  if (!row?.storage_path || !base) return row
+  return { ...row, file_url: `${base}/storage/v1/object/public/interact-files/${row.storage_path}` }
 }
 
 function normalizedOptions(value: unknown) {
@@ -249,6 +264,134 @@ Deno.serve(async (req) => {
       return jsonResponse({ segment: data })
     }
 
+
+    if (action === 'prepare_shared_file_upload') {
+      const fileName = typeof input.fileName === 'string' ? input.fileName.trim().slice(0, 200) : ''
+      const fileSize = Number(input.fileSize)
+      if (!fileName || !Number.isInteger(fileSize) || fileSize < 1 || fileSize > MAX_TRANSFER_BYTES) {
+        return jsonResponse({ message: '檔案資料不正確，單檔上限 200 MB。' }, 400)
+      }
+      const fileId = crypto.randomUUID()
+      const storagePath = `sessions/${sessionId}/files/shared/${fileId}/${storageSafeName(fileName)}`
+      const { data, error } = await supabase.storage.from('interact-files').createSignedUploadUrl(storagePath)
+      if (error) throw error
+      return jsonResponse({ fileId, storagePath, uploadToken: data.token })
+    }
+
+    if (action === 'submit_shared_file') {
+      const storagePath = typeof input.storagePath === 'string' ? input.storagePath : ''
+      const fileName = typeof input.fileName === 'string' ? input.fileName.trim().slice(0, 200) : ''
+      const mimeType = typeof input.mimeType === 'string' && input.mimeType.trim()
+        ? input.mimeType.trim().slice(0, 150)
+        : 'application/octet-stream'
+      const fileSize = Number(input.fileSize)
+      if (!fileName || !storagePath.startsWith(`sessions/${sessionId}/files/shared/`)
+        || !Number.isInteger(fileSize) || fileSize < 1 || fileSize > MAX_TRANSFER_BYTES) {
+        return jsonResponse({ message: '檔案資料不正確。' }, 400)
+      }
+      const { data, error } = await supabase.from('shared_files').insert({
+        session_id: sessionId,
+        name: fileName,
+        mime_type: mimeType,
+        file_size: fileSize,
+        storage_path: storagePath,
+      }).select('*').single()
+      if (error) throw error
+      return jsonResponse({ file: withFileUrl(data) })
+    }
+
+    if (action === 'list_shared_files') {
+      const { data, error } = await supabase.from('shared_files')
+        .select('*').eq('session_id', sessionId).order('created_at')
+      if (error) throw error
+      return jsonResponse({ files: (data || []).map(withFileUrl) })
+    }
+
+    if (action === 'delete_shared_file') {
+      const fileId = input.fileId
+      if (!validUuid(fileId)) return jsonResponse({ message: '檔案資料不正確。' }, 400)
+      const { data: file, error: findError } = await supabase.from('shared_files')
+        .select('storage_path').eq('id', fileId).eq('session_id', sessionId).maybeSingle()
+      if (findError) throw findError
+      if (!file) return jsonResponse({ message: '找不到檔案。' }, 404)
+      const { error: storageError } = await supabase.storage.from('interact-files').remove([file.storage_path])
+      if (storageError) throw storageError
+      const { error: deleteError } = await supabase.from('shared_files').delete().eq('id', fileId)
+      if (deleteError) throw deleteError
+      return jsonResponse({ deleted: true })
+    }
+
+    if (action === 'create_file_request') {
+      const promptText = typeof input.promptText === 'string' ? input.promptText.trim().slice(0, 1000) : ''
+      const { data: question, error } = await supabase.from('questions').insert({
+        session_id: sessionId,
+        type: 'file_upload',
+        status: 'active',
+        title: '檔案上傳',
+        prompt_text: promptText || null,
+      }).select('*').single()
+      if (error) throw error
+      const { error: sessionError } = await supabase.from('sessions')
+        .update({ current_question_id: question.id }).eq('id', sessionId)
+      if (sessionError) throw sessionError
+      return jsonResponse({ question })
+    }
+
+    if (action === 'get_file_responses') {
+      const questionId = typeof input.questionId === 'string' ? input.questionId : ''
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+      const { data, error } = await supabase.from('file_responses')
+        .select('*').eq('session_id', sessionId).eq('question_id', questionId).order('submitted_at')
+      if (error) throw error
+      return jsonResponse({ responses: (data || []).map(withFileUrl) })
+    }
+
+    // Analysis is per file and only ever runs when the presenter asks for it.
+    if (action === 'analyze_file_response') {
+      const responseId = input.responseId
+      if (!validUuid(responseId)) return jsonResponse({ message: '檔案資料不正確。' }, 400)
+      const { data: fileRow, error: findError } = await supabase.from('file_responses')
+        .select('*').eq('id', responseId).eq('session_id', sessionId).maybeSingle()
+      if (findError) throw findError
+      if (!fileRow) return jsonResponse({ message: '找不到這個檔案。' }, 404)
+      if (!isAnalyzableFile(fileRow.mime_type, fileRow.name)) {
+        const { data: skipped } = await supabase.from('file_responses')
+          .update({ analysis_status: 'unsupported', error_message: 'AI 無法讀取這個檔案格式。', analyzed_at: new Date().toISOString() })
+          .eq('id', responseId).select('*').single()
+        return jsonResponse({ response: withFileUrl(skipped) })
+      }
+
+      await supabase.from('file_responses').update({ analysis_status: 'analyzing', error_message: null }).eq('id', responseId)
+      try {
+        const { data: question } = await supabase.from('questions')
+          .select('prompt_text').eq('id', fileRow.question_id).maybeSingle()
+        const { data: blob, error: downloadError } = await supabase.storage
+          .from('interact-files').download(fileRow.storage_path)
+        if (downloadError) throw downloadError
+        const analysis = await analyzeFileResponse({
+          promptText: question?.prompt_text || null,
+          fileName: fileRow.name,
+          mimeType: fileRow.mime_type,
+          fileBytes: new Uint8Array(await blob.arrayBuffer()),
+        })
+        const { data: updated, error: updateError } = await supabase.from('file_responses').update({
+          analysis_status: 'success',
+          analysis_json: analysis,
+          error_message: null,
+          analyzed_at: new Date().toISOString(),
+        }).eq('id', responseId).select('*').single()
+        if (updateError) throw updateError
+        return jsonResponse({ response: withFileUrl(updated) })
+      } catch (analysisError) {
+        const detail = analysisError instanceof Error ? analysisError.message : 'AI 分析失敗。'
+        const { data: failed } = await supabase.from('file_responses').update({
+          analysis_status: 'failed',
+          error_message: detail.slice(0, 500),
+          analyzed_at: new Date().toISOString(),
+        }).eq('id', responseId).select('*').single()
+        return jsonResponse({ response: withFileUrl(failed), message: detail.slice(0, 500) }, 200)
+      }
+    }
     if (action === 'prepare_screenshot_upload') {
       const screenshotId = crypto.randomUUID()
       const extension = typeof input.fileName === 'string'
@@ -796,6 +939,16 @@ Deno.serve(async (req) => {
         if (storageError) throw storageError
       }
 
+
+      // 檔案傳送：清掉這場次底下所有教師分享與學生回傳的檔案。
+      const filePrefix = `sessions/${sessionId}/files`
+      const transferPaths = await listStorageFiles(supabase, 'interact-files', filePrefix)
+      for (let index = 0; index < transferPaths.length; index += 100) {
+        const { error: storageError } = await supabase.storage
+          .from('interact-files')
+          .remove(transferPaths.slice(index, index + 100))
+        if (storageError) throw storageError
+      }
       const { data: deletedSession, error: deleteError } = await supabase
         .from('sessions')
         .delete()

@@ -11,6 +11,13 @@ function validUuid(value: unknown) {
   return typeof value === 'string' && uuidPattern.test(value)
 }
 
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+
+function storageSafeName(name: string) {
+  const cleaned = name.replace(/[^A-Za-z0-9._-]/g, '_').replace(/_{2,}/g, '_').slice(-80)
+  return cleaned.replace(/^[._-]+/, '') || 'file'
+}
+
 async function verifyParticipant(
   supabase: ReturnType<typeof getAdminClient>,
   sessionId: string,
@@ -238,6 +245,69 @@ Deno.serve(async (req) => {
       return jsonResponse({ attempt })
     }
 
+
+    if (['prepare_file_upload', 'submit_file_response'].includes(action)) {
+      const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
+      if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)
+      const questionId = typeof input.questionId === 'string' ? input.questionId : ''
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+      const { data: question, error: questionError } = await supabase.from('questions')
+        .select('id, status, type').eq('id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (questionError) throw questionError
+      if (!question || question.type !== 'file_upload') return jsonResponse({ message: '找不到檔案上傳題。' }, 404)
+      if (question.status !== 'active') return jsonResponse({ message: '教師已停止收件。' }, 409)
+
+      const fileName = typeof input.fileName === 'string' ? input.fileName.trim().slice(0, 200) : ''
+      const fileSize = Number(input.fileSize)
+      if (!fileName || !Number.isInteger(fileSize) || fileSize < 1 || fileSize > MAX_UPLOAD_BYTES) {
+        return jsonResponse({ message: '檔案資料不正確，單檔上限 200 MB。' }, 400)
+      }
+
+      if (action === 'prepare_file_upload') {
+        const fileId = crypto.randomUUID()
+        const storagePath = `sessions/${sessionId}/files/responses/${questionId}/${participantId}/${fileId}/${storageSafeName(fileName)}`
+        const { data, error } = await supabase.storage.from('interact-files').createSignedUploadUrl(storagePath)
+        if (error) throw error
+        return jsonResponse({ fileId, storagePath, uploadToken: data.token })
+      }
+
+      const storagePath = typeof input.storagePath === 'string' ? input.storagePath : ''
+      const expectedPrefix = `sessions/${sessionId}/files/responses/${questionId}/${participantId}/`
+      if (!storagePath.startsWith(expectedPrefix)) {
+        return jsonResponse({ message: '檔案路徑不正確。' }, 400)
+      }
+      const mimeType = typeof input.mimeType === 'string' && input.mimeType.trim()
+        ? input.mimeType.trim().slice(0, 150)
+        : 'application/octet-stream'
+
+      const { data: saved, error: insertError } = await supabase.from('file_responses').insert({
+        session_id: sessionId,
+        question_id: questionId,
+        participant_id: participantId,
+        participant_name: participant.name,
+        name: fileName,
+        mime_type: mimeType,
+        file_size: fileSize,
+        storage_path: storagePath,
+      }).select('*').single()
+      if (insertError) throw insertError
+
+      // One placeholder answer per student keeps response counts and the presenter's
+      // realtime refresh working the same way they do for recordings.
+      const { count } = await supabase.from('answers')
+        .select('id', { count: 'exact', head: true })
+        .eq('question_id', questionId).eq('participant_id', participantId)
+      if (!count) {
+        await supabase.from('answers').insert({
+          session_id: sessionId,
+          question_id: questionId,
+          participant_id: participantId,
+          participant_name: participant.name,
+          answer_text: '[已上傳檔案]',
+        })
+      }
+      return jsonResponse({ response: saved })
+    }
     if (['prepare_recording_upload', 'submit_recording', 'get_recording_result'].includes(action)) {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)

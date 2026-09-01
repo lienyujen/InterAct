@@ -69,7 +69,7 @@ export type Screenshot = {
   created_at: string
 }
 
-export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz'
+export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz' | 'file_upload'
 export type QuizItemType = 'multiple_choice' | 'fill_blank' | 'short_answer'
 export type QuizRequestedType = 'random' | QuizItemType
 export type ExitTicketCategory = 'lesson_summary' | 'learning_assessment' | 'course_satisfaction' | 'student_question'
@@ -389,4 +389,44 @@ export type SessionReportData = {
   customQuizResults: SessionCustomQuizResults
   aiSummaries: AiSummary[]
   exitTickets: ExitTicket[]
+}
+
+export interface SharedFile {
+  id: string
+  session_id: string
+  name: string
+  mime_type: string
+  file_size: number
+  storage_path: string
+  created_at: string
+  file_url?: string
+}
+
+export type FileAnalysisStatus = 'pending' | 'analyzing' | 'success' | 'failed' | 'unsupported'
+
+export interface FileAnalysis {
+  summary_zh_tw: string
+  summary_en: string
+  strengths_zh_tw: string[]
+  strengths_en: string[]
+  improvements_zh_tw: string[]
+  improvements_en: string[]
+}
+
+export interface FileResponse {
+  id: string
+  session_id: string
+  question_id: string
+  participant_id: string
+  participant_name: string
+  name: string
+  mime_type: string
+  file_size: number
+  storage_path: string
+  analysis_status: FileAnalysisStatus
+  analysis_json: FileAnalysis | null
+  error_message: string | null
+  submitted_at: string
+  analyzed_at: string | null
+  file_url?: string
 }

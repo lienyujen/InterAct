@@ -1,4 +1,4 @@
-import { AudioLines, BellRing, Captions, Cloud, Dice5, DoorOpen, Eye, EyeOff, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Square, Users } from 'lucide-react'
+import { AudioLines, BellRing, Captions, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Square, Users } from 'lucide-react'
 import { isPlusEdition } from '../lib/edition'
 import type { Session } from '../types'
 
@@ -14,6 +14,7 @@ type Props = {
   onDrawLottery: () => void
   onStartBuzzer: () => void
   onOpenTextDispatch: () => void
+  onOpenFileTransfer: () => void
   onOpenWordCloud: () => void
   onOpenSettings: () => void
   onToggleRecording: () => void
@@ -35,6 +36,7 @@ export function PresenterControlPanel({
   onDrawLottery,
   onStartBuzzer,
   onOpenTextDispatch,
+  onOpenFileTransfer,
   onOpenWordCloud,
   onOpenSettings,
   onToggleRecording,
@@ -132,6 +134,10 @@ export function PresenterControlPanel({
           </button>
           {isPlusEdition && (
             <>
+              <button className="control-action share-action" type="button" onClick={onOpenFileTransfer} disabled={busy}>
+                <span className="control-action-icon"><FolderUp size={18} /></span>
+                檔案傳送
+              </button>
               <button className={`control-action caption-control-action${session.recording_enabled ? ' is-active' : ''}`} type="button" onClick={onToggleRecording} disabled={busy || session.caption_status === 'starting'}>
                 <span className="control-action-icon"><AudioLines size={18} /></span>
                 {session.caption_status === 'starting' ? '錄製連線中' : session.recording_enabled ? '停止課程錄製' : '開始課程錄製'}

@@ -16,6 +16,7 @@ import { QuestionResult } from '../components/QuestionResult'
 import { CustomQuizResult } from '../components/CustomQuizResult'
 import { SetupNotice } from '../components/SetupNotice'
 import { TextDispatchModal } from '../components/TextDispatchModal'
+import { FileTransferModal } from '../components/FileTransferModal'
 import { finalizeLottery } from '../lib/lottery'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { endManagedSession } from '../lib/presenterSessions'
@@ -27,7 +28,7 @@ import { logDiagnostic } from '../lib/diagnostics'
 import { createCaptionTextNormalizer } from '../lib/traditionalChinese'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
-import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
+import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, FileResponse, SharedFile, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
 import { useParams } from 'react-router-dom'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -89,6 +90,10 @@ export function PresenterPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [textDispatchOpen, setTextDispatchOpen] = useState(false)
   const [textDispatchError, setTextDispatchError] = useState('')
+  const [fileTransferOpen, setFileTransferOpen] = useState(false)
+  const [sharedFiles, setSharedFiles] = useState<SharedFile[]>([])
+  const [fileResponses, setFileResponses] = useState<FileResponse[]>([])
+  const [collectQuestion, setCollectQuestion] = useState<Question | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsBusy, setSettingsBusy] = useState(false)
   const [settingsError, setSettingsError] = useState('')
@@ -1229,6 +1234,135 @@ export function PresenterPage() {
     }
   }
 
+
+
+  // Keep the collection tab pointing at the newest file_upload question so reopening
+  // the modal (or reloading the page mid-class) shows what is currently being collected.
+  useEffect(() => {
+    const latest = questions.filter((item) => item.type === 'file_upload').at(-1) || null
+    setCollectQuestion((current) => current?.id === latest?.id ? current : latest)
+  }, [questions])
+  function requirePresenterToken() {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('這個舊場次沒有講者操作權限，請建立新場次後再試。')
+    return presenterToken
+  }
+
+  async function callPresenter(body: Record<string, unknown>, fallback: string) {
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', { body })
+    if (error) throw new Error(await edgeFunctionErrorMessage(error, fallback))
+    return data as Record<string, unknown>
+  }
+
+  const refreshSharedFiles = useCallback(async () => {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) return
+    const { data } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'list_shared_files', sessionId, presenterToken },
+    })
+    setSharedFiles((data?.files || []) as SharedFile[])
+  }, [sessionId])
+
+  async function shareFiles(files: File[]) {
+    const presenterToken = requirePresenterToken()
+    const supabase = requireSupabase()
+    setBusy(true)
+    try {
+      for (const file of files) {
+        const prepared = await callPresenter({
+          action: 'prepare_shared_file_upload',
+          sessionId,
+          presenterToken,
+          fileName: file.name,
+          fileSize: file.size,
+        }, '無法準備檔案上傳。')
+        const { error: uploadError } = await supabase.storage
+          .from('interact-files')
+          .uploadToSignedUrl(prepared.storagePath as string, prepared.uploadToken as string, file, {
+            contentType: file.type || 'application/octet-stream',
+            upsert: false,
+          })
+        if (uploadError) throw uploadError
+        await callPresenter({
+          action: 'submit_shared_file',
+          sessionId,
+          presenterToken,
+          storagePath: prepared.storagePath,
+          fileName: file.name,
+          mimeType: file.type,
+          fileSize: file.size,
+        }, '檔案上傳失敗。')
+      }
+      await refreshSharedFiles()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteSharedFile(fileId: string) {
+    const presenterToken = requirePresenterToken()
+    setBusy(true)
+    try {
+      await callPresenter({ action: 'delete_shared_file', sessionId, presenterToken, fileId }, '移除檔案失敗。')
+      await refreshSharedFiles()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const refreshFileResponses = useCallback(async () => {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken || !collectQuestion) return
+    const { data } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'get_file_responses', sessionId, presenterToken, questionId: collectQuestion.id },
+    })
+    setFileResponses((data?.responses || []) as FileResponse[])
+  }, [collectQuestion, sessionId])
+
+  async function startFileCollect(promptText: string) {
+    const presenterToken = requirePresenterToken()
+    setBusy(true)
+    try {
+      const data = await callPresenter({
+        action: 'create_file_request', sessionId, presenterToken, promptText,
+      }, '無法派送檔案上傳。')
+      setCollectQuestion(data.question as Question)
+      setFileResponses([])
+      await loadAll()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function stopFileCollect() {
+    const presenterToken = requirePresenterToken()
+    if (!collectQuestion) return
+    setBusy(true)
+    try {
+      await callPresenter({
+        action: 'stop_question', sessionId, presenterToken, questionId: collectQuestion.id,
+      }, '無法停止收件。')
+      setCollectQuestion({ ...collectQuestion, status: 'stopped' })
+      await refreshFileResponses()
+      await loadAll()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function analyzeFileResponse(responseId: string) {
+    const presenterToken = requirePresenterToken()
+    setBusy(true)
+    try {
+      const data = await callPresenter({
+        action: 'analyze_file_response', sessionId, presenterToken, responseId,
+      }, 'AI 分析失敗。')
+      const updated = data.response as FileResponse | undefined
+      if (updated) setFileResponses((current) => current.map((item) => item.id === updated.id ? updated : item))
+    } finally {
+      setBusy(false)
+    }
+  }
   async function sendSharedContent(body: string, url: string) {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
@@ -1363,6 +1497,10 @@ export function PresenterPage() {
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
           onGenerateExitTicket={generateExitTicket}
           onEndClass={() => setEndClassConfirmOpen(true)}
+          onOpenFileTransfer={() => {
+            setFileTransferOpen(true)
+            void refreshSharedFiles()
+          }}
           onOpenTextDispatch={() => {
             setTextDispatchError('')
             setTextDispatchOpen(true)
@@ -1456,6 +1594,21 @@ export function PresenterPage() {
         onCancel={cancelQuestionEditor}
         onCreate={createScreenshotQuestion}
       />
+      {fileTransferOpen && (
+        <FileTransferModal
+          busy={busy}
+          collectQuestion={collectQuestion}
+          fileResponses={fileResponses}
+          sharedFiles={sharedFiles}
+          onAnalyzeResponse={analyzeFileResponse}
+          onClose={() => setFileTransferOpen(false)}
+          onDeleteSharedFile={deleteSharedFile}
+          onRefreshResponses={refreshFileResponses}
+          onShareFiles={shareFiles}
+          onStartCollect={startFileCollect}
+          onStopCollect={stopFileCollect}
+        />
+      )}
       <TextDispatchModal
         busy={busy}
         error={textDispatchError}

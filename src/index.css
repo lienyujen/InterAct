@@ -3868,3 +3868,207 @@ h2 {
     grid-template-columns: 1fr;
   }
 }
+
+/* 檔案傳送 */
+.file-transfer-modal {
+  max-width: 640px;
+  width: min(640px, 92vw);
+}
+
+.file-transfer-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.file-transfer-tabs button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  justify-content: center;
+  padding: 9px 10px;
+}
+
+.file-transfer-tabs button.is-active {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.file-transfer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.file-transfer-body h3 {
+  font-size: 0.92rem;
+  margin: 4px 0 0;
+}
+
+.file-transfer-body h3 span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.file-dropzone {
+  align-items: center;
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 26px 16px;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.file-dropzone.is-dragging {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+}
+
+.file-transfer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-list > li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.file-list-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.file-list-meta strong {
+  overflow-wrap: anywhere;
+}
+
+.file-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.file-response-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.file-response-row .file-list-meta {
+  flex: 1;
+}
+
+.file-response-row .file-list-actions {
+  margin-top: 0;
+}
+
+.file-response-thumb {
+  border-radius: 8px;
+  flex: none;
+  height: 46px;
+  object-fit: cover;
+  width: 46px;
+}
+
+.file-response-thumb.is-placeholder {
+  align-items: center;
+  background: var(--border);
+  color: var(--muted);
+  display: flex;
+  justify-content: center;
+}
+
+.file-analysis-status {
+  font-size: 0.78rem;
+}
+
+.file-analysis-status.is-success { color: var(--success, #2e7d32); }
+.file-analysis-status.is-failed { color: var(--danger, #c62828); }
+.file-analysis-status.is-unsupported,
+.file-analysis-status.is-pending,
+.file-analysis-status.is-analyzing { color: var(--muted); }
+
+.file-analysis-error {
+  font-size: 0.78rem;
+  margin: 6px 0 0;
+}
+
+.file-analysis-detail {
+  border-top: 1px solid var(--border);
+  font-size: 0.86rem;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.file-analysis-detail h4 {
+  font-size: 0.82rem;
+  margin: 10px 0 4px;
+}
+
+.file-analysis-detail ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.participant-shared-files ul,
+.participant-uploaded-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.participant-shared-files li {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.participant-shared-files a {
+  overflow-wrap: anywhere;
+}
+
+.participant-file-prompt {
+  margin: 6px 0 10px;
+}
+
+.participant-uploaded-list li {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.85rem;
+  gap: 6px;
+}
