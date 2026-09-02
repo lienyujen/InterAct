@@ -1194,6 +1194,8 @@ Deno.serve(async (req) => {
     if (/AI returned|AI did not follow|invalid answer key|needs at least|needs an accepted answer|has no prompt|unsupported question count/i.test(detail)) {
       return jsonResponse({ message: 'AI 產生的題目格式不完整，請調整出題方向後再試。' }, 422)
     }
-    return jsonResponse({ message: '講者操作失敗，請稍後再試。' }, 500)
+    // Whoever runs this owns the project, so give them the real reason instead of
+    // a generic apology they cannot act on.
+    return jsonResponse({ message: `講者操作失敗：${detail.slice(0, 300)}` }, 500)
   }
 })
