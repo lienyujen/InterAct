@@ -136,7 +136,8 @@ async function requestQuizGeneration(
 }
 
 export async function generateCustomQuiz(input: {
-  screenshotUrl: string
+  // A screenshot or a file the teacher shared; both reach Gemini the same way.
+  sourceUrl: string
   direction: string
   requestedCount: number | null
   requestedType: RequestedType
@@ -145,8 +146,8 @@ export async function generateCustomQuiz(input: {
   const [model, fallbackModel] = geminiModels('realtime')
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured.')
 
-  const imageResponse = await fetch(input.screenshotUrl)
-  if (!imageResponse.ok) throw new Error(`Could not download screenshot (${imageResponse.status}).`)
+  const imageResponse = await fetch(input.sourceUrl)
+  if (!imageResponse.ok) throw new Error(`Could not download the quiz source (${imageResponse.status}).`)
   const mimeType = imageResponse.headers.get('content-type') || 'image/png'
   const imageBase64 = bytesToBase64(new Uint8Array(await imageResponse.arrayBuffer()))
 
@@ -168,7 +169,7 @@ export async function generateCustomQuiz(input: {
   const requestPayload = {
     systemInstruction: {
       parts: [{
-        text: `你是 InterAct 的測驗設計助理。請根據教師截圖和出題方向建立適合課堂即時作答的測驗。${languageInstruction} translation_en 一律提供忠實自然的英文版本；若主文已是英文則保持相同意思。${countInstruction}${typeInstruction} 選擇題須有 2 至 6 個互不重複的選項，accepted_answers 只能包含正確選項原文。填充題請在題幹使用 ____ 標示作答處，accepted_answers 提供可接受答案與常見同義答案。簡答題提供參考答案於 accepted_answers，並在 rubric 寫出具體評分準則。不得捏造截圖無法支持的專有事實；若截圖資訊有限，應依教師的出題方向設計可合理回答的理解題。`,
+        text: `你是 InterAct 的測驗設計助理。請根據教師提供的教材和出題方向建立適合課堂即時作答的測驗。${languageInstruction} translation_en 一律提供忠實自然的英文版本；若主文已是英文則保持相同意思。${countInstruction}${typeInstruction} 選擇題須有 2 至 6 個互不重複的選項，accepted_answers 只能包含正確選項原文。填充題請在題幹使用 ____ 標示作答處，accepted_answers 提供可接受答案與常見同義答案。簡答題提供參考答案於 accepted_answers，並在 rubric 寫出具體評分準則。不得捏造教材無法支持的專有事實；若教材資訊有限，應依教師的出題方向設計可合理回答的理解題。`,
       }],
     },
     contents: [{

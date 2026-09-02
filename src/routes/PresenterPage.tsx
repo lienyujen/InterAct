@@ -10,7 +10,7 @@ import { QRCodePanel } from '../components/QRCodePanel'
 import { ExitTicketResult } from '../components/ExitTicketResult'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { QuestionEditor } from '../components/QuestionEditor'
-import type { CustomQuizSettings } from '../components/QuestionEditor'
+import type { CustomQuizSettings } from '../lib/customQuiz'
 import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
 import { CustomQuizResult } from '../components/CustomQuizResult'
@@ -1263,6 +1263,26 @@ export function PresenterPage() {
     setSharedFiles((data?.files || []) as SharedFile[])
   }, [sessionId])
 
+  // Same question type and the same result view as a screenshot quiz; only the
+  // material Gemini reads is different.
+  async function createFileQuiz(fileId: string, settings: CustomQuizSettings) {
+    const presenterToken = requirePresenterToken()
+    setBusy(true)
+    try {
+      await callPresenter({
+        action: 'create_custom_quiz',
+        sessionId,
+        presenterToken,
+        sharedFileId: fileId,
+        direction: settings.direction,
+        requestedCount: settings.requestedCount,
+        requestedType: settings.requestedType,
+      }, 'AI 出題失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function shareFiles(files: File[]) {
     const presenterToken = requirePresenterToken()
     const supabase = requireSupabase()
@@ -1604,6 +1624,7 @@ export function PresenterPage() {
           onClose={() => setFileTransferOpen(false)}
           onDeleteSharedFile={deleteSharedFile}
           onRefreshResponses={refreshFileResponses}
+          onCreateFileQuiz={createFileQuiz}
           onShareFiles={shareFiles}
           onStartCollect={startFileCollect}
           onStopCollect={stopFileCollect}

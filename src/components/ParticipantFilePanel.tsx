@@ -39,8 +39,18 @@ export function ParticipantSharedFiles({ sessionId, locale }: Props) {
       }, () => void load())
       .subscribe()
 
+    // A phone suspends the socket as soon as the browser goes to the background,
+    // so every change made while the screen was off is missed. Without this the
+    // list keeps offering files the teacher has already removed, and tapping one
+    // returns a 404 from Storage.
+    const onVisible = () => { if (document.visibilityState === 'visible') void load() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+
     return () => {
       active = false
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
       void supabase.removeChannel(channel)
     }
   }, [sessionId])

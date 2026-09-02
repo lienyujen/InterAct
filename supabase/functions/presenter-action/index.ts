@@ -346,10 +346,13 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'get_file_responses') {
+      // The report wants every upload in the session, the modal wants one question.
       const questionId = typeof input.questionId === 'string' ? input.questionId : ''
-      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
-      const { data, error } = await supabase.from('file_responses')
-        .select('*').eq('session_id', sessionId).eq('question_id', questionId).order('submitted_at')
+      if (questionId && !validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+      let fileQuery = supabase.from('file_responses')
+        .select('*').eq('session_id', sessionId)
+      if (questionId) fileQuery = fileQuery.eq('question_id', questionId)
+      const { data, error } = await fileQuery.order('submitted_at')
       if (error) throw error
       return jsonResponse({ responses: (data || []).map(withFileUrl) })
     }
@@ -391,7 +394,7 @@ Deno.serve(async (req) => {
         if (updateError) throw updateError
         return jsonResponse({ response: withFileUrl(updated) })
       } catch (analysisError) {
-        const detail = analysisError instanceof Error ? analysisError.message : 'AI 分析失敗。'
+        const detail = errorDetail(analysisError, 'AI 分析失敗。')
         const { data: failed } = await supabase.from('file_responses').update({
           analysis_status: 'failed',
           error_message: detail.slice(0, 500),
@@ -429,48 +432,74 @@ Deno.serve(async (req) => {
         ? requestedCountValue
         : null
       const requestedType = typeof input.requestedType === 'string' ? input.requestedType : 'random'
-      if (!validUuid(screenshotId) || !direction) return jsonResponse({ message: '請提供有效的截圖與出題方向。' }, 400)
+      // A quiz can be built from a screenshot or from a file the teacher shared;
+      // the two differ only in where the source comes from and whether a
+      // screenshot row is recorded alongside it.
+      const sharedFileId = input.sharedFileId
+      const fromSharedFile = sharedFileId !== undefined && sharedFileId !== null && sharedFileId !== ''
+      if (fromSharedFile && !validUuid(sharedFileId)) return jsonResponse({ message: '檔案資料不正確。' }, 400)
+      if (!fromSharedFile && !validUuid(screenshotId)) return jsonResponse({ message: '請提供有效的截圖與出題方向。' }, 400)
+      if (!direction) return jsonResponse({ message: '請提供有效的截圖與出題方向。' }, 400)
       if (!['random', 'multiple_choice', 'fill_blank', 'short_answer'].includes(requestedType)) {
         return jsonResponse({ message: '測驗題型設定不正確。' }, 400)
       }
       if (input.requestedCount !== null && input.requestedCount !== '' && input.requestedCount !== undefined && requestedCount === null) {
         return jsonResponse({ message: '題數必須介於 1 到 10 題。' }, 400)
       }
-      if (storagePath !== `sessions/${sessionId}/screenshots/${screenshotId}.${storagePath.split('.').at(-1)}` ||
-          !/\.(png|jpg|webp)$/.test(storagePath)) {
-        return jsonResponse({ message: '截圖路徑不正確。' }, 400)
+      let sourceUrl = ''
+      if (fromSharedFile) {
+        const { data: sharedFile, error: sharedFileError } = await supabase.from('shared_files')
+          .select('*').eq('id', sharedFileId).eq('session_id', sessionId).maybeSingle()
+        if (sharedFileError) throw sharedFileError
+        if (!sharedFile) return jsonResponse({ message: '找不到這個檔案。' }, 404)
+        if (!isAnalyzableFile(sharedFile.mime_type, sharedFile.name)) {
+          return jsonResponse({ message: 'AI 無法讀取這個檔案格式，無法用來出題。' }, 400)
+        }
+        const { data: fileUrlData } = supabase.storage.from('interact-files').getPublicUrl(sharedFile.storage_path)
+        sourceUrl = fileUrlData.publicUrl
+      } else {
+        if (storagePath !== `sessions/${sessionId}/screenshots/${screenshotId}.${storagePath.split('.').at(-1)}` ||
+            !/\.(png|jpg|webp)$/.test(storagePath)) {
+          return jsonResponse({ message: '截圖路徑不正確。' }, 400)
+        }
+
+        const { data: objectList, error: objectError } = await supabase.storage
+          .from('interact-screenshots')
+          .list(`sessions/${sessionId}/screenshots`, { search: `${screenshotId}.`, limit: 2 })
+        if (objectError) throw objectError
+        if (!objectList?.some((object) => storagePath.endsWith(`/${object.name}`))) {
+          return jsonResponse({ message: '找不到已上傳的截圖。' }, 400)
+        }
+
+        const { data: publicData } = supabase.storage.from('interact-screenshots').getPublicUrl(storagePath)
+        sourceUrl = publicData.publicUrl
       }
 
-      const { data: objectList, error: objectError } = await supabase.storage
-        .from('interact-screenshots')
-        .list(`sessions/${sessionId}/screenshots`, { search: `${screenshotId}.`, limit: 2 })
-      if (objectError) throw objectError
-      if (!objectList?.some((object) => storagePath.endsWith(`/${object.name}`))) {
-        return jsonResponse({ message: '找不到已上傳的截圖。' }, 400)
-      }
-
-      const { data: publicData } = supabase.storage.from('interact-screenshots').getPublicUrl(storagePath)
       const stoppedAt = new Date().toISOString()
       const { error: stopError } = await supabase.from('questions')
         .update({ status: 'stopped', stopped_at: stoppedAt })
         .eq('session_id', sessionId).eq('status', 'active')
       if (stopError) throw stopError
 
-      const { error: screenshotError } = await supabase.from('screenshots').insert({
-        id: screenshotId,
-        session_id: sessionId,
-        storage_path: storagePath,
-        public_url: publicData.publicUrl,
-        ai_status: 'pending',
-      })
-      if (screenshotError) throw screenshotError
+      // Only a screenshot-sourced quiz has a screenshot to record; a file-sourced
+      // one leaves screenshot_id null, which the result view already allows for.
+      if (!fromSharedFile) {
+        const { error: screenshotError } = await supabase.from('screenshots').insert({
+          id: screenshotId,
+          session_id: sessionId,
+          storage_path: storagePath,
+          public_url: sourceUrl,
+          ai_status: 'pending',
+        })
+        if (screenshotError) throw screenshotError
+      }
 
       const questionId = crypto.randomUUID()
       const quizId = crypto.randomUUID()
       const { data: pendingQuestion, error: questionError } = await supabase.from('questions').insert({
         id: questionId,
         session_id: sessionId,
-        screenshot_id: screenshotId,
+        screenshot_id: fromSharedFile ? null : screenshotId,
         type: 'custom_quiz',
         status: 'active',
         title: '出題中，請稍候',
@@ -488,17 +517,19 @@ Deno.serve(async (req) => {
       const generateInBackground = async () => {
         try {
           const generated = await generateCustomQuiz({
-            screenshotUrl: publicData.publicUrl,
+            sourceUrl,
             direction,
             requestedCount,
             requestedType: requestedType as 'random' | 'multiple_choice' | 'fill_blank' | 'short_answer',
           })
 
-          const { error: screenshotUpdateError } = await supabase.from('screenshots').update({
-            ai_status: 'success',
-            screen_summary: { quiz_title: generated.title, item_count: generated.items.length },
-          }).eq('id', screenshotId)
-          if (screenshotUpdateError) throw screenshotUpdateError
+          if (!fromSharedFile) {
+            const { error: screenshotUpdateError } = await supabase.from('screenshots').update({
+              ai_status: 'success',
+              screen_summary: { quiz_title: generated.title, item_count: generated.items.length },
+            }).eq('id', screenshotId)
+            if (screenshotUpdateError) throw screenshotUpdateError
+          }
 
           const { error: quizError } = await supabase.from('quizzes').insert({
             id: quizId,
@@ -539,7 +570,7 @@ Deno.serve(async (req) => {
           const detail = errorDetail(error, 'AI quiz generation failed.')
           console.error('custom quiz generation failed', detail)
           await Promise.all([
-            supabase.from('screenshots').update({
+            fromSharedFile ? Promise.resolve() : supabase.from('screenshots').update({
               ai_status: 'failed',
               screen_summary: { error: detail.slice(0, 500) },
             }).eq('id', screenshotId),

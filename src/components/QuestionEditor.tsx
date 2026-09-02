@@ -1,12 +1,11 @@
 import { Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { QuestionType, QuizRequestedType } from '../types'
+import { CustomQuizFields } from './CustomQuizFields'
+import { quizSettingsFrom } from '../lib/customQuiz'
+import type { CustomQuizSettings } from '../lib/customQuiz'
 
-export type CustomQuizSettings = {
-  requestedCount: number | null
-  requestedType: QuizRequestedType
-  direction: string
-}
+export type { CustomQuizSettings }
 
 type Props = {
   error?: string
@@ -65,11 +64,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
           if (type === 'custom_quiz') {
             const direction = quizDirection.trim()
             if (!direction) return
-            onCreate(type, [], false, direction, {
-              requestedCount: quizCount === 'auto' ? null : Number(quizCount),
-              requestedType: quizType,
-              direction,
-            })
+            onCreate(type, [], false, direction, quizSettingsFrom(quizCount, quizType, direction))
             return
           }
           onCreate(type, finalOptions, editableOptions && allowMultiple, type === 'send_screen' ? '' : promptText.trim())
@@ -130,40 +125,14 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
           </div>
         )}
         {type === 'custom_quiz' && (
-          <div className="custom-quiz-editor">
-            <div className="custom-quiz-settings-row">
-              <label>
-                題數
-                <select value={quizCount} onChange={(event) => setQuizCount(event.target.value)}>
-                  <option value="auto">自動判斷</option>
-                  {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => (
-                    <option key={count} value={count}>{count} 題</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                題型
-                <select value={quizType} onChange={(event) => setQuizType(event.target.value as QuizRequestedType)}>
-                  <option value="random">隨機／AI自動判斷</option>
-                  <option value="multiple_choice">選擇題</option>
-                  <option value="fill_blank">填充題</option>
-                  <option value="short_answer">簡答題</option>
-                </select>
-              </label>
-            </div>
-            <label className="question-prompt-field">
-              出題方向
-              <textarea
-                maxLength={2000}
-                required
-                rows={4}
-                value={quizDirection}
-                placeholder="請說明測驗對象、欲測能力與題目難度"
-                onChange={(event) => setQuizDirection(event.target.value)}
-              />
-            </label>
-            <p className="muted custom-quiz-hint">也可以直接在出題方向指定題數與題型；題數選「自動判斷」、題型選「隨機」即可。</p>
-          </div>
+          <CustomQuizFields
+            count={quizCount}
+            direction={quizDirection}
+            quizType={quizType}
+            onCountChange={setQuizCount}
+            onDirectionChange={setQuizDirection}
+            onTypeChange={setQuizType}
+          />
         )}
         {type !== 'send_screen' && type !== 'custom_quiz' && (
           <label className="question-prompt-field">

@@ -1,5 +1,13 @@
+import { backendConfig } from './supabase'
+
+// The base has to come from the resolved backend, not from import.meta.env: a
+// student who joins through a link is talking to whatever project that link
+// names, while the build-time value is whichever project happened to be
+// configured when the page was built. When those differ the row is read from
+// one project and the download is fetched from another, which Storage answers
+// with a 404 NoSuchKey for a file that is perfectly intact.
 export function publicFileUrl(storagePath: string) {
-  const base = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || ''
+  const base = backendConfig?.url || ''
   return base ? `${base}/storage/v1/object/public/interact-files/${storagePath}` : ''
 }
 

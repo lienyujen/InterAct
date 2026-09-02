@@ -10,6 +10,14 @@ const COLORS = {
   white: 'FFFFFF',
 }
 
+const fileAnalysisLabels: Record<string, string> = {
+  pending: '尚未分析',
+  analyzing: '分析中',
+  success: '已分析',
+  failed: '分析失敗',
+  unsupported: 'AI 無法讀取此格式',
+}
+
 const questionTypeLabels = {
   send_screen: '派送畫面',
   poll: '投票題',
@@ -391,6 +399,46 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
   }
   audioResponses.getColumn('submittedAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
   styleTableSheet(audioResponses)
+
+  // The presenter analyses uploads one file at a time during class; without this
+  // sheet that work only ever existed on screen and was lost with the session.
+  const fileResponses = workbook.addWorksheet('學生檔案上傳')
+  fileResponses.columns = [
+    { header: '題次', key: 'questionNumber', width: 8 },
+    { header: '姓名', key: 'participantName', width: 20 },
+    { header: '檔名', key: 'fileName', width: 40 },
+    { header: '檔案類型', key: 'mimeType', width: 22 },
+    { header: '大小 (KB)', key: 'sizeKb', width: 12 },
+    { header: '分析狀態', key: 'status', width: 14 },
+    { header: 'AI 摘要', key: 'summary', width: 60 },
+    { header: '優點', key: 'strengths', width: 45 },
+    { header: '改善建議', key: 'improvements', width: 50 },
+    { header: 'AI Summary (EN)', key: 'summaryEn', width: 60 },
+    { header: '送出時間', key: 'submittedAt', width: 22 },
+    { header: '分析時間', key: 'analyzedAt', width: 22 },
+  ]
+  for (const response of data.fileResponses) {
+    const item = response.analysis_json
+    fileResponses.addRow({
+      questionNumber: questionNumber.get(response.question_id) || '',
+      participantName: response.participant_name,
+      fileName: response.name,
+      mimeType: response.mime_type,
+      sizeKb: Math.max(1, Math.round(response.file_size / 1024)),
+      status: fileAnalysisLabels[response.analysis_status] || response.analysis_status,
+      // A failure explains itself where the summary would have been, so a blank
+      // cell always means nobody asked for the analysis.
+      summary: item?.summary_zh_tw || response.error_message || '',
+      strengths: item?.strengths_zh_tw.join('\n') || '',
+      improvements: item?.improvements_zh_tw.join('\n') || '',
+      summaryEn: item?.summary_en || '',
+      submittedAt: formatDate(response.submitted_at),
+      analyzedAt: response.analyzed_at ? formatDate(response.analyzed_at) : '',
+    })
+  }
+  fileResponses.getColumn('submittedAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
+  fileResponses.getColumn('analyzedAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
+  styleTableSheet(fileResponses)
 
   const messages = workbook.addWorksheet('彈幕')
   messages.columns = [

@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { Download, FileUp, FolderUp, LoaderCircle, Send, Sparkles, Square, Trash2, Upload, X } from 'lucide-react'
 import { downloadHref } from '../lib/fileLinks'
-import type { FileResponse, Question, SharedFile } from '../types'
+import { isAnalyzableFile, quizSettingsFrom } from '../lib/customQuiz'
+import { CustomQuizFields } from './CustomQuizFields'
+import type { CustomQuizSettings } from '../lib/customQuiz'
+import type { FileResponse, Question, QuizRequestedType, SharedFile } from '../types'
 
 type Tab = 'share' | 'collect'
 
@@ -18,6 +21,7 @@ type Props = {
   onStopCollect: () => Promise<void>
   onRefreshResponses: () => Promise<void>
   onAnalyzeResponse: (responseId: string) => Promise<void>
+  onCreateFileQuiz: (fileId: string, settings: CustomQuizSettings) => Promise<void>
 }
 
 function formatSize(bytes: number) {
@@ -50,6 +54,7 @@ export function FileTransferModal({
   onStopCollect,
   onRefreshResponses,
   onAnalyzeResponse,
+  onCreateFileQuiz,
 }: Props) {
   const [tab, setTab] = useState<Tab>('share')
   const [dragging, setDragging] = useState(false)
@@ -58,6 +63,10 @@ export function FileTransferModal({
   const [uploading, setUploading] = useState(false)
   const [expanded, setExpanded] = useState<string>('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [quizFile, setQuizFile] = useState<SharedFile | null>(null)
+  const [quizCount, setQuizCount] = useState('auto')
+  const [quizType, setQuizType] = useState<QuizRequestedType>('random')
+  const [quizDirection, setQuizDirection] = useState('')
 
   const collecting = collectQuestion?.status === 'active'
 
@@ -169,6 +178,18 @@ export function FileTransferModal({
                       >
                         <Trash2 size={15} />移除
                       </button>
+                      {/* Only for formats Gemini can actually read: offering it on a
+                          .pptx would fail after the question was already dispatched. */}
+                      {isAnalyzableFile(file.mime_type, file.name) && (
+                        <button
+                          className="ghost-button"
+                          disabled={busy}
+                          type="button"
+                          onClick={() => { setQuizFile(file); setQuizCount('auto'); setQuizType('random'); setQuizDirection('') }}
+                        >
+                          <Sparkles size={15} />自訂測驗
+                        </button>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -280,6 +301,44 @@ export function FileTransferModal({
           </div>
         )}
       </section>
+
+      {quizFile && (
+        <div className="modal-backdrop" role="presentation">
+          <form
+            aria-labelledby="file-quiz-title"
+            aria-modal="true"
+            className="modal question-editor-modal"
+            role="dialog"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const direction = quizDirection.trim()
+              if (!direction) return
+              const file = quizFile
+              setQuizFile(null)
+              void guard(() => onCreateFileQuiz(file.id, quizSettingsFrom(quizCount, quizType, direction)))
+            }}
+          >
+            <h2 id="file-quiz-title">自訂測驗</h2>
+            <p className="muted">以「{quizFile.name}」為教材出題，派送後學生端會立刻看到題目。</p>
+            <CustomQuizFields
+              count={quizCount}
+              direction={quizDirection}
+              quizType={quizType}
+              onCountChange={setQuizCount}
+              onDirectionChange={setQuizDirection}
+              onTypeChange={setQuizType}
+            />
+            <div className="modal-actions">
+              <button className="ghost-button" type="button" onClick={() => setQuizFile(null)}>
+                <X size={17} />取消
+              </button>
+              <button disabled={busy || !quizDirection.trim()} type="submit">
+                <Sparkles size={17} />AI 出題並派送
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }

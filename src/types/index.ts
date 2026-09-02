@@ -386,6 +386,7 @@ export type SessionReportData = {
   questions: Question[]
   answers: Answer[]
   audioResponses: AudioResponse[]
+  fileResponses: FileResponse[]
   customQuizResults: SessionCustomQuizResults
   aiSummaries: AiSummary[]
   exitTickets: ExitTicket[]

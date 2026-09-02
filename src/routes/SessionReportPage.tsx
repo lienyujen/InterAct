@@ -3,7 +3,7 @@ import { ArrowLeft, BookOpen, ChartNoAxesCombined, Clock, Download, ListChecks, 
 import { getPresenterToken } from '../lib/presenterAuth'
 import { useSessionReportBack } from '../lib/sessionReportNavigation'
 import { requireSupabase } from '../lib/supabase'
-import type { AiSummary, Answer, AudioResponse, CaptionSegment, ExitTicket, Message, Participant, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionReportData, SharedContent } from '../types'
+import type { AiSummary, Answer, AudioResponse, CaptionSegment, ExitTicket, Message, Participant, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionReportData, SharedContent, FileResponse } from '../types'
 import { useParams, useSearchParams } from 'react-router-dom'
 
 const PAGE_SIZE = 1000
@@ -100,12 +100,17 @@ export function SessionReportPage() {
 
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到這個場次的講者權限，無法讀取錄音評測。')
-    const [recordingResult, customQuizResult] = await Promise.all([
+    const [recordingResult, customQuizResult, fileResult] = await Promise.all([
       supabase.functions.invoke('presenter-action', {
         body: { action: 'get_session_recording_results', sessionId, presenterToken },
       }),
       supabase.functions.invoke('presenter-action', {
         body: { action: 'get_session_custom_quiz_results', sessionId, presenterToken },
+      }),
+      // Session-wide: the presenter analyses uploads per file, and the report
+      // has to carry whatever was analysed by the time the class ended.
+      supabase.functions.invoke('presenter-action', {
+        body: { action: 'get_file_responses', sessionId, presenterToken },
       }),
     ])
     if (recordingResult.error) throw new Error(await edgeFunctionMessage(recordingResult.error))
@@ -121,6 +126,7 @@ export function SessionReportPage() {
       questions,
       answers,
       audioResponses: (recordingResult.data?.responses || []) as AudioResponse[],
+      fileResponses: (fileResult.data?.responses || []) as FileResponse[],
       customQuizResults: customQuizResult.data as SessionCustomQuizResults,
       aiSummaries,
       exitTickets,
