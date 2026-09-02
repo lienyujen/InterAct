@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { CheckCircle2, CircleDashed, ExternalLink, KeyRound, LoaderCircle, Rocket, Save, Server, XCircle } from 'lucide-react'
 import { backendConfig, clearBackendConfig, saveBackendConfig, testBackendConfig } from '../lib/supabase'
-import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setSecrets } from '../lib/backendDeploy'
+import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setSecrets, verifyBackend } from '../lib/backendDeploy'
 import type { DeployStep } from '../lib/backendDeploy'
 
 type Props = {
@@ -48,6 +48,7 @@ export function BackendSetup({ onCancel }: Props) {
       { slug: '建立資料表與儲存空間', status: 'pending' },
       ...deployableFunctions.map((slug) => ({ slug, status: 'pending' as const })),
       { slug: '設定 API 金鑰', status: 'pending' },
+      { slug: '檢查部署結果', status: 'pending' },
     ]
     setSteps(plan)
     setDeploying(true)
@@ -81,6 +82,7 @@ export function BackendSetup({ onCancel }: Props) {
           OPENAI_API_KEY: openaiKey,
           REURL_API_KEY: reurlKey,
         }),
+        () => verifyBackend(cleanRef, token.trim()),
       ]
 
       let failed = false
@@ -172,7 +174,7 @@ export function BackendSetup({ onCancel }: Props) {
             onChange={(event) => { setRef(event.target.value); setTested(false) }}
           />
         </label>
-        <p className="field-hint">Supabase 後台 → Project Settings → General → Reference ID</p>
+        <p className="field-hint">Supabase 後台 → Project Settings → General → Project ID</p>
 
         <label>
           Publishable key
