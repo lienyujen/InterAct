@@ -25,6 +25,7 @@ export function CustomQuizReviewPage() {
   const [results, setResults] = useState<PresenterQuizResults | null>(null)
   const [busyItemId, setBusyItemId] = useState('')
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({})
+  const [showAnswers, setShowAnswers] = useState(false)
   const [error, setError] = useState('')
 
   const loadQuiz = useCallback(async () => {
@@ -82,6 +83,7 @@ export function CustomQuizReviewPage() {
     results,
     onDraftChange: (itemId, value) => setDraftAnswers((current) => ({ ...current, [itemId]: value })),
     onUpdateAnswer: updateAnswer,
+    showAnswers,
   } : null
 
   return (
@@ -95,16 +97,21 @@ export function CustomQuizReviewPage() {
       </header>
       {error && <p className="error custom-quiz-native-error">{error}</p>}
       {results && reviewProps ? (
-        <div className="custom-quiz-native-content">
-          <aside className="custom-quiz-source-panel">
-            <h2>原始截圖</h2>
-            {results.screenshot
-              ? <img alt="自訂測驗原始截圖" src={results.screenshot.public_url} />
-              : <p className="muted">這份測驗沒有原始截圖。</p>}
-          </aside>
+        <div className={`custom-quiz-native-content${results.screenshot ? '' : ' is-single'}`}>
+          {/* A file-sourced quiz has no screenshot; keeping the panel would leave
+              half the window empty for the questions to squeeze beside. */}
+          {results.screenshot && (
+            <aside className="custom-quiz-source-panel">
+              <h2>原始截圖</h2>
+              <img alt="自訂測驗原始截圖" src={results.screenshot.public_url} />
+            </aside>
+          )}
           <section className="custom-quiz-question-panel">
             <h2>題目與正確答案</h2>
-            <p className="presenter-quiz-review-hint">點選選擇題答案即可立即更新；填充與簡答題修改後請按儲存。</p>
+            <label className="show-answers-toggle">
+              <input checked={showAnswers} type="checkbox" onChange={(event) => setShowAnswers(event.target.checked)} />
+              顯示正確答案，若 AI 錯判答案請自行更正
+            </label>
             <QuizAnswerEditor {...reviewProps} />
           </section>
         </div>

@@ -1,7 +1,7 @@
 {
   "name": "interact",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "InterAct real-time classroom interaction system",
   "author": "Yujen Lien",
   "license": "PolyForm-Noncommercial-1.0.0",

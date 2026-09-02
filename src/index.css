@@ -4227,3 +4227,36 @@ h2 {
 .app-credit a:hover {
   color: var(--text);
 }
+
+/* A dialog opened from inside another modal has to clear it, and its own
+   backdrop must not inherit the parent's scroll position. */
+.modal-backdrop.is-nested {
+  z-index: 30;
+}
+
+.show-answers-toggle {
+  align-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.85rem;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.show-answers-toggle input {
+  cursor: pointer;
+  margin: 0;
+  width: auto;
+}
+
+.presenter-answer-hidden {
+  margin: 0;
+}
+
+/* With no screenshot the questions take the whole window instead of being
+   squeezed into the right-hand column. */
+.custom-quiz-review-content.is-single,
+.custom-quiz-native-content.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}

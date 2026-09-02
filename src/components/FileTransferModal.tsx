@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { DragEvent } from 'react'
 import { Download, FileUp, FolderUp, LoaderCircle, Send, Sparkles, Square, Trash2, Upload, X } from 'lucide-react'
 import { downloadHref } from '../lib/fileLinks'
@@ -302,8 +303,8 @@ export function FileTransferModal({
         )}
       </section>
 
-      {quizFile && (
-        <div className="modal-backdrop" role="presentation">
+      {quizFile && createPortal(
+        <div className="modal-backdrop is-nested" role="presentation">
           <form
             aria-labelledby="file-quiz-title"
             aria-modal="true"
@@ -337,7 +338,8 @@ export function FileTransferModal({
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

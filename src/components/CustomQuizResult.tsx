@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BrainCircuit, Check, Clock3, Maximize2, Save, X } from 'lucide-react'
-import type { PresenterQuizResults, Question, QuizItem } from '../types'
+import type { PresenterQuizResults, Question } from '../types'
 
 type Props = {
   anonymousEnabled: boolean
@@ -12,6 +12,8 @@ type Props = {
 }
 
 export type QuizReviewProps = {
+  // Hidden by default: the presenter reviews these on a screen the class can see.
+  showAnswers: boolean
   busyItemId: string
   draftAnswers: Record<string, string>
   results: PresenterQuizResults
@@ -23,7 +25,7 @@ function acceptedAnswersFor(results: PresenterQuizResults, itemId: string) {
   return results.keys.find((key) => key.item_id === itemId)?.accepted_answers || []
 }
 
-export function QuizAnswerEditor({ busyItemId, draftAnswers, results, onDraftChange, onUpdateAnswer }: QuizReviewProps) {
+export function QuizAnswerEditor({ showAnswers, busyItemId, draftAnswers, results, onDraftChange, onUpdateAnswer }: QuizReviewProps) {
   return (
     <div className="presenter-quiz-review-list">
       {results.items.map((item, index) => {
@@ -38,7 +40,7 @@ export function QuizAnswerEditor({ busyItemId, draftAnswers, results, onDraftCha
             {item.type === 'multiple_choice' ? (
               <div className="presenter-quiz-options">
                 {item.options.map((option) => {
-                  const selected = acceptedAnswers.includes(option)
+                  const selected = showAnswers && acceptedAnswers.includes(option)
                   return (
                     <button
                       className={selected ? 'selected' : ''}
@@ -53,6 +55,8 @@ export function QuizAnswerEditor({ busyItemId, draftAnswers, results, onDraftCha
                   )
                 })}
               </div>
+            ) : !showAnswers ? (
+              <p className="muted presenter-answer-hidden">參考答案已隱藏，勾選「顯示正確答案」即可檢視與修改。</p>
             ) : (
               <div className="presenter-reference-answer">
                 <label htmlFor={`quiz-key-${item.id}`}>參考答案（每行一個可接受答案）</label>
@@ -77,15 +81,13 @@ export function QuizAnswerEditor({ busyItemId, draftAnswers, results, onDraftCha
   )
 }
 
-function quizContainsWrittenAnswers(items: QuizItem[]) {
-  return items.some((item) => item.type !== 'multiple_choice')
-}
-
 export function CustomQuizResult({ anonymousEnabled, question, results, onlineCount, onUpdateAnswer }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [busyItemId, setBusyItemId] = useState('')
   const [error, setError] = useState('')
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({})
+  // Off by default: this panel is on the screen the class is looking at.
+  const [showAnswers, setShowAnswers] = useState(false)
 
   useEffect(() => {
     if (!expanded) return
@@ -121,6 +123,7 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
   }
 
   const reviewProps: QuizReviewProps = {
+    showAnswers,
     busyItemId,
     draftAnswers,
     results,
@@ -150,7 +153,10 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
         <div><strong>{average === null ? '—' : average.toFixed(1)}</strong><span>平均分數</span></div>
         <div><strong>{grading.length}</strong><span>評分中</span></div>
       </div>
-      <p className="presenter-quiz-review-hint">點選選擇題的正確答案即可立即更新。{quizContainsWrittenAnswers(results.items) ? '填充與簡答題可修改參考答案後儲存。' : ''}</p>
+      <label className="show-answers-toggle">
+        <input checked={showAnswers} type="checkbox" onChange={(event) => setShowAnswers(event.target.checked)} />
+        顯示正確答案，若 AI 錯判答案請自行更正
+      </label>
       {error && <p className="error">{error}</p>}
       <div className="presenter-quiz-inline-review"><QuizAnswerEditor {...reviewProps} /></div>
       {grading.length > 0 && <p className="quiz-grading-note"><Clock3 size={16} />AI 正在背景評分，完成後會自動更新。</p>}
@@ -161,7 +167,7 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
             {attempt.feedback?.zh_tw && <p>{attempt.feedback.zh_tw}</p>}
           </article>
         ))}
-        {!results.attempts.length && <p className="muted">尚無學員送出測驗。</p>}
+        {!results.attempts.length && <p className="muted">尚無學員作答。</p>}
       </div>
       {expanded && createPortal(
         <div className="custom-quiz-review-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setExpanded(false) }}>
@@ -170,7 +176,7 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
               <div><p className="eyebrow"><BrainCircuit size={17} />自訂測驗檢視與答案調整</p><h2>{results.quiz.title || question.title}</h2></div>
               <button aria-label="關閉放大視窗" className="icon-button" title="關閉" type="button" onClick={() => setExpanded(false)}><X size={22} /></button>
             </header>
-            <div className="custom-quiz-review-content">
+            <div className={`custom-quiz-review-content${results.screenshot ? '' : ' is-single'}`}>
               {results.screenshot && (
                 <aside className="custom-quiz-source-panel">
                   <h3>原始截圖</h3>
@@ -179,6 +185,10 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
               )}
               <div className="custom-quiz-question-panel">
                 <h3>題目與正確答案</h3>
+                <label className="show-answers-toggle">
+                  <input checked={showAnswers} type="checkbox" onChange={(event) => setShowAnswers(event.target.checked)} />
+                  顯示正確答案，若 AI 錯判答案請自行更正
+                </label>
                 {error && <p className="error">{error}</p>}
                 <QuizAnswerEditor {...reviewProps} />
               </div>

@@ -322,11 +322,11 @@ export function PresenterPage() {
   useEffect(() => {
     if (!window.interactDesktop || selectionMode) return
     window.interactDesktop.setPresenterExpanded(
-      controlsOpen || editorOpen || textDispatchOpen || settingsOpen || endClassConfirmOpen || closeConfirmOpen,
+      controlsOpen || editorOpen || textDispatchOpen || settingsOpen || endClassConfirmOpen || closeConfirmOpen || fileTransferOpen,
       settingsOpen,
-      editorOpen,
+      editorOpen || fileTransferOpen,
     )
-  }, [closeConfirmOpen, controlsOpen, editorOpen, endClassConfirmOpen, selectionMode, settingsOpen, textDispatchOpen])
+  }, [closeConfirmOpen, controlsOpen, editorOpen, endClassConfirmOpen, fileTransferOpen, selectionMode, settingsOpen, textDispatchOpen])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !sessionId) return
