@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
-import { ArrowRight, DoorClosed, FileChartColumn, ListRestart, LoaderCircle, LogIn, RefreshCw, Sparkles, Trash2, X } from 'lucide-react'
+import { ArrowRight, DoorClosed, FileChartColumn, ListRestart, LoaderCircle, Settings, LogIn, RefreshCw, Sparkles, Trash2, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { SetupNotice } from '../components/SetupNotice'
+import { BackendSetup } from '../components/BackendSetup'
 import { getPresenterToken, savePresenterToken } from '../lib/presenterAuth'
 import { deleteManagedSession, endManagedSession, listManagedSessions } from '../lib/presenterSessions'
 import type { ManagedSession } from '../lib/presenterSessions'
@@ -30,6 +31,7 @@ export function PresenterNewPage() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [managementOpen, setManagementOpen] = useState(false)
+  const [systemSetupOpen, setSystemSetupOpen] = useState(false)
   const [managementBusy, setManagementBusy] = useState(false)
   const [managementError, setManagementError] = useState('')
   const [managementNotice, setManagementNotice] = useState('')
@@ -180,7 +182,19 @@ export function PresenterNewPage() {
         <button className="ghost-button manage-sessions-button" disabled={busy} type="button" onClick={openManagement}>
           <ListRestart size={18} />管理場次
         </button>
+        <button className="ghost-button manage-sessions-button" disabled={busy} type="button" onClick={() => setSystemSetupOpen(true)}>
+          <Settings size={18} />系統設定
+        </button>
       </form>
+      {/* Reachable after setup too, so keys can be added or the project changed
+          without having to clear the configuration first. */}
+      {systemSetupOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="modal system-setup-modal" role="dialog" aria-modal="true" aria-label="系統設定">
+            <BackendSetup onCancel={() => setSystemSetupOpen(false)} />
+          </div>
+        </div>
+      )}
       {managementOpen && (
         <div className="modal-backdrop" role="presentation">
           <section aria-labelledby="manage-sessions-title" aria-modal="true" className="modal session-manager-modal" role="dialog">

@@ -4197,3 +4197,16 @@ h2 {
   font-style: normal;
   opacity: 0.85;
 }
+
+.system-setup-modal {
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 0;
+  width: min(600px, 94vw);
+}
+
+.system-setup-modal .backend-setup {
+  border: none;
+  box-shadow: none;
+  max-width: none;
+}
