@@ -1,4 +1,4 @@
-import { callAiJson, corsHeaders, jsonResponse } from '../_shared/ai.ts'
+import { callAiJson, corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { generateCustomQuiz } from '../_shared/custom-quiz.ts'
 import { analyzeFileResponse, isAnalyzableFile } from '../_shared/file-analysis.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
@@ -536,7 +536,7 @@ Deno.serve(async (req) => {
           }).eq('id', questionId)
           if (questionUpdateError) throw questionUpdateError
         } catch (error) {
-          const detail = error instanceof Error ? error.message : 'AI quiz generation failed.'
+          const detail = errorDetail(error, 'AI quiz generation failed.')
           console.error('custom quiz generation failed', detail)
           await Promise.all([
             supabase.from('screenshots').update({
@@ -1185,7 +1185,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ message: '不支援的講者操作。' }, 400)
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Presenter action failed.'
+    const detail = errorDetail(error, 'Presenter action failed.')
     console.error('presenter-action failed', detail)
     if (/Only HTTP/.test(detail)) return jsonResponse({ message: '網址格式不正確，僅支援 http 或 https。' }, 400)
     if (/Gemini quiz generation failed \(429\)/.test(detail)) return jsonResponse({ message: 'AI 出題服務目前忙碌或已達速率限制，請稍候再試。' }, 429)

@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse } from '../_shared/ai.ts'
+import { corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 
 const analysisSchema = {
@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
     await supabase.from('screenshots').update({ ai_status: 'success', screen_summary: analysis.question_understanding }).eq('id', question.screenshot_id)
     return jsonResponse({ analysis })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'AI analysis failed.'
+    const message = errorDetail(error, 'AI analysis failed.')
     console.error('analyze-question failed', message)
 
     if (sessionId && questionId) {

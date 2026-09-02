@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse } from '../_shared/ai.ts'
+import { corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 
 const supportedLanguages = new Set(['zh-tw', 'zh-cn', 'en', 'ja', 'ko', 'es', 'fr', 'de', 'th', 'vi', 'id'])
@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ sdp: answerSdp, mode, sourceLanguage, targetLanguage: mode === 'translation' ? targetLanguage : sourceLanguage })
   } catch (error) {
-    console.error('openai-realtime-session failed', error instanceof Error ? error.message : error)
+    console.error('openai-realtime-session failed', errorDetail(error, 'failed'))
     return jsonResponse({ message: '建立即時字幕連線失敗。' }, 500)
   }
 })

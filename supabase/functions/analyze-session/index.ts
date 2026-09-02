@@ -1,4 +1,4 @@
-import { callAiJson, corsHeaders, jsonResponse, parseThinkingLevel } from '../_shared/ai.ts'
+import { callAiJson, corsHeaders, jsonResponse, parseThinkingLevel, errorDetail } from '../_shared/ai.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 
 const sessionAnalysisCoreSchema = {
@@ -343,7 +343,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ analysis: result.output, metrics, cached: false })
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Session analysis failed.'
+    const detail = errorDetail(error, 'Session analysis failed.')
     console.error('analyze-session failed', detail)
 
     if (sessionId) {

@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse } from '../_shared/ai.ts'
+import { corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { analyzeAudioResponse, removeRecording } from '../_shared/audio-analysis.ts'
 import { gradeCustomQuizAttempt } from '../_shared/custom-quiz.ts'
 import { getAdminClient, hashParticipantToken } from '../_shared/supabase.ts'
@@ -478,7 +478,7 @@ Deno.serve(async (req) => {
           .eq('question_id', questionId)
           .eq('participant_id', participantId)
       } catch (error) {
-        const detail = error instanceof Error ? error.message : 'Audio analysis failed.'
+        const detail = errorDetail(error, 'Audio analysis failed.')
         console.error('audio analysis failed', detail)
         await supabase.from('audio_responses').update({
           analysis_status: 'failed',
@@ -532,7 +532,7 @@ Deno.serve(async (req) => {
     }
     return jsonResponse({ event, won: event.payload?.winner_id === participantId })
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'Participant action failed.'
+    const detail = errorDetail(error, 'Participant action failed.')
     console.error('participant-action failed', detail)
     return jsonResponse({
       message: action === 'claim_buzzer'

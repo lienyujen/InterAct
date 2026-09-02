@@ -1,4 +1,4 @@
-import { callAiJson, geminiModels, geminiThinkingConfig } from './ai.ts'
+import { callAiJson, geminiModels, geminiThinkingConfig, errorDetail } from './ai.ts'
 import { getAdminClient } from './supabase.ts'
 
 type RequestedType = 'random' | 'multiple_choice' | 'fill_blank' | 'short_answer'
@@ -365,7 +365,7 @@ export async function gradeCustomQuizAttempt(attemptId: string) {
     await supabase.from('answers').update({ answer_text: '[自訂測驗評分完成]' })
       .eq('question_id', attempt.question_id).eq('participant_id', attempt.participant_id)
   } catch (error) {
-    const detail = error instanceof Error ? error.message : 'AI grading failed.'
+    const detail = errorDetail(error, 'AI grading failed.')
     console.error('custom quiz grading failed', detail)
     const supabase = getAdminClient()
     const { data: attempt } = await supabase.from('quiz_attempts').select('question_id, participant_id').eq('id', attemptId).maybeSingle()

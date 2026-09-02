@@ -1,4 +1,4 @@
-import { corsHeaders, jsonResponse } from '../_shared/ai.ts'
+import { corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 
 const codeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ sessionId: session.id, code: session.code, presenterToken })
   } catch (error) {
-    console.error('create-session failed', error instanceof Error ? error.message : error)
+    console.error('create-session failed', errorDetail(error, 'failed'))
     return jsonResponse({ message: '建立場次失敗。' }, 500)
   }
 })

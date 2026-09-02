@@ -138,3 +138,24 @@ export async function callAiJson(
     return { status: 'success', output: { raw: content } }
   }
 }
+
+// Supabase returns plain objects for database and storage failures, not Error
+// instances, so `error instanceof Error` discards exactly the detail needed to
+// tell a missing table from a rejected key. Read whatever the value actually is.
+export function errorDetail(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message
+  if (error && typeof error === 'object') {
+    const shape = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }
+    const parts = [shape.message, shape.details, shape.hint, shape.code]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0)
+    if (parts.length) return [...new Set(parts)].join(' | ')
+    try {
+      const serialised = JSON.stringify(error)
+      if (serialised && serialised !== '{}') return serialised.slice(0, 300)
+    } catch {
+      // Circular or otherwise unserialisable — fall through to the caller's wording.
+    }
+  }
+  if (typeof error === 'string' && error.trim()) return error
+  return fallback
+}

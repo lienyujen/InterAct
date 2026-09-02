@@ -1,4 +1,4 @@
-import { corsHeaders, geminiThinkingConfig, jsonResponse, requestGemini } from '../_shared/ai.ts'
+import { corsHeaders, geminiThinkingConfig, jsonResponse, requestGemini, errorDetail } from '../_shared/ai.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 
 const exitTicketSchema = {
@@ -169,7 +169,7 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ prompt, promptEn, category: output.category, responseType, cached: false })
   } catch (error) {
-    console.error('generate-exit-ticket failed', error instanceof Error ? error.message : error)
+    console.error('generate-exit-ticket failed', errorDetail(error, 'failed'))
     return jsonResponse({ message: 'Exit Ticket 產生失敗，請稍後再試。' }, 500)
   }
 })
