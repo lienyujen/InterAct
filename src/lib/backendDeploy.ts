@@ -26,6 +26,7 @@ export const deployableFunctions = [
   'generate-exit-ticket',
   'shorten-url',
   'openai-realtime-session',
+  'gemini-caption-relay',
 ] as const
 
 export type DeployStep = {

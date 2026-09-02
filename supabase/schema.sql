@@ -18,7 +18,7 @@ create table if not exists public.sessions (
   caption_status text not null default 'idle' check (caption_status in ('idle', 'starting', 'live', 'error')),
   caption_source_language text not null default 'zh-tw',
   caption_display_language text not null default 'zh-tw',
-  caption_font_size integer not null default 36 check (caption_font_size between 24 and 96),
+  caption_font_size integer not null default 32 check (caption_font_size between 24 and 96),
   caption_font_bold boolean not null default false,
   caption_position text not null default 'bottom' check (caption_position in ('top', 'center', 'bottom')),
   caption_started_at timestamptz null,
@@ -660,10 +660,16 @@ alter table public.sessions
   add column if not exists caption_started_at timestamptz,
   add column if not exists interpretation_audio_enabled boolean not null default false,
   add column if not exists recording_enabled boolean not null default false,
-  add column if not exists caption_font_size integer not null default 48,
+  add column if not exists caption_font_size integer not null default 32,
   add column if not exists caption_font_bold boolean not null default true,
   add column if not exists exit_ticket_prompt_en text,
   add column if not exists caption_position text not null default 'bottom';
+
+-- Defaults that changed after the column already existed. `add column if not
+-- exists` above leaves an existing column exactly as it was, so a project that
+-- has been deployed once would keep handing out the old value forever.
+alter table public.sessions
+  alter column caption_font_size set default 32;
 
 insert into storage.buckets (id, name, public)
 values ('interact-screenshots', 'interact-screenshots', true)

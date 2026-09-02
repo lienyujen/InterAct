@@ -59,7 +59,9 @@ Deno.serve(async (req) => {
           captions_enabled: false,
           caption_source_language: sourceLanguage,
           caption_display_language: sourceLanguage,
-          caption_font_size: 36,
+          // Matches the column default in schema.sql; set here too so a project
+          // deployed before that default changed still gets the current one.
+          caption_font_size: 32,
           caption_font_bold: false,
           caption_position: 'bottom',
           interpretation_enabled: interpretationAudioEnabled,

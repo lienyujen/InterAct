@@ -26,6 +26,8 @@ type Props = {
   onSave: (settings: PresenterCaptionSettings, microphoneId: string) => void
 }
 
+const captionFontSizes = [28, 30, 32, 36, 42]
+
 export function PresenterSettingsModal({
   busy,
   error,
@@ -39,7 +41,7 @@ export function PresenterSettingsModal({
 }: Props) {
   const [sourceLanguage, setSourceLanguage] = useState(session.caption_source_language)
   const [displayLanguage, setDisplayLanguage] = useState(session.caption_display_language)
-  const [fontSize, setFontSize] = useState(session.caption_font_size ?? 36)
+  const [fontSize, setFontSize] = useState(session.caption_font_size ?? 32)
   const [fontBold, setFontBold] = useState(session.caption_font_bold ?? false)
   const [position, setPosition] = useState(session.caption_position ?? 'bottom')
   const [interpretationAudioEnabled, setInterpretationAudioEnabled] = useState(session.interpretation_audio_enabled)
@@ -52,7 +54,7 @@ export function PresenterSettingsModal({
     if (!open) return
     setSourceLanguage(session.caption_source_language)
     setDisplayLanguage(session.caption_display_language)
-    setFontSize(session.caption_font_size ?? 36)
+    setFontSize(session.caption_font_size ?? 32)
     setFontBold(session.caption_font_bold ?? false)
     setPosition(session.caption_position ?? 'bottom')
     setInterpretationAudioEnabled(session.interpretation_audio_enabled)
@@ -191,7 +193,8 @@ export function PresenterSettingsModal({
             <label>
               字幕大小
               <select value={fontSize} onChange={(event) => setFontSize(Number(event.target.value))}>
-                {[32, 36, 42, 48, 56, 64, 72, 80].map((size) => <option key={size} value={size}>{size} px</option>)}
+                {[...new Set([...captionFontSizes, fontSize])].sort((a, b) => a - b)
+                  .map((size) => <option key={size} value={size}>{size} px</option>)}
               </select>
             </label>
             <label>

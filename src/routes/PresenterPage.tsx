@@ -23,6 +23,7 @@ import { endManagedSession } from '../lib/presenterSessions'
 import { isBuzzerPending } from '../lib/buzzer'
 import { buildJoinUrl } from '../lib/qrcode'
 import { createRealtimeCaptionConnection } from '../lib/liveCaptions'
+import { createGeminiCaptionConnection } from '../lib/geminiCaptions'
 import { createInterpretationAudioBroadcaster } from '../lib/liveInterpretation'
 import { logDiagnostic } from '../lib/diagnostics'
 import { createCaptionTextNormalizer } from '../lib/traditionalChinese'
@@ -582,13 +583,16 @@ export function PresenterPage() {
         captionRetryTimersRef.current.push(timer)
       }
 
+      const useGemini = !targetSession.interpretation_audio_enabled
+      const openCaptionConnection = useGemini ? createGeminiCaptionConnection : createRealtimeCaptionConnection
+
       const targets = [...new Set([
         ...(targetSession.caption_display_language !== targetSession.caption_source_language
           ? [targetSession.caption_display_language]
           : []),
         ...(targetSession.interpretation_enabled ? targetSession.interpretation_languages : []),
       ])].filter((language) => language !== targetSession.caption_source_language)
-      const transcriptionConnection = await createRealtimeCaptionConnection({
+      const transcriptionConnection = await openCaptionConnection({
           sessionId,
           presenterToken,
           mode: 'transcription',
@@ -605,7 +609,7 @@ export function PresenterPage() {
         let translationConnection: { close: () => void } | null = null
         let retryScheduled = false
         try {
-          translationConnection = await createRealtimeCaptionConnection({
+          translationConnection = await openCaptionConnection({
             sessionId,
             presenterToken,
             mode: 'translation',
