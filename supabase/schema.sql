@@ -10,6 +10,7 @@ create table if not exists public.sessions (
   current_question_id uuid null,
   short_join_url text null,
   exit_ticket_prompt text null,
+  exit_ticket_prompt_en text null,
   exit_ticket_category text null check (exit_ticket_category in ('lesson_summary', 'learning_assessment', 'course_satisfaction', 'student_question')),
   exit_ticket_response_type text null check (exit_ticket_response_type in ('text', 'rating')),
   recording_enabled boolean not null default false,
@@ -86,6 +87,7 @@ create table if not exists public.questions (
   correct_answers text[] not null default '{}'::text[],
   started_at timestamptz null default now(),
   stopped_at timestamptz null,
+  translations jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
 

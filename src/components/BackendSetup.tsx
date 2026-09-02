@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type { ReactNode } from 'react'
 import { CheckCircle2, CircleDashed, ExternalLink, KeyRound, LoaderCircle, Rocket, Save, Server, XCircle } from 'lucide-react'
 import { backendConfig, clearBackendConfig, saveBackendConfig, testBackendConfig } from '../lib/supabase'
 import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setSecrets, verifyBackend } from '../lib/backendDeploy'
@@ -150,14 +149,15 @@ export function BackendSetup({ onCancel }: Props) {
 
   // Shown full-page when nothing is configured yet, and inside a dialog when
   // opened from 系統設定 — the panel itself is the same either way.
+  //
+  // Written as one element with a switched wrapper rather than a component
+  // defined here: a component created during render is a new type on every
+  // render, so React would tear the whole panel down and rebuild it after each
+  // keystroke and each deployment step, collapsing the details and losing focus.
   const embedded = Boolean(onCancel)
-  const Wrapper = embedded
-    ? ({ children }: { children: ReactNode }) => <>{children}</>
-    : ({ children }: { children: ReactNode }) => <main className="center-page backend-setup-page">{children}</main>
 
-  return (
-    <Wrapper>
-      <section className="panel backend-setup">
+  const panel = (
+    <section className="panel backend-setup">
         <span className="form-heading-icon"><Server size={24} /></span>
         <h1>{embedded ? '系統設定' : '連接你的 Supabase 專案'}</h1>
         <p className="muted">
@@ -243,14 +243,31 @@ export function BackendSetup({ onCancel }: Props) {
             Gemini API key
             <input placeholder="AI 分析用" type="password" value={geminiKey} onChange={(e) => setGeminiKey(e.target.value)} />
           </label>
+          <p className="field-hint">
+            課堂報告、題目分析與測驗批改都需要它。前往 <a href="https://aistudio.google.com/apikey" rel="noreferrer" target="_blank">
+              Google AI Studio <ExternalLink size={12} />
+            </a> 免費建立，有免費額度可用。
+          </p>
+
           <label>
             OpenAI API key（選填）
-            <input placeholder="即時字幕與同步口譯，依音訊時長計費" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} />
+            <input placeholder="即時字幕與同步口譯" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} />
           </label>
+          <p className="field-hint">
+            如需使用即時口譯與多語字幕才要填。前往 <a href="https://platform.openai.com/api-keys" rel="noreferrer" target="_blank">
+              OpenAI Platform <ExternalLink size={12} />
+            </a> 取得。<strong>依音訊時長計費</strong>，每種口譯語言各建立一條連線，需付費帳號且用量等級要足夠。
+          </p>
+
           <label>
             Reurl API key（選填）
             <input placeholder="QR Code 短網址" type="password" value={reurlKey} onChange={(e) => setReurlKey(e.target.value)} />
           </label>
+          <p className="field-hint">
+            讓 QR Code 的網址變短、比較好掃。前往 <a href="https://reurl.cc" rel="noreferrer" target="_blank">
+              reurl.cc <ExternalLink size={12} />
+            </a> 免費註冊並取得縮網址 API key。不填也能用，只是網址較長。
+          </p>
 
           <button className="backend-deploy-button" disabled={deploying || !canDeployBackend} type="button" onClick={() => void deployBackend()}>
             {deploying ? <LoaderCircle className="spin" size={17} /> : <Rocket size={17} />}
@@ -283,7 +300,8 @@ export function BackendSetup({ onCancel }: Props) {
             <button className="ghost-button" type="button" onClick={onCancel}>取消</button>
           )}
         </div>
-      </section>
-    </Wrapper>
+    </section>
   )
+
+  return embedded ? panel : <main className="center-page backend-setup-page">{panel}</main>
 }
