@@ -98,7 +98,7 @@ export function BackendSetup({ onCancel }: Props) {
         }
       }
       if (failed) {
-        setError('部署中斷。修正上面的問題後可以再按一次，已完成的步驟會直接覆蓋，不會重複。')
+        setError('部署中斷。修正上面的問題後可以再按一次 —— 重跑是安全的，已完成的部分會保持原狀。')
       } else {
         setNotice('後端部署完成，測試連線後即可儲存。')
         setToken('')

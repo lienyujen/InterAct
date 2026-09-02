@@ -90,6 +90,9 @@ create table if not exists public.questions (
 );
 
 alter table public.sessions
+  drop constraint if exists sessions_current_question_id_fkey;
+
+alter table public.sessions
   add constraint sessions_current_question_id_fkey
   foreign key (current_question_id) references public.questions(id)
   on delete set null;
@@ -383,10 +386,13 @@ alter table public.quiz_item_answers enable row level security;
 alter table public.shared_files enable row level security;
 alter table public.file_responses enable row level security;
 
+drop policy if exists "mvp read sessions" on public.sessions;
 create policy "mvp read sessions" on public.sessions for select using (true);
 revoke insert on public.sessions from anon, authenticated;
 
+drop policy if exists "mvp read participants" on public.participants;
 create policy "mvp read participants" on public.participants for select using (true);
+drop policy if exists "join active sessions" on public.participants;
 create policy "join active sessions" on public.participants for insert
 to anon, authenticated
 with check (
@@ -397,7 +403,9 @@ with check (
   and char_length(btrim(name)) between 1 and 80
   and char_length(device_id) between 1 and 200
 );
+drop policy if exists "mvp read messages" on public.messages;
 create policy "mvp read messages" on public.messages for select using (true);
+drop policy if exists "send messages to active sessions" on public.messages;
 create policy "send messages to active sessions" on public.messages for insert
 to anon, authenticated
 with check (
@@ -414,10 +422,13 @@ with check (
   and char_length(btrim(content)) between 1 and 180
 );
 
+drop policy if exists "mvp read screenshots" on public.screenshots;
 create policy "mvp read screenshots" on public.screenshots for select using (true);
 
+drop policy if exists "mvp read questions" on public.questions;
 create policy "mvp read questions" on public.questions for select using (true);
 
+drop policy if exists "read dispatched quizzes" on public.quizzes;
 create policy "read dispatched quizzes" on public.quizzes for select
 to anon, authenticated
 using (
@@ -428,6 +439,7 @@ using (
   )
 );
 
+drop policy if exists "read dispatched quiz items" on public.quiz_items;
 create policy "read dispatched quiz items" on public.quiz_items for select
 to anon, authenticated
 using (
@@ -438,7 +450,9 @@ using (
   )
 );
 
+drop policy if exists "mvp read answers" on public.answers;
 create policy "mvp read answers" on public.answers for select using (true);
+drop policy if exists "answer active questions" on public.answers;
 create policy "answer active questions" on public.answers for insert
 to anon, authenticated
 with check (
@@ -469,10 +483,13 @@ with check (
     where char_length(submitted_value) > 500
   )
 );
+drop policy if exists "mvp read ai summaries" on public.ai_summaries;
 create policy "mvp read ai summaries" on public.ai_summaries for select using (true);
 revoke insert on public.ai_summaries from anon, authenticated;
 
+drop policy if exists "mvp read exit tickets" on public.exit_tickets;
 create policy "mvp read exit tickets" on public.exit_tickets for select using (true);
+drop policy if exists "submit exit tickets to active sessions" on public.exit_tickets;
 create policy "submit exit tickets to active sessions" on public.exit_tickets for insert
 to anon, authenticated
 with check (
@@ -491,9 +508,13 @@ with check (
   and coalesce(char_length(response_text), 0) <= 2000
 );
 
+drop policy if exists "public read shared contents" on public.shared_contents;
 create policy "public read shared contents" on public.shared_contents for select to anon, authenticated using (true);
+drop policy if exists "public read shared files" on public.shared_files;
 create policy "public read shared files" on public.shared_files for select to anon, authenticated using (true);
+drop policy if exists "public read caption segments" on public.caption_segments;
 create policy "public read caption segments" on public.caption_segments for select to anon, authenticated using (true);
+drop policy if exists "public read session events" on public.session_events;
 create policy "public read session events" on public.session_events for select to anon, authenticated using (true);
 
 revoke all on all tables in schema public from anon, authenticated;
@@ -508,18 +529,102 @@ revoke all on public.participant_session_keys, public.audio_responses, public.fi
 grant all on public.participant_session_keys, public.audio_responses, public.shared_files, public.file_responses, public.quizzes, public.quiz_items,
   public.quiz_item_keys, public.quiz_attempts, public.quiz_item_answers to service_role;
 
-alter publication supabase_realtime add table public.sessions;
-alter publication supabase_realtime add table public.participants;
-alter publication supabase_realtime add table public.messages;
-alter publication supabase_realtime add table public.screenshots;
-alter publication supabase_realtime add table public.questions;
-alter publication supabase_realtime add table public.answers;
-alter publication supabase_realtime add table public.ai_summaries;
-alter publication supabase_realtime add table public.exit_tickets;
-alter publication supabase_realtime add table public.shared_contents;
-alter publication supabase_realtime add table public.session_events;
-alter publication supabase_realtime add table public.caption_segments;
-alter publication supabase_realtime add table public.shared_files;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'sessions'
+  ) then
+    alter publication supabase_realtime add table public.sessions;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'participants'
+  ) then
+    alter publication supabase_realtime add table public.participants;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'messages'
+  ) then
+    alter publication supabase_realtime add table public.messages;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'screenshots'
+  ) then
+    alter publication supabase_realtime add table public.screenshots;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'questions'
+  ) then
+    alter publication supabase_realtime add table public.questions;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'answers'
+  ) then
+    alter publication supabase_realtime add table public.answers;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'ai_summaries'
+  ) then
+    alter publication supabase_realtime add table public.ai_summaries;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'exit_tickets'
+  ) then
+    alter publication supabase_realtime add table public.exit_tickets;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'shared_contents'
+  ) then
+    alter publication supabase_realtime add table public.shared_contents;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'session_events'
+  ) then
+    alter publication supabase_realtime add table public.session_events;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'caption_segments'
+  ) then
+    alter publication supabase_realtime add table public.caption_segments;
+  end if;
+end $$;
+do $$ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'shared_files'
+  ) then
+    alter publication supabase_realtime add table public.shared_files;
+  end if;
+end $$;
 
 insert into storage.buckets (id, name, public)
 values ('interact-screenshots', 'interact-screenshots', true)
