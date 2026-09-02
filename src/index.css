@@ -4210,3 +4210,20 @@ h2 {
   box-shadow: none;
   max-width: none;
 }
+
+.app-credit {
+  color: var(--muted);
+  font-size: 0.76rem;
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+.app-credit a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.app-credit a:hover {
+  color: var(--text);
+}

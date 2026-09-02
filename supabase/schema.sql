@@ -628,6 +628,43 @@ do $$ begin
   end if;
 end $$;
 
+
+-- Columns introduced by later migrations. `create table if not exists` above does
+-- nothing when the table already exists, so without these an existing project
+-- never gains them however many times this file is applied.
+
+alter table public.answers
+  add column if not exists answer_values text[] null;
+
+alter table public.exit_tickets
+  add column if not exists response_text text null,
+  add column if not exists rating int null;
+
+alter table public.questions
+  add column if not exists allow_multiple boolean not null default false,
+  add column if not exists correct_answers text[] not null default '{}'::text[],
+  add column if not exists prompt_text text null,
+  add column if not exists translations jsonb not null default '{}'::jsonb;
+
+alter table public.sessions
+  add column if not exists exit_ticket_prompt text null,
+  add column if not exists exit_ticket_category text null,
+  add column if not exists exit_ticket_response_type text null,
+  add column if not exists captions_enabled boolean not null default false,
+  add column if not exists caption_status text not null default 'idle'
+    check (caption_status in ('idle', 'starting', 'live', 'error')),
+  add column if not exists caption_source_language text not null default 'zh-tw',
+  add column if not exists caption_display_language text not null default 'zh-tw',
+  add column if not exists interpretation_enabled boolean not null default false,
+  add column if not exists interpretation_languages text[] not null default '{}'::text[],
+  add column if not exists caption_started_at timestamptz,
+  add column if not exists interpretation_audio_enabled boolean not null default false,
+  add column if not exists recording_enabled boolean not null default false,
+  add column if not exists caption_font_size integer not null default 48,
+  add column if not exists caption_font_bold boolean not null default true,
+  add column if not exists exit_ticket_prompt_en text,
+  add column if not exists caption_position text not null default 'bottom';
+
 insert into storage.buckets (id, name, public)
 values ('interact-screenshots', 'interact-screenshots', true)
 on conflict (id) do update set public = excluded.public;
@@ -642,3 +679,8 @@ on conflict (id) do update set
   public = excluded.public,
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
+
+-- PostgREST answers from a cached copy of the schema, so a column added above is
+-- invisible until it reloads — the app would keep reporting PGRST204 for a column
+-- that already exists.
+notify pgrst, 'reload schema';

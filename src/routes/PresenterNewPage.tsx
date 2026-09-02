@@ -185,6 +185,11 @@ export function PresenterNewPage() {
         <button className="ghost-button manage-sessions-button" disabled={busy} type="button" onClick={() => setSystemSetupOpen(true)}>
           <Settings size={18} />系統設定
         </button>
+        <p className="app-credit">
+          <a href="https://github.com/lienyujen/InterAct/blob/main/LICENSE" rel="noreferrer" target="_blank">InterAct</a>
+          {' | Designed and Developed by '}
+          <a href="https://www.facebook.com/lienyujen/" rel="noreferrer" target="_blank">Yujen Lien</a>
+        </p>
       </form>
       {/* Reachable after setup too, so keys can be added or the project changed
           without having to clear the configuration first. */}

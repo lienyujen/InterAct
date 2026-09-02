@@ -143,17 +143,26 @@ export async function verifyBackend(ref: string, token: string) {
        (select count(*) from information_schema.tables
           where table_schema = 'public' and table_name in ('sessions','questions','participants','shared_files')) as tables,
        (select count(*) from storage.buckets
-          where id in ('interact-screenshots','interact-recordings','interact-files')) as buckets`,
+          where id in ('interact-screenshots','interact-recordings','interact-files')) as buckets,
+       (select count(*) from information_schema.columns
+          where table_schema = 'public'
+            and (table_name, column_name) in (
+              ('questions','translations'),
+              ('questions','allow_multiple'),
+              ('sessions','exit_ticket_prompt_en'),
+              ('sessions','interpretation_languages'),
+              ('sessions','caption_position')
+            )) as columns`,
     '檢查部署結果失敗',
   )
 
   const first = (() => {
     try {
       const parsed = JSON.parse(body) as unknown
-      if (Array.isArray(parsed)) return parsed[0] as { tables?: number; buckets?: number }
+      if (Array.isArray(parsed)) return parsed[0] as { tables?: number; buckets?: number; columns?: number }
       const wrapped = parsed as { rows?: unknown[]; result?: unknown[]; data?: unknown[] }
       const rows = wrapped.rows || wrapped.result || wrapped.data
-      return rows?.[0] as { tables?: number; buckets?: number } | undefined
+      return rows?.[0] as { tables?: number; buckets?: number; columns?: number } | undefined
     } catch {
       return undefined
     }
@@ -161,6 +170,9 @@ export async function verifyBackend(ref: string, token: string) {
 
   if (!first) throw new Error('無法讀取部署結果，請到 Supabase 後台確認資料表與 Storage 是否建立。')
   if (Number(first.tables) < 4) throw new Error(`資料表未建立完整（找到 ${first.tables ?? 0}/4），請重新執行部署。`)
+  if (Number(first.columns) < 5) {
+    throw new Error(`資料表缺少必要欄位（找到 ${first.columns ?? 0}/5）。這通常表示專案是用舊版建立的 —— 再按一次自動部署即可補齊。`)
+  }
   if (Number(first.buckets) < 3) {
     throw new Error(`Storage bucket 未建立完整（找到 ${first.buckets ?? 0}/3）。請到 Supabase 後台 → Storage 手動建立 interact-screenshots（公開）、interact-files（公開）與 interact-recordings（非公開）。`)
   }
