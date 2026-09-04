@@ -84,6 +84,9 @@ type UploadProps = {
   participantId: string
   participantToken: string
   promptText: string | null
+  // A question dispatched from a screenshot lives on the image, so it belongs
+  // inside this panel rather than further down the page under everything else.
+  imageUrl?: string | null
   active: boolean
   locale: ParticipantLocale
 }
@@ -94,6 +97,7 @@ export function ParticipantFileUpload({
   participantId,
   participantToken,
   promptText,
+  imageUrl,
   active,
   locale,
 }: UploadProps) {
@@ -166,6 +170,7 @@ export function ParticipantFileUpload({
   return (
     <section className="panel participant-file-upload">
       <h2><FileUp size={17} />{participantText(locale, 'fileUpload')}</h2>
+      {imageUrl && <img alt={participantText(locale, 'imageAlt')} className="participant-image participant-file-image" src={imageUrl} />}
       {promptText && <p className="participant-file-prompt">{promptText}</p>}
       {active ? (
         <>

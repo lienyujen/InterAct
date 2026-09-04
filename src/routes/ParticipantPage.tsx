@@ -610,6 +610,7 @@ export function ParticipantPage() {
       {question?.type === 'file_upload' && participant && participantToken && (
         <ParticipantFileUpload
           active={question.status === 'active'}
+          imageUrl={screenshot?.public_url || null}
           locale={locale}
           participantId={participant.id}
           participantToken={participantToken}
@@ -631,7 +632,9 @@ export function ParticipantPage() {
         </div>
       )}
       <SharedContentPanel contents={sharedContents} locale={locale} />
-      {screenshot && <img alt={participantText(locale, 'imageAlt')} className="participant-image" src={screenshot.public_url} />}
+      {screenshot && question?.type !== 'file_upload' && (
+        <img alt={participantText(locale, 'imageAlt')} className="participant-image" src={screenshot.public_url} />
+      )}
       {question?.type === 'custom_quiz' ? (quizData ? (
         <ParticipantCustomQuiz data={quizData} busy={quizBusy} locale={locale} onRetry={retryCustomQuiz} onSubmit={submitCustomQuiz} />
       ) : (

@@ -6,7 +6,7 @@ import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/own
 
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response'])
+const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload'])
 const speakerLanguages = new Set(['zh-tw', 'en'])
 // 'source' is the presenter asking for the transcript unaltered.
 const captionDisplayLanguages = new Set(['zh-tw', 'en', 'es', 'ja', 'ko', 'vi', 'de', 'id', 'th', 'fr', 'source'])
@@ -86,6 +86,27 @@ function withFileUrl<T extends { storage_path?: string }>(row: T) {
   const base = Deno.env.get('SUPABASE_URL') || ''
   if (!row?.storage_path || !base) return row
   return { ...row, file_url: `${base}/storage/v1/object/public/interact-files/${row.storage_path}` }
+}
+
+// A question dispatched from a screenshot keeps its wording on the image, so the
+// marker needs the picture as well as prompt_text. Storage is read directly
+// rather than through the public URL: the bucket is private on some projects.
+async function questionScreenshot(
+  supabase: ReturnType<typeof getAdminClient>,
+  screenshotId: string | null,
+) {
+  if (!screenshotId) return null
+  const { data: shot } = await supabase.from('screenshots')
+    .select('storage_path').eq('id', screenshotId).maybeSingle()
+  if (!shot?.storage_path) return null
+  const { data: blob, error } = await supabase.storage
+    .from('interact-screenshots').download(shot.storage_path)
+  if (error || !blob) return null
+  const extension = shot.storage_path.split('.').at(-1)?.toLowerCase()
+  return {
+    mimeType: extension === 'jpg' ? 'image/jpeg' : extension === 'webp' ? 'image/webp' : 'image/png',
+    bytes: new Uint8Array(await blob.arrayBuffer()),
+  }
 }
 
 function normalizedOptions(value: unknown) {
@@ -387,6 +408,7 @@ Deno.serve(async (req) => {
     }
 
     // Analysis is per file and only ever runs when the presenter asks for it.
+    // Marks one student's whole submission, however many files it came in.
     if (action === 'analyze_file_response') {
       const responseId = input.responseId
       if (!validUuid(responseId)) return jsonResponse({ message: '檔案資料不正確。' }, 400)
@@ -394,42 +416,77 @@ Deno.serve(async (req) => {
         .select('*').eq('id', responseId).eq('session_id', sessionId).maybeSingle()
       if (findError) throw findError
       if (!fileRow) return jsonResponse({ message: '找不到這個檔案。' }, 404)
-      if (!isAnalyzableFile(fileRow.mime_type, fileRow.name)) {
+
+      // A student who photographs three pages of working has handed in one
+      // answer, not three. Judging a page on its own would judge an argument
+      // by its middle, so the pages are read together and the one mark lands
+      // on every row — which is also why nobody pays three times for it.
+      const { data: submissionRows, error: siblingError } = await supabase.from('file_responses')
+        .select('*')
+        .eq('question_id', fileRow.question_id)
+        .eq('participant_id', fileRow.participant_id)
+        .order('submitted_at')
+      if (siblingError) throw siblingError
+      const submission = (submissionRows || []).length ? submissionRows : [fileRow]
+      const readable = submission.filter((row) => isAnalyzableFile(row.mime_type, row.name)).slice(0, 6)
+      const unreadable = submission.filter((row) => !readable.some((item) => item.id === row.id))
+      if (!readable.length) {
         const { data: skipped } = await supabase.from('file_responses')
           .update({ analysis_status: 'unsupported', error_message: 'AI 無法讀取這個檔案格式。', analyzed_at: new Date().toISOString() })
           .eq('id', responseId).select('*').single()
         return jsonResponse({ response: withFileUrl(skipped) })
       }
 
-      await supabase.from('file_responses').update({ analysis_status: 'analyzing', error_message: null }).eq('id', responseId)
+      const readableIds = readable.map((row) => row.id)
+      await supabase.from('file_responses')
+        .update({ analysis_status: 'analyzing', error_message: null }).in('id', readableIds)
       try {
         const { data: question } = await supabase.from('questions')
-          .select('prompt_text').eq('id', fileRow.question_id).maybeSingle()
-        const { data: blob, error: downloadError } = await supabase.storage
-          .from('interact-files').download(fileRow.storage_path)
-        if (downloadError) throw downloadError
+          .select('prompt_text, screenshot_id').eq('id', fileRow.question_id).maybeSingle()
+        const files = []
+        for (const row of readable) {
+          const { data: blob, error: downloadError } = await supabase.storage
+            .from('interact-files').download(row.storage_path)
+          if (downloadError) throw downloadError
+          files.push({ fileName: row.name, mimeType: row.mime_type, fileBytes: new Uint8Array(await blob.arrayBuffer()) })
+        }
         const analysis = await analyzeFileResponse({
           promptText: question?.prompt_text || null,
-          fileName: fileRow.name,
-          mimeType: fileRow.mime_type,
-          fileBytes: new Uint8Array(await blob.arrayBuffer()),
+          files,
+          questionImage: await questionScreenshot(supabase, question?.screenshot_id || null),
         })
-        const { data: updated, error: updateError } = await supabase.from('file_responses').update({
+        const { data: updatedRows, error: updateError } = await supabase.from('file_responses').update({
           analysis_status: 'success',
           analysis_json: analysis,
           error_message: null,
           analyzed_at: new Date().toISOString(),
-        }).eq('id', responseId).select('*').single()
+        }).in('id', readableIds).select('*')
         if (updateError) throw updateError
-        return jsonResponse({ response: withFileUrl(updated) })
+        // Anything in the same submission the model cannot open is settled now
+        // too, so the presenter is never left with a row asking to be marked
+        // that pressing again would not change.
+        let skippedRows: Array<Record<string, unknown>> = []
+        if (unreadable.length) {
+          const { data } = await supabase.from('file_responses').update({
+            analysis_status: 'unsupported',
+            error_message: 'AI 無法讀取這個檔案格式。',
+            analyzed_at: new Date().toISOString(),
+          }).in('id', unreadable.map((row) => row.id)).select('*')
+          skippedRows = data || []
+        }
+        const all = [...(updatedRows || []), ...skippedRows].map(withFileUrl)
+        const primary = all.find((row) => (row as { id: string }).id === responseId) || all[0]
+        return jsonResponse({ response: primary, responses: all })
       } catch (analysisError) {
-        const detail = errorDetail(analysisError, 'AI 分析失敗。')
-        const { data: failed } = await supabase.from('file_responses').update({
+        const detail = errorDetail(analysisError, 'AI 批改失敗。')
+        const { data: failedRows } = await supabase.from('file_responses').update({
           analysis_status: 'failed',
           error_message: detail.slice(0, 500),
           analyzed_at: new Date().toISOString(),
-        }).eq('id', responseId).select('*').single()
-        return jsonResponse({ response: withFileUrl(failed), message: detail.slice(0, 500) }, 200)
+        }).in('id', readableIds).select('*')
+        const all = (failedRows || []).map(withFileUrl)
+        const primary = all.find((row) => (row as { id: string }).id === responseId) || all[0]
+        return jsonResponse({ response: primary, responses: all, message: detail.slice(0, 500) }, 200)
       }
     }
     if (action === 'prepare_screenshot_upload') {
@@ -771,6 +828,7 @@ Deno.serve(async (req) => {
         short_answer: '問答題',
         pronunciation: '朗讀發音',
         oral_response: '口語表達',
+        file_upload: '上傳作答',
       }
       let translations = {}
       try {

@@ -1,12 +1,18 @@
-import { AudioLines, CheckCircle2, Dice5, Sparkles } from 'lucide-react'
+import { AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Sparkles } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { correctnessStats, countByAnswer } from '../lib/stats'
-import type { Answer, AudioResponse, Question, QuestionAnalysis } from '../types'
+import { downloadHref } from '../lib/fileLinks'
+import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
 type Props = {
   anonymousEnabled: boolean
   question: Question | null
   answers: Answer[]
   audioResponses: AudioResponse[]
+  fileResponses: FileResponse[]
+  // Which upload is being marked right now, and how far a mark-everything run has got.
+  fileBusyId: string
+  gradeProgress: { done: number; total: number } | null
   analysis: QuestionAnalysis | null
   analysisBusy: boolean
   analysisError: string
@@ -14,11 +20,14 @@ type Props = {
   isCurrentQuestion: boolean
   onlineCount: number
   onAnalyze: () => void
+  onAnalyzeFile: (responseId: string) => void
   onDrawUnanswered: (questionId: string) => void
   onSetCorrectAnswer: (answer: string) => void
 }
 
-type AnalysisProps = Pick<Props, 'question' | 'answers' | 'analysis' | 'analysisBusy' | 'analysisError' | 'onAnalyze' | 'onSetCorrectAnswer'>
+type AnalysisProps = Pick<Props,
+  'question' | 'answers' | 'analysis' | 'analysisBusy' | 'analysisError' | 'onAnalyze' | 'onSetCorrectAnswer'
+  | 'fileResponses' | 'gradeProgress'>
 
 function ItemList({ items }: { items: string[] }) {
   if (!items.length) return <p className="muted">目前沒有可列出的項目。</p>
@@ -59,10 +68,21 @@ function QuestionStatusActions({
   )
 }
 
-function AiAnalysisPanel({ question, answers, analysis, analysisBusy, analysisError, onAnalyze, onSetCorrectAnswer }: AnalysisProps) {
+function AiAnalysisPanel({
+  question, answers, analysis, analysisBusy, analysisError, fileResponses, gradeProgress, onAnalyze, onSetCorrectAnswer,
+}: AnalysisProps) {
   if (!question || ['send_screen', 'pronunciation', 'oral_response'].includes(question.type)) return null
 
-  const canAnalyze = question.status !== 'active' && answers.length > 0
+  const isUpload = question.type === 'file_upload'
+  // Counted in students, because that is what a press costs: one call covers
+  // every page one student sent.
+  const unmarked = isUpload
+    ? new Set(fileResponses
+      .filter((response) => ['pending', 'failed'].includes(response.analysis_status))
+      .map((response) => response.participant_id)).size
+    : 0
+  const canAnalyze = question.status !== 'active'
+    && (isUpload ? fileResponses.length > 0 : answers.length > 0)
   const suggestion = analysis?.question_understanding.suggested_correct_answer
   const canApplySuggestion = Boolean(
     suggestion
@@ -77,11 +97,24 @@ function AiAnalysisPanel({ question, answers, analysis, analysisBusy, analysisEr
         <h2><Sparkles size={18} />AI 完整分析</h2>
         <button disabled={!canAnalyze || analysisBusy} type="button" onClick={onAnalyze}>
           <Sparkles size={16} />
-          {analysisBusy ? '分析中...' : analysis ? '重新分析' : 'AI 分析'}
+          {analysisBusy
+            ? gradeProgress ? `批改中 ${gradeProgress.done}/${gradeProgress.total}...` : '分析中...'
+            : isUpload
+              ? unmarked ? `批改剩下 ${unmarked} 人並分析` : analysis ? '重新分析' : '分析全班'
+              : analysis ? '重新分析' : 'AI 分析'}
         </button>
       </div>
       {!canAnalyze && (
         <p className="muted">停止作答且至少收到一份答案後，即可手動執行分析。</p>
+      )}
+      {canAnalyze && isUpload && (
+        // Marking is the expensive half, so say plainly what this button will and
+        // will not spend: work already paid for is never redone.
+        <p className="muted">
+          {unmarked
+            ? `會先批改尚未批改的 ${unmarked} 人，已批改過的不再重算，再彙整全班表現。`
+            : '每個人都批改過了，這一步只讀批改結果彙整全班表現。'}
+        </p>
       )}
       {analysisError && <p className="error">{analysisError}</p>}
       {analysis && (
@@ -142,6 +175,147 @@ function AiAnalysisPanel({ question, answers, analysis, analysisBusy, analysisEr
   )
 }
 
+const verdictLabels: Record<string, string> = {
+  correct: '正確',
+  partial: '部分正確',
+  incorrect: '不正確',
+  unscored: '未評分',
+}
+
+const uploadStatusLabels: Record<FileResponse['analysis_status'], string> = {
+  pending: '尚未批改',
+  analyzing: '批改中...',
+  success: '已批改',
+  failed: '批改失敗',
+  unsupported: 'AI 無法讀取此格式',
+}
+
+function isImageFile(mimeType: string, name: string) {
+  return mimeType.startsWith('image/') || /.(png|jpe?g|webp|gif|heic|heif)$/i.test(name)
+}
+
+// One row per student, not per file: an essay photographed as three pages is
+// one answer, and the marker treats it that way too.
+function UploadResults({
+  anonymousEnabled, fileBusyId, fileResponses, question, onAnalyzeFile,
+}: Pick<Props, 'anonymousEnabled' | 'fileBusyId' | 'fileResponses' | 'onAnalyzeFile'> & { question: Question }) {
+  const [expanded, setExpanded] = useState('')
+
+  const submissions = useMemo(() => {
+    const groups = new Map<string, FileResponse[]>()
+    for (const response of fileResponses) {
+      const existing = groups.get(response.participant_id)
+      if (existing) existing.push(response)
+      else groups.set(response.participant_id, [response])
+    }
+    // A student's own files are ordered so the one carrying the mark leads:
+    // a stray .docx first would otherwise present the whole submission as
+    // unreadable and hide the button that would have marked their photo.
+    const rank = (response: FileResponse) => response.analysis_status === 'success' ? 0
+      : response.analysis_status === 'unsupported' ? 2 : 1
+    return [...groups.values()].map((files) => [...files].sort((left, right) => rank(left) - rank(right)))
+  }, [fileResponses])
+
+  const marked = submissions.filter((files) => files[0].analysis_status === 'success').length
+
+  if (!submissions.length) {
+    return (
+      <p className="muted">
+        {question.status === 'active' ? '還沒有學生上傳作答。' : '這一題沒有收到任何上傳。'}
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <p className="muted">已上傳 {submissions.length} 人 · 已批改 {marked} 人</p>
+      <ul className="file-list upload-answer-list">
+        {submissions.map((files, index) => {
+          const lead = files[0]
+          const result = lead.analysis_json
+          const verdict = result?.verdict || ''
+          const busy = files.some((file) => fileBusyId === file.id || file.analysis_status === 'analyzing')
+          const preview = files.find((file) => isImageFile(file.mime_type, file.name) && file.file_url)
+          const failure = files.find((file) => file.error_message && file.analysis_status !== 'success')
+          return (
+            <li key={lead.participant_id}>
+              <div className="file-response-row">
+                {preview ? (
+                  <a href={preview.file_url} rel="noreferrer" target="_blank">
+                    <img alt={preview.name} className="file-response-thumb" src={preview.file_url} />
+                  </a>
+                ) : <span className="file-response-thumb is-placeholder"><FileUp size={18} /></span>}
+                <div className="file-list-meta">
+                  <strong>{anonymousEnabled ? `匿名作答 ${index + 1}` : lead.participant_name}</strong>
+                  <span className="muted">
+                    {files.map((file) => file.name).join('、')}
+                    {files.length > 1 && ` · ${files.length} 個檔案`}
+                  </span>
+                  <span className="upload-verdict-line">
+                    {verdict && <span className={`file-verdict is-${verdict}`}>{verdictLabels[verdict] || verdict}</span>}
+                    {typeof result?.score === 'number' && <span className="upload-score">{result.score} 分</span>}
+                    {!verdict && (
+                      <span className={`file-analysis-status is-${lead.analysis_status}`}>
+                        {uploadStatusLabels[lead.analysis_status]}
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="file-list-actions">
+                  {files.filter((file) => file.file_url).map((file, fileIndex) => (
+                    <a
+                      className="ghost-button"
+                      href={downloadHref(file.file_url as string, file.name)}
+                      key={file.id}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <Download size={15} />下載{files.length > 1 ? ` ${fileIndex + 1}` : ''}
+                    </a>
+                  ))}
+                  {lead.analysis_status !== 'unsupported' && (
+                    <button disabled={busy} type="button" onClick={() => onAnalyzeFile(lead.id)}>
+                      {busy ? <LoaderCircle className="spin" size={15} /> : <Sparkles size={15} />}
+                      {lead.analysis_status === 'success' ? '重批' : 'AI 批改'}
+                    </button>
+                  )}
+                  {lead.analysis_status === 'success' && (
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={() => setExpanded(expanded === lead.participant_id ? '' : lead.participant_id)}
+                    >
+                      {expanded === lead.participant_id ? '收合' : '看批改'}
+                    </button>
+                  )}
+                </div>
+              </div>
+              {failure && <p className="muted file-analysis-error">{failure.error_message}</p>}
+              {expanded === lead.participant_id && result && (
+                <div className="file-analysis-detail">
+                  <p>{result.summary_zh_tw}</p>
+                  {result.strengths_zh_tw.length > 0 && (
+                    <>
+                      <h4>做得好</h4>
+                      <ul>{result.strengths_zh_tw.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}</ul>
+                    </>
+                  )}
+                  {result.improvements_zh_tw.length > 0 && (
+                    <>
+                      <h4>可改進</h4>
+                      <ul>{result.improvements_zh_tw.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}</ul>
+                    </>
+                  )}
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
+}
+
 export function QuestionResult(props: Props) {
   const { anonymousEnabled, question, answers, audioResponses, analysis, onSetCorrectAnswer } = props
 
@@ -183,6 +357,28 @@ export function QuestionResult(props: Props) {
               </article>
             ))}
           </div>
+        </section>
+        <AiAnalysisPanel {...props} />
+      </>
+    )
+  }
+
+  if (question.type === 'file_upload') {
+    return (
+      <>
+        <section className="panel result-panel upload-results-panel">
+          <div className="panel-heading">
+            <h2><FileUp size={20} />{question.title}</h2>
+            <QuestionStatusActions {...props} question={question} />
+          </div>
+          {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
+          <UploadResults
+            anonymousEnabled={anonymousEnabled}
+            fileBusyId={props.fileBusyId}
+            fileResponses={props.fileResponses}
+            question={question}
+            onAnalyzeFile={props.onAnalyzeFile}
+          />
         </section>
         <AiAnalysisPanel {...props} />
       </>

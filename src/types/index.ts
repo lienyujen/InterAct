@@ -408,7 +408,12 @@ export interface SharedFile {
 
 export type FileAnalysisStatus = 'pending' | 'analyzing' | 'success' | 'failed' | 'unsupported'
 
+export type FileVerdict = 'correct' | 'partial' | 'incorrect' | 'unscored'
+
 export interface FileAnalysis {
+  // Absent on anything marked before grading existed, so both stay optional.
+  verdict?: FileVerdict
+  score?: number | null
   summary_zh_tw: string
   summary_en: string
   strengths_zh_tw: string[]

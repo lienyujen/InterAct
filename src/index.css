@@ -4559,3 +4559,75 @@ h2 {
 }
 
 
+
+/* Marked uploads: the verdict is what a presenter reads down the list, so it
+   carries the colour and the score sits beside it. */
+.upload-verdict-line {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.file-verdict {
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 2px 9px;
+}
+
+.file-verdict.is-correct {
+  background: var(--pale-green, #ecfdf5);
+  color: var(--success, #2e7d32);
+}
+
+.file-verdict.is-partial {
+  background: #fff7e6;
+  color: #a15c00;
+}
+
+.file-verdict.is-incorrect {
+  background: #fdecec;
+  color: var(--danger, #c62828);
+}
+
+.file-verdict.is-unscored {
+  background: var(--border);
+  color: var(--muted);
+}
+
+.upload-score {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.upload-answer-list {
+  margin-top: 10px;
+}
+
+.question-type-hint {
+  font-size: 0.82rem;
+  line-height: 1.6;
+  margin: 4px 0 0;
+}
+
+/* The dispatched screenshot belongs with the upload button, not under the rest
+   of the page, so it is capped shorter than a standalone question image. */
+.participant-file-image {
+  margin-bottom: 10px;
+  max-height: 38svh;
+}
+
+/* An uploaded answer is a page of working, so the presenter needs enough of it
+   to recognise the submission before deciding to open it. */
+.upload-answer-list .file-response-thumb {
+  height: 72px;
+  object-fit: contain;
+  object-position: top left;
+  width: 72px;
+}
+
+.upload-answer-list .file-response-thumb:not(.is-placeholder) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}

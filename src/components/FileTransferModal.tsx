@@ -15,6 +15,7 @@ type Props = {
   sharedFiles: SharedFile[]
   collectQuestion: Question | null
   fileResponses: FileResponse[]
+  fileBusyId: string
   onClose: () => void
   onShareFiles: (files: File[]) => Promise<void>
   onDeleteSharedFile: (fileId: string) => Promise<void>
@@ -36,11 +37,18 @@ function isImage(mimeType: string, name: string) {
 }
 
 const analysisLabels: Record<FileResponse['analysis_status'], string> = {
-  pending: '尚未分析',
-  analyzing: '分析中...',
-  success: '已分析',
-  failed: '分析失敗',
+  pending: '尚未批改',
+  analyzing: '批改中...',
+  success: '已批改',
+  failed: '批改失敗',
   unsupported: 'AI 無法讀取此格式',
+}
+
+const verdictLabels: Record<string, string> = {
+  correct: '正確',
+  partial: '部分正確',
+  incorrect: '不正確',
+  unscored: '未評分',
 }
 
 export function FileTransferModal({
@@ -48,6 +56,7 @@ export function FileTransferModal({
   sharedFiles,
   collectQuestion,
   fileResponses,
+  fileBusyId,
   onClose,
   onShareFiles,
   onDeleteSharedFile,
@@ -199,7 +208,7 @@ export function FileTransferModal({
           </div>
         ) : (
           <div className="file-transfer-body">
-            <p className="muted">派送後學生端會出現上傳按鈕，可傳文件與圖片。停止收件後可逐檔送 AI 分析。</p>
+            <p className="muted">派送後學生端會出現上傳按鈕，可傳文件與圖片，手機、平板還能直接拍照。每份都要按下 AI 批改才會送出，不會自動計費。</p>
             <label>
               題目（選填）
               <textarea
@@ -243,8 +252,20 @@ export function FileTransferModal({
                           <div className="file-list-meta">
                             <strong>{response.participant_name}</strong>
                             <span className="muted">{response.name} · {formatSize(response.file_size)}</span>
-                            <span className={`file-analysis-status is-${response.analysis_status}`}>
-                              {analysisLabels[response.analysis_status]}
+                            <span className="upload-verdict-line">
+                              {response.analysis_json?.verdict && (
+                                <span className={`file-verdict is-${response.analysis_json.verdict}`}>
+                                  {verdictLabels[response.analysis_json.verdict] || response.analysis_json.verdict}
+                                </span>
+                              )}
+                              {typeof response.analysis_json?.score === 'number' && (
+                                <span className="upload-score">{response.analysis_json.score} 分</span>
+                              )}
+                              {!response.analysis_json?.verdict && (
+                                <span className={`file-analysis-status is-${response.analysis_status}`}>
+                                  {analysisLabels[response.analysis_status]}
+                                </span>
+                              )}
                             </span>
                           </div>
                           <div className="file-list-actions">
@@ -253,13 +274,13 @@ export function FileTransferModal({
                                 <Download size={15} />下載
                               </a>
                             )}
-                            {!collecting && ['pending', 'failed'].includes(response.analysis_status) && (
+                            {response.analysis_status !== 'unsupported' && (
                               <button
-                                disabled={busy}
+                                disabled={busy || fileBusyId === response.id || response.analysis_status === 'analyzing'}
                                 type="button"
                                 onClick={() => void guard(() => onAnalyzeResponse(response.id))}
                               >
-                                <Sparkles size={15} />AI 分析
+                                <Sparkles size={15} />{response.analysis_status === 'success' ? '重批' : 'AI 批改'}
                               </button>
                             )}
                             {response.analysis_status === 'success' && (
@@ -268,7 +289,7 @@ export function FileTransferModal({
                                 type="button"
                                 onClick={() => setExpanded(expanded === response.id ? '' : response.id)}
                               >
-                                {expanded === response.id ? '收合' : '看分析'}
+                                {expanded === response.id ? '收合' : '看批改'}
                               </button>
                             )}
                           </div>

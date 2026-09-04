@@ -12,11 +12,18 @@ const COLORS = {
 }
 
 const fileAnalysisLabels: Record<string, string> = {
-  pending: '尚未分析',
-  analyzing: '分析中',
-  success: '已分析',
-  failed: '分析失敗',
+  pending: '尚未批改',
+  analyzing: '批改中',
+  success: '已批改',
+  failed: '批改失敗',
   unsupported: 'AI 無法讀取此格式',
+}
+
+const fileVerdictLabels: Record<string, string> = {
+  correct: '正確',
+  partial: '部分正確',
+  incorrect: '不正確',
+  unscored: '未評分',
 }
 
 const questionTypeLabels = {
@@ -28,7 +35,7 @@ const questionTypeLabels = {
   pronunciation: '朗讀發音',
   oral_response: '口語表達',
   custom_quiz: '自訂測驗',
-  file_upload: '檔案上傳',
+  file_upload: '上傳作答',
 }
 
 const quizItemTypeLabels = {
@@ -439,6 +446,8 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     { header: '檔案類型', key: 'mimeType', width: 22 },
     { header: '大小 (KB)', key: 'sizeKb', width: 12 },
     { header: '分析狀態', key: 'status', width: 14 },
+    { header: '批改判定', key: 'verdict', width: 12 },
+    { header: '分數', key: 'score', width: 8 },
     { header: 'AI 摘要', key: 'summary', width: 60 },
     { header: '優點', key: 'strengths', width: 45 },
     { header: '改善建議', key: 'improvements', width: 50 },
@@ -455,6 +464,8 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       mimeType: response.mime_type,
       sizeKb: Math.max(1, Math.round(response.file_size / 1024)),
       status: fileAnalysisLabels[response.analysis_status] || response.analysis_status,
+      verdict: item?.verdict ? fileVerdictLabels[item.verdict] || item.verdict : '',
+      score: typeof item?.score === 'number' ? item.score : '',
       // A failure explains itself where the summary would have been, so a blank
       // cell always means nobody asked for the analysis.
       summary: item?.summary_zh_tw || response.error_message || '',

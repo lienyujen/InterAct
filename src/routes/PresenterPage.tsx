@@ -96,6 +96,10 @@ export function PresenterPage() {
   const [sharedFiles, setSharedFiles] = useState<SharedFile[]>([])
   const [fileResponses, setFileResponses] = useState<FileResponse[]>([])
   const [collectQuestion, setCollectQuestion] = useState<Question | null>(null)
+  const [fileBusyId, setFileBusyId] = useState('')
+  // Read by the polling timer, which must not overwrite a row mid-marking.
+  const markingRef = useRef(false)
+  const [gradeProgress, setGradeProgress] = useState<{ done: number; total: number } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsBusy, setSettingsBusy] = useState(false)
   const [settingsError, setSettingsError] = useState('')
@@ -1039,6 +1043,29 @@ export function PresenterPage() {
     setAnalysisBusy(true)
     setAnalysisError('')
     try {
+      // The class picture is built from the individual marks, so whatever is
+      // still unmarked gets marked first. One request per student, not per file:
+      // a whole class in a single call would outlive the function that sent it.
+      // Work already paid for is skipped, and one unreadable photo stops nothing.
+      if (question.type === 'file_upload') {
+        const unmarked = fileResponses.filter((item) => item.question_id === question.id
+          && ['pending', 'failed'].includes(item.analysis_status))
+        // Marking is per student, so a submission of three pages is one unit of
+        // work; counting pages would promise more presses than it makes.
+        const pending = [...new Set(unmarked.map((item) => item.participant_id))]
+          .map((participantId) => unmarked.find((item) => item.participant_id === participantId))
+          .filter((item): item is FileResponse => Boolean(item))
+        for (const [index, item] of pending.entries()) {
+          setGradeProgress({ done: index, total: pending.length })
+          try {
+            await analyzeFileResponse(item.id)
+          } catch {
+            // The failure is recorded on the row itself; the rest still gets marked.
+          }
+        }
+        setGradeProgress(null)
+        await refreshFileResponses()
+      }
       const { data, error } = await requireSupabase().functions.invoke('analyze-question', {
         body: { sessionId, questionId: question.id, presenterToken },
       })
@@ -1062,6 +1089,7 @@ export function PresenterPage() {
       setAnalysisError(error instanceof Error ? error.message : 'AI 分析失敗。')
     } finally {
       setAnalysisBusy(false)
+      setGradeProgress(null)
     }
   }
 
@@ -1248,12 +1276,24 @@ export function PresenterPage() {
 
 
 
+  // One fetch feeds both places uploads are shown; each takes the question it
+  // is actually displaying rather than assuming they are the same one.
+  const questionFileResponses = useMemo(
+    () => question ? fileResponses.filter((item) => item.question_id === question.id) : [],
+    [fileResponses, question],
+  )
+  const collectFileResponses = useMemo(
+    () => collectQuestion ? fileResponses.filter((item) => item.question_id === collectQuestion.id) : [],
+    [collectQuestion, fileResponses],
+  )
+
   // Keep the collection tab pointing at the newest file_upload question so reopening
   // the modal (or reloading the page mid-class) shows what is currently being collected.
   useEffect(() => {
     const latest = questions.filter((item) => item.type === 'file_upload').at(-1) || null
     setCollectQuestion((current) => current?.id === latest?.id ? current : latest)
   }, [questions])
+
   function requirePresenterToken() {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('這個舊場次沒有講者操作權限，請建立新場次後再試。')
@@ -1342,14 +1382,28 @@ export function PresenterPage() {
     }
   }
 
+  // Every upload in the session, not just the question the modal happens to be
+  // on: the result panel shows whichever upload question the presenter selected.
   const refreshFileResponses = useCallback(async () => {
     const presenterToken = getPresenterToken(sessionId)
-    if (!presenterToken || !collectQuestion) return
+    if (!presenterToken) return
     const { data } = await requireSupabase().functions.invoke('presenter-action', {
-      body: { action: 'get_file_responses', sessionId, presenterToken, questionId: collectQuestion.id },
+      body: { action: 'get_file_responses', sessionId, presenterToken },
     })
     setFileResponses((data?.responses || []) as FileResponse[])
-  }, [collectQuestion, sessionId])
+  }, [sessionId])
+
+  useEffect(() => {
+    if (question?.type !== 'file_upload') return
+    void refreshFileResponses()
+    if (question.status !== 'active') return
+    // Skipped while a mark is in flight: a reply issued before the mark landed
+    // would put the row back to 「尚未批改」 for a beat.
+    const timer = window.setInterval(() => {
+      if (!markingRef.current) void refreshFileResponses()
+    }, 10_000)
+    return () => window.clearInterval(timer)
+  }, [question?.id, question?.status, question?.type, refreshFileResponses])
 
   async function startFileCollect(promptText: string) {
     const presenterToken = requirePresenterToken()
@@ -1382,17 +1436,26 @@ export function PresenterPage() {
     }
   }
 
+  // One press marks the student, not the file: the backend reads all the pages
+  // they sent together and returns every row it touched.
   async function analyzeFileResponse(responseId: string) {
     const presenterToken = requirePresenterToken()
-    setBusy(true)
+    setFileBusyId(responseId)
+    markingRef.current = true
     try {
       const data = await callPresenter({
         action: 'analyze_file_response', sessionId, presenterToken, responseId,
-      }, 'AI 分析失敗。')
-      const updated = data.response as FileResponse | undefined
-      if (updated) setFileResponses((current) => current.map((item) => item.id === updated.id ? updated : item))
+      }, 'AI 批改失敗。')
+      const updated = (data.responses as FileResponse[] | undefined)
+        || (data.response ? [data.response as FileResponse] : [])
+      if (updated.length) {
+        const byId = new Map(updated.map((item) => [item.id, item]))
+        setFileResponses((current) => current.map((item) => byId.get(item.id) || item))
+      }
+      return updated
     } finally {
-      setBusy(false)
+      setFileBusyId('')
+      markingRef.current = false
     }
   }
   async function sendSharedContent(body: string, url: string) {
@@ -1566,10 +1629,16 @@ export function PresenterPage() {
           answers={answers}
           audioResponses={audioResponses}
           busy={busy}
+          fileBusyId={fileBusyId}
+          fileResponses={questionFileResponses}
+          gradeProgress={gradeProgress}
           isCurrentQuestion={question?.id === session.current_question_id}
           onlineCount={onlineParticipants.length}
           question={question}
           onAnalyze={analyzeQuestion}
+          onAnalyzeFile={(responseId) => void analyzeFileResponse(responseId).catch((error) => {
+            setAnalysisError(error instanceof Error ? error.message : 'AI 批改失敗。')
+          })}
           onDrawUnanswered={drawUnanswered}
           onSetCorrectAnswer={setCorrectAnswer}
         />}
@@ -1631,9 +1700,10 @@ export function PresenterPage() {
         <FileTransferModal
           busy={busy}
           collectQuestion={collectQuestion}
-          fileResponses={fileResponses}
+          fileBusyId={fileBusyId}
+          fileResponses={collectFileResponses}
           sharedFiles={sharedFiles}
-          onAnalyzeResponse={analyzeFileResponse}
+          onAnalyzeResponse={async (responseId) => { await analyzeFileResponse(responseId) }}
           onClose={() => setFileTransferOpen(false)}
           onDeleteSharedFile={deleteSharedFile}
           onRefreshResponses={refreshFileResponses}

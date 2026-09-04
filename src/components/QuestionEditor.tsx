@@ -20,7 +20,7 @@ const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'custom_quiz', label: '自訂測驗' },
   { type: 'poll', label: '投票題' },
   { type: 'multiple_choice', label: '選擇題' },
-  { type: 'true_false', label: '是非題' },
+  { type: 'file_upload', label: '上傳作答' },
   { type: 'short_answer', label: '問答題' },
   { type: 'oral_response', label: '口語表達' },
   { type: 'pronunciation', label: '朗讀發音' },
@@ -48,8 +48,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
   const finalOptions = useMemo(() => {
-    if (type === 'true_false') return ['是', '否']
-    if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz'].includes(type)) return []
+    if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload'].includes(type)) return []
     return options.map((option) => option.trim()).filter(Boolean)
   }, [options, type])
 
@@ -124,6 +123,11 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
             ))}
           </div>
         )}
+        {type === 'file_upload' && (
+          <p className="muted question-type-hint">
+            學生端會看到這張截圖和上傳按鈕，手機、平板可以直接拍照上傳。停止作答後可逐份批改。
+          </p>
+        )}
         {type === 'custom_quiz' && (
           <CustomQuizFields
             count={quizCount}
@@ -136,10 +140,14 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
         )}
         {type !== 'send_screen' && type !== 'custom_quiz' && (
           <label className="question-prompt-field">
-            {type === 'pronunciation' ? '指定朗讀內容（選填）' : '題目（選填）'}
+            {type === 'pronunciation' ? '指定朗讀內容（選填）' : type === 'file_upload' ? '作答說明（選填）' : '題目（選填）'}
             <input
               value={promptText}
-              placeholder={type === 'pronunciation' ? '未輸入則以 AI 判讀截圖中的朗讀內容' : '未輸入則以AI判讀題目'}
+              placeholder={type === 'pronunciation'
+                ? '未輸入則以 AI 判讀截圖中的朗讀內容'
+                : type === 'file_upload'
+                  ? '例如：請把計算過程寫在紙上拍照上傳'
+                  : '未輸入則以AI判讀題目'}
               onChange={(event) => setPromptText(event.target.value)}
             />
           </label>
