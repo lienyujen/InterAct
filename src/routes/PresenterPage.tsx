@@ -27,6 +27,7 @@ import { createGeminiCaptionConnection } from '../lib/geminiCaptions'
 import { createInterpretationAudioBroadcaster } from '../lib/liveInterpretation'
 import { logDiagnostic } from '../lib/diagnostics'
 import { createCaptionTextNormalizer } from '../lib/traditionalChinese'
+import { SOURCE_CAPTION_LANGUAGE, resolvedCaptionLanguage } from '../lib/captionLanguages'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
 import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, FileResponse, SharedFile, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
@@ -507,10 +508,14 @@ export function PresenterPage() {
         })
       }
       captionStreamRef.current = stream
+      // Choosing 原始語言 is choosing not to be rewritten: the conversion also
+      // swaps mainland vocabulary for Taiwanese (視頻 for 影片, 軟件 for 軟體),
+      // which is wrong when the words themselves are what the lesson is about.
       const normalizeCaptionText = await createCaptionTextNormalizer(
-        targetSession.caption_source_language === 'zh-tw'
+        targetSession.caption_display_language !== SOURCE_CAPTION_LANGUAGE
+        && (targetSession.caption_source_language === 'zh-tw'
           || targetSession.caption_display_language === 'zh-tw'
-          || targetSession.interpretation_languages.includes('zh-tw'),
+          || targetSession.interpretation_languages.includes('zh-tw')),
       )
 
       const persistCaption = async (language: string, text: string) => {
@@ -587,7 +592,9 @@ export function PresenterPage() {
       const openCaptionConnection = useGemini ? createGeminiCaptionConnection : createRealtimeCaptionConnection
 
       const targets = [...new Set([
-        ...(targetSession.caption_display_language !== targetSession.caption_source_language
+        // "原始語言" means the transcript itself, so there is nothing to translate.
+        ...(targetSession.caption_display_language !== SOURCE_CAPTION_LANGUAGE
+          && targetSession.caption_display_language !== targetSession.caption_source_language
           ? [targetSession.caption_display_language]
           : []),
         ...(targetSession.interpretation_enabled ? targetSession.interpretation_languages : []),
@@ -598,6 +605,7 @@ export function PresenterPage() {
           mode: 'transcription',
           language: targetSession.caption_source_language,
           sourceLanguage: targetSession.caption_source_language,
+          raw: targetSession.caption_display_language === SOURCE_CAPTION_LANGUAGE,
           stream,
           onCaption,
           onError,
@@ -1582,7 +1590,7 @@ export function PresenterPage() {
           fontSize={session.caption_font_size}
           position={session.caption_position}
           status={session.caption_status}
-          text={liveCaptions[session.caption_display_language] || ''}
+          text={liveCaptions[resolvedCaptionLanguage(session.caption_display_language, session.caption_source_language)] || ''}
         />
       )}
       {selectionMode && (

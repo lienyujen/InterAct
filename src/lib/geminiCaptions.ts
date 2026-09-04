@@ -21,6 +21,9 @@ type Options = {
   sourceLanguage: string
   stream: MediaStream
   includeSourceEvents?: boolean
+  // Ask the transcriber to leave the wording alone. Without it the model
+  // localises vocabulary as well as script — 視頻 comes back as 影片.
+  raw?: boolean
   onCaption: (event: GeminiCaptionEvent) => void
   onError: (message: string) => void
   onDisconnected?: (message: string) => void
@@ -50,6 +53,7 @@ function relayUrl(options: Options, resumeHandle: string) {
   url.searchParams.set('sourceLanguage', options.sourceLanguage)
   url.searchParams.set('targetLanguage', options.language)
   url.searchParams.set('apikey', backendConfig?.key || '')
+  if (options.raw) url.searchParams.set('raw', '1')
   // Carries the Gemini session across relays, so a rotation does not read as a
   // new speaker starting mid-lesson.
   if (resumeHandle) url.searchParams.set('resumeHandle', resumeHandle)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { resolvedCaptionLanguage } from '../lib/captionLanguages'
 import { DanmakuLayer } from '../components/DanmakuLayer'
 import { BuzzerOverlay } from '../components/BuzzerOverlay'
 import { LotteryOverlay } from '../components/LotteryOverlay'
@@ -223,7 +224,7 @@ export function DesktopOverlayPage() {
           fontSize={session.caption_font_size}
           position={session.caption_position}
           status={session.caption_status}
-          text={liveCaptions[session.caption_display_language] || ''}
+          text={liveCaptions[resolvedCaptionLanguage(session.caption_display_language, session.caption_source_language)] || ''}
         />
       )}
       <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />

@@ -41,7 +41,7 @@ const bcp47: Record<string, string> = {
   fr: 'fr-FR',
 }
 
-function setupFor(mode: string, sourceLanguage: string, targetLanguage: string, resumeHandle: string) {
+function setupFor(mode: string, sourceLanguage: string, targetLanguage: string, resumeHandle: string, raw = false) {
   const source = languageNames[sourceLanguage] || 'the speaker\'s language'
   // A live session is capped at about ten minutes. Resumption lets the next one
   // carry on from where this one stopped instead of starting cold.
@@ -63,16 +63,26 @@ function setupFor(mode: string, sourceLanguage: string, targetLanguage: string, 
     }
   }
   const hint = bcp47[sourceLanguage]
+  // Asking for 臺灣正體 and letting SMART tidy the grammar turns out to localise
+  // vocabulary as well: 視頻 comes back as 影片 and 軟件 as 軟體. That is what a
+  // Taiwanese classroom usually wants, but not when the presenter has asked for
+  // the transcript as spoken, so that mode keeps the model out of the wording.
   return {
     model: `models/${TRANSCRIBE_MODEL}`,
     inputAudioTranscription: {
-      // SMART drops fillers, repetitions and false starts and adds light
-      // punctuation — a lecture transcript rather than a stenographic record.
-      mode: 'SMART',
-      ...(hint ? { languageCodes: [hint] } : {}),
+      mode: raw ? 'VERBATIM' : 'SMART',
+      // Dropping the region subtag in raw mode: cmn-Hant-TW asks for Taiwan, and
+      // the model reads that as licence to localise vocabulary, not just script.
+      ...(hint ? { languageCodes: [raw ? hint.replace(/-TW$/, '') : hint] } : {}),
     },
     sessionResumption,
-    systemInstruction: { parts: [{ text: `Transcribe the speaker in ${source}.` }] },
+    systemInstruction: {
+      parts: [{
+        text: raw
+          ? 'Transcribe exactly what is said. Keep the original wording and terminology; do not substitute regional variants and do not rephrase.'
+          : `Transcribe the speaker in ${source}.`,
+      }],
+    },
   }
 }
 
@@ -108,6 +118,7 @@ Deno.serve(async (req) => {
   const sourceLanguage = url.searchParams.get('sourceLanguage') || 'zh-tw'
   const targetLanguage = url.searchParams.get('targetLanguage') || sourceLanguage
   const incomingHandle = url.searchParams.get('resumeHandle') || ''
+  const raw = url.searchParams.get('raw') === '1'
 
   // Checked before the upgrade so an unauthorised caller never reaches Gemini.
   if (!await verifyPresenter(sessionId, presenterToken)) {
@@ -232,7 +243,7 @@ Deno.serve(async (req) => {
     upstream = next
 
     next.onopen = () => {
-      next.send(JSON.stringify({ setup: setupFor(mode, sourceLanguage, targetLanguage, resumeHandle) }))
+      next.send(JSON.stringify({ setup: setupFor(mode, sourceLanguage, targetLanguage, resumeHandle, raw) }))
       // Only now is the old socket redundant; closing it earlier would lose
       // whatever it was still transcribing.
       if (previous && previous !== next) {
