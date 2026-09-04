@@ -1110,12 +1110,12 @@ export function PresenterPage() {
   }
 
   async function drawLottery() {
-    await runLottery(onlineParticipants.map((participant) => participant.id), '目前沒有在線學生。')
+    await runLottery(onlineParticipants.map((participant) => participant.id), '目前沒有線上學生。')
   }
 
   async function startBuzzer() {
     if (!onlineParticipants.length) {
-      setAnalysisError('目前沒有在線學生。')
+      setAnalysisError('目前沒有線上學生。')
       return
     }
     const presenterToken = getPresenterToken(sessionId)
@@ -1164,7 +1164,7 @@ export function PresenterPage() {
 
   async function drawUnanswered(questionId: string) {
     if (!onlineParticipants.length) {
-      setAnalysisError('目前沒有在線學生。')
+      setAnalysisError('目前沒有線上學生。')
       return
     }
 
@@ -1184,7 +1184,7 @@ export function PresenterPage() {
         .map((participant) => participant.id)
 
       if (!unansweredIds.length) {
-        setAnalysisError('目前在線學生皆已作答此題。')
+        setAnalysisError('目前線上學生皆已作答此題。')
         return
       }
       await invokeLottery(unansweredIds)
@@ -1530,6 +1530,7 @@ export function PresenterPage() {
             setTextDispatchOpen(true)
           }}
           onOpenSettings={openPresenterSettings}
+          onOpenRoster={() => void window.interactDesktop?.openRoster(sessionId)}
           onOpenWordCloud={openWordCloud}
           onToggleRecording={toggleCourseRecording}
           onToggleCaptionVisibility={toggleCaptionVisibility}

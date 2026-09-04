@@ -54,6 +54,7 @@ const CONTROL_RELATIVE_LEVEL = 6
 const OVERLAY_RELATIVE_LEVEL = 2
 const WORD_CLOUD_RELATIVE_LEVEL = 4
 const QUIZ_REVIEW_RELATIVE_LEVEL = 5
+const ROSTER_RELATIVE_LEVEL = 5
 
 app.setAppUserModelId(APP_USER_MODEL_ID)
 
@@ -88,6 +89,7 @@ let overlayKeepAliveTimer = null
 let overlayVisibilitySuppressed = false
 let reportWindow = null
 let wordCloudWindow = null
+let rosterWindow = null
 let quizReviewWindow = null
 let lastControlBounds = null
 let isQuitting = false
@@ -168,6 +170,8 @@ function createWindow() {
     closeOverlayWindow()
     wordCloudWindow?.close()
     wordCloudWindow = null
+    rosterWindow?.close()
+    rosterWindow = null
     quizReviewWindow?.close()
     quizReviewWindow = null
   })
@@ -340,6 +344,71 @@ function createReportWindow(sessionId, generate = false) {
   })
   reportWindow.on('closed', () => {
     reportWindow = null
+  })
+}
+
+function createRosterWindow(sessionId) {
+  if (rosterWindow && !rosterWindow.isDestroyed()) {
+    if (rosterWindow.isMinimized()) rosterWindow.restore()
+    rosterWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, ROSTER_RELATIVE_LEVEL)
+    rosterWindow.show()
+    rosterWindow.moveTop()
+    rosterWindow.focus()
+    return
+  }
+
+  const control = safeBounds(mainWindow)
+  const targetDisplay = displayForBounds(control)
+  const area = targetDisplay.workArea
+  const width = 380
+  const height = Math.min(700, Math.max(400, area.height - 120))
+  // Sits beside the control panel rather than over it, so the roster can stay
+  // open while the presenter keeps working. Falls to the right only when there
+  // is no room on the left.
+  const gap = 12
+  const leftX = control.x - width - gap
+  const x = leftX >= area.x ? leftX : Math.min(control.x + control.width + gap, area.x + area.width - width)
+  const y = Math.min(Math.max(control.y, area.y), area.y + area.height - height)
+
+  rosterWindow = new BrowserWindow({
+    width,
+    height,
+    x: Math.round(x),
+    y: Math.round(y),
+    minWidth: 260,
+    minHeight: 280,
+    frame: false,
+    show: false,
+    resizable: true,
+    alwaysOnTop: true,
+    backgroundColor: '#ffffff',
+    title: 'InterAct 線上名單',
+    icon: APP_WINDOW_ICON_PATH,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
+    },
+  })
+
+  rosterWindow.setAppDetails({
+    appId: APP_USER_MODEL_ID,
+    appIconPath: APP_RELAUNCH_ICON_PATH,
+    appIconIndex: 0,
+    relaunchCommand: `"${APP_EXECUTABLE_PATH}"`,
+    relaunchDisplayName: 'InterAct',
+  })
+  configureWebContents(rosterWindow)
+  rosterWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, ROSTER_RELATIVE_LEVEL)
+
+  loadAppRoute(rosterWindow, `/roster/${sessionId}`)
+  rosterWindow.once('ready-to-show', () => {
+    rosterWindow?.show()
+    rosterWindow?.moveTop()
+  })
+  rosterWindow.on('closed', () => {
+    rosterWindow = null
   })
 }
 
@@ -613,7 +682,11 @@ ipcMain.handle('window:minimize', (event) => {
 })
 ipcMain.handle('window:close', (event) => {
   const targetWindow = BrowserWindow.fromWebContents(event.sender)
-  if (targetWindow && (targetWindow === wordCloudWindow || targetWindow === quizReviewWindow)) {
+  if (!targetWindow) return
+  // Only the control panel closing ends the class. Every auxiliary view just
+  // goes away — listing them individually meant each new window quit the whole
+  // app until someone remembered to add it here.
+  if (targetWindow !== mainWindow) {
     targetWindow.close()
     return
   }
@@ -640,6 +713,10 @@ ipcMain.handle('window:return-from-session-report', async (event) => {
   }
   return true
 })
+ipcMain.handle('window:open-roster', (_event, sessionId) => {
+  createRosterWindow(sessionId)
+})
+
 ipcMain.handle('window:open-word-cloud', (_event, sessionId) => {
   requireUuid(sessionId)
   createWordCloudWindow(sessionId)

@@ -4260,3 +4260,290 @@ h2 {
 .custom-quiz-native-content.is-single {
   grid-template-columns: minmax(0, 1fr);
 }
+
+/* Reads as part of the sentence, not as a button — it just opens the roster. */
+.online-count-link {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: none;
+}
+
+.online-count-link:hover {
+  opacity: 0.75;
+}
+
+.roster-window {
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 14px 16px 18px;
+}
+
+.roster-heading {
+  -webkit-app-region: drag;
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.roster-heading button {
+  -webkit-app-region: no-drag;
+}
+
+.roster-heading h1 {
+  align-items: center;
+  display: flex;
+  font-size: 1rem;
+  gap: 7px;
+  margin: 0;
+}
+
+.roster-count {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.roster-subhead {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 10px 0 0;
+}
+
+.roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.roster-list li {
+  align-items: center;
+  border-radius: 7px;
+  display: flex;
+  gap: 8px;
+  padding: 5px 7px;
+}
+
+.roster-list li:nth-child(odd) {
+  background: var(--surface-muted, #f7f8fb);
+}
+
+.roster-list.is-offline li {
+  color: var(--muted);
+}
+
+.roster-dot {
+  background: #c8cedb;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.roster-dot.is-online {
+  background: #12b76a;
+}
+
+.roster-empty {
+  margin: 4px 0;
+}
+
+.roster-window {
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 12px 14px 16px;
+}
+
+.roster-heading {
+  -webkit-app-region: drag;
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.roster-heading button {
+  -webkit-app-region: no-drag;
+}
+
+.roster-heading h1 {
+  align-items: center;
+  display: flex;
+  font-size: 1rem;
+  gap: 7px;
+  margin: 0;
+}
+
+.roster-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.roster-count {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.roster-sort {
+  align-items: center;
+  background: var(--surface-muted, #f2f4f8);
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.76rem;
+  gap: 4px;
+  padding: 4px 10px;
+}
+
+.roster-sort:hover {
+  color: var(--text);
+}
+
+.roster-hint,
+.roster-error {
+  font-size: 0.76rem;
+  margin: 0;
+}
+
+.roster-hint {
+  color: var(--muted);
+}
+
+.roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.roster-row {
+  align-items: center;
+  border-left: 3px solid transparent;
+  border-radius: 7px;
+  display: flex;
+  gap: 7px;
+  padding: 6px 8px;
+}
+
+.roster-row:nth-child(odd) {
+  background: var(--surface-muted, #f7f8fb);
+}
+
+/* Colour carries the two things worth acting on immediately. */
+.roster-row.is-pending {
+  background: #fff6e8;
+  border-left-color: #f79009;
+}
+
+.roster-row.is-distracted {
+  background: #fef1f1;
+  border-left-color: #e5544b;
+}
+
+.roster-row.is-offline {
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+.roster-name {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 5px;
+  min-width: 0;
+}
+
+.roster-badges {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  letter-spacing: 1px;
+}
+
+.roster-tags {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.roster-tag {
+  border-radius: 999px;
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+
+.roster-tag.is-pending {
+  background: #f79009;
+  color: #fff;
+}
+
+.roster-tag.is-distracted {
+  background: #e5544b;
+  color: #fff;
+}
+
+.roster-score {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 26px;
+  text-align: right;
+}
+
+.roster-call {
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 4px;
+}
+
+.roster-call:hover:not(:disabled) {
+  background: var(--primary, #1463ff);
+  color: #fff;
+}
+
+.roster-call:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.roster-dot {
+  background: #c8cedb;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.roster-dot.is-online {
+  background: #12b76a;
+}
+
+.roster-empty {
+  margin: 4px 0;
+}

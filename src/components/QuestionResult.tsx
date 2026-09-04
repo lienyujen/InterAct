@@ -47,7 +47,7 @@ function QuestionStatusActions({
           aria-label="抽選本題未作答學生"
           className="question-unanswered-draw"
           disabled={busy || !onlineCount}
-          title={onlineCount ? '抽選目前在線且未作答本題的學生' : '目前沒有在線學生'}
+          title={onlineCount ? '抽選目前線上且未作答本題的學生' : '目前沒有線上學生'}
           type="button"
           onClick={() => onDrawUnanswered(question.id)}
         >

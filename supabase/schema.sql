@@ -37,6 +37,7 @@ create table if not exists public.participants (
   device_id text not null,
   joined_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
+  unfocused_ms bigint not null default 0,
   unique (session_id, device_id)
 );
 
@@ -670,6 +671,26 @@ alter table public.sessions
 -- has been deployed once would keep handing out the old value forever.
 alter table public.sessions
   alter column caption_font_size set default 32;
+
+-- Tracks how long a student had the class page in the background. Added here
+-- rather than only in the table above so a project deployed earlier gains it.
+alter table public.participants
+  add column if not exists unfocused_ms bigint not null default 0;
+
+-- Accumulating a column cannot be expressed through the REST API, and reading
+-- then writing would lose concurrent heartbeats.
+create or replace function public.bump_participant_presence(target_id uuid, unfocused_delta bigint)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.participants
+  set last_seen_at = now(),
+      unfocused_ms = unfocused_ms + greatest(unfocused_delta, 0)
+  where id = target_id;
+$$;
+
 
 insert into storage.buckets (id, name, public)
 values ('interact-screenshots', 'interact-screenshots', true)

@@ -15,6 +15,7 @@ type Props = {
   onStartBuzzer: () => void
   onOpenTextDispatch: () => void
   onOpenFileTransfer: () => void
+  onOpenRoster: () => void
   onOpenWordCloud: () => void
   onOpenSettings: () => void
   onToggleRecording: () => void
@@ -37,6 +38,7 @@ export function PresenterControlPanel({
   onStartBuzzer,
   onOpenTextDispatch,
   onOpenFileTransfer,
+  onOpenRoster,
   onOpenWordCloud,
   onOpenSettings,
   onToggleRecording,
@@ -50,14 +52,16 @@ export function PresenterControlPanel({
       <div className="metric-row">
         <div className="metric">
           <span className="metric-icon"><Users size={18} /></span>
-          <span>{onlineCount} 人在線</span>
+          {/* A link rather than a button so it reads as part of the sentence;
+              the roster opens beside the panel instead of covering it. */}
+          <button className="online-count-link" type="button" onClick={onOpenRoster}>線上 {onlineCount} 人</button>
         </div>
         <div className="metric-actions">
           <button
             aria-label="開始搶答"
             className={`ghost-button metric-action energy-action buzzer-menu-button${buzzerActive ? ' active' : ''}`}
             disabled={busy || !onlineCount}
-            title={onlineCount ? (buzzerActive ? '重新開始搶答' : '開始搶答') : '目前沒有在線學員'}
+            title={onlineCount ? (buzzerActive ? '重新開始搶答' : '開始搶答') : '目前沒有線上學員'}
             type="button"
             onClick={onStartBuzzer}
           >
@@ -67,7 +71,7 @@ export function PresenterControlPanel({
             aria-label="抽籤"
             className="ghost-button metric-action energy-action"
             disabled={busy || !onlineCount}
-            title={onlineCount ? '從在線學員中抽籤' : '目前沒有在線學員'}
+            title={onlineCount ? '從線上學員中抽籤' : '目前沒有線上學員'}
             type="button"
             onClick={onDrawLottery}
           >

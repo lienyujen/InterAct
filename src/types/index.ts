@@ -46,6 +46,7 @@ export type Participant = {
   device_id: string
   joined_at: string
   last_seen_at: string
+  unfocused_ms?: number
 }
 
 export type Message = {

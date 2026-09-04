@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import type { QuestionAnalysis, SessionAnalysis, SessionMetrics, SessionReportData } from '../types'
+import { badgeText, participationRows } from './participation'
 
 const COLORS = {
   primary: '1463FF',
@@ -44,7 +45,15 @@ const exitTicketCategoryLabels = {
 }
 
 function formatDate(value: string | null) {
-  return value ? new Date(value) : null
+  if (!value) return null
+  const moment = new Date(value)
+  if (Number.isNaN(moment.getTime())) return null
+  return new Date(moment.getTime() - moment.getTimezoneOffset() * 60_000)
+}
+
+function minutes(ms: number | null | undefined) {
+  if (!ms || ms <= 0) return 0
+  return Math.round(ms / 60_000 * 10) / 10
 }
 
 function listText(values: string[]) {
@@ -189,19 +198,38 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     answerCountByParticipant.set(attempt.participant_id, (answerCountByParticipant.get(attempt.participant_id) || 0) + 1)
   }
 
+  const participationByParticipant = new Map(
+    participationRows({
+      participants: data.participants,
+      questions: data.questions,
+      answers: data.answers,
+      messages: data.messages,
+      quizAttempts: data.customQuizResults.attempts,
+    }).map((row) => [row.participant.id, row]),
+  )
+
   const participants = workbook.addWorksheet('參與者')
   participants.columns = [
     { header: '姓名', key: 'name', width: 20 },
+    { header: '參與分數', key: 'score', width: 12 },
+    { header: '獎章', key: 'badges', width: 26 },
     { header: '加入時間', key: 'joinedAt', width: 22 },
-    { header: '最後活動時間', key: 'lastSeenAt', width: 22 },
+    { header: '最後在線時間', key: 'lastSeenAt', width: 22 },
+    { header: '在線時長（分）', key: 'presentMinutes', width: 15 },
+    { header: '離開畫面（分）', key: 'unfocusedMinutes', width: 15 },
     { header: '彈幕次數', key: 'messageCount', width: 14 },
     { header: '作答次數', key: 'answerCount', width: 14 },
   ]
   for (const participant of data.participants) {
+    const participation = participationByParticipant.get(participant.id)
     participants.addRow({
       name: participant.name,
+      score: participation?.score ?? 0,
+      badges: participation ? badgeText(participation.badges) : '',
       joinedAt: formatDate(participant.joined_at),
       lastSeenAt: formatDate(participant.last_seen_at),
+      presentMinutes: minutes(new Date(participant.last_seen_at).getTime() - new Date(participant.joined_at).getTime()),
+      unfocusedMinutes: minutes(participant.unfocused_ms),
       messageCount: messageCountByParticipant.get(participant.id) || 0,
       answerCount: answerCountByParticipant.get(participant.id) || 0,
     })

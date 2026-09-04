@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   openSessionReport: (sessionId, generate = false) => ipcRenderer.invoke('window:open-session-report', sessionId, generate),
   returnFromSessionReport: () => ipcRenderer.invoke('window:return-from-session-report'),
   openWordCloud: (sessionId) => ipcRenderer.invoke('window:open-word-cloud', sessionId),
+  openRoster: (sessionId) => ipcRenderer.invoke('window:open-roster', sessionId),
   openCustomQuizReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-custom-quiz-review', sessionId, questionId),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close'),

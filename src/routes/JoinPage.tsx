@@ -19,6 +19,7 @@ export function JoinPage() {
   const [busy, setBusy] = useState(false)
   const [sessionChecked, setSessionChecked] = useState(false)
   const [sessionLookupError, setSessionLookupError] = useState('')
+  const [returning, setReturning] = useState(false)
   const [locale, setLocale] = useState<ParticipantLocale>(participantLocaleFromStorage)
   const navigate = useNavigate()
   const location = useLocation()
@@ -27,6 +28,43 @@ export function JoinPage() {
     localStorage.setItem('interact_participant_locale', nextLocale)
     setLocale(nextLocale)
   }
+
+  // Students commonly scan, join, wander off, then scan again to come back. The
+  // name box was asked a second time but ignored — the server keys a participant
+  // to the device, so whatever they typed they returned as their first name.
+  // Recognising the device instead skips a step that never did anything.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !session?.id) return
+    const participantId = localStorage.getItem(`interact_participant_${session.id}`)
+    const participantToken = localStorage.getItem(`interact_participant_token_${session.id}`)
+    if (!participantId || !participantToken) return
+
+    let cancelled = false
+    void (async () => {
+      try {
+        // A stored token can outlive the participant it belonged to, so it is
+        // checked before the form is skipped rather than after.
+        const { data, error: checkError } = await requireSupabase().functions.invoke('participant-action', {
+          body: { action: 'heartbeat', sessionId: session.id, participantId, participantToken, unfocusedMs: 0 },
+        })
+        if (cancelled) return
+        if (checkError || !data?.ok) {
+          localStorage.removeItem(`interact_participant_${session.id}`)
+          localStorage.removeItem(`interact_participant_token_${session.id}`)
+          return
+        }
+        setReturning(true)
+        navigate(`/participant/${session.id}${location.search}`, { replace: true })
+      } catch {
+        // Offline or the function is missing: fall through to the name form,
+        // which still works.
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [location.search, navigate, session?.id])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !sessionReference) return
@@ -113,6 +151,24 @@ export function JoinPage() {
           <span className="participant-ended-icon"><Waves size={34} /></span>
           <h1>{participantText(locale, 'sessionGoneTitle')}</h1>
           <p>{participantText(locale, 'sessionGoneMessage')}</p>
+        </section>
+      </main>
+    )
+  }
+
+  // Shown for the moment between recognising the device and the class page
+  // appearing, so the name form does not flash up and vanish.
+  if (returning) {
+    return (
+      <main className="center-page">
+        <section className="panel form-panel">
+          <span className="form-heading-icon"><UserRound size={24} /></span>
+          <h1>{locale === 'en' ? 'Welcome back' : '歡迎回到課堂'}</h1>
+          <p className="muted">
+            {locale === 'en'
+              ? `Signing you back in as ${localStorage.getItem(`interact_name_${session?.id}`) || ''}…`
+              : `正在以「${localStorage.getItem(`interact_name_${session?.id}`) || ''}」的身分回到課堂…`}
+          </p>
         </section>
       </main>
     )

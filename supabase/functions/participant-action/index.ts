@@ -120,6 +120,24 @@ Deno.serve(async (req) => {
     const participantId = typeof input.participantId === 'string' ? input.participantId : ''
     const participantToken = typeof input.participantToken === 'string' ? input.participantToken : ''
 
+    // Keeps last_seen_at meaningful — it was written once at join and never
+    // again, so it always equalled joined_at — and accumulates the time the
+    // page spent hidden, which tells the presenter who drifted away.
+    if (action === 'heartbeat') {
+      const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
+      if (!participant) return jsonResponse({ message: '學員權限失效。' }, 403)
+      const reported = Number(input.unfocusedMs)
+      // A single report cannot exceed the interval by much; anything larger is a
+      // clock jump rather than inattention.
+      const unfocused = Number.isFinite(reported) ? Math.min(Math.max(Math.round(reported), 0), 30 * 60_000) : 0
+      const { error } = await supabase.rpc('bump_participant_presence', {
+        target_id: participantId,
+        unfocused_delta: unfocused,
+      })
+      if (error) throw error
+      return jsonResponse({ ok: true })
+    }
+
     if (['get_custom_quiz', 'submit_custom_quiz', 'retry_custom_quiz_grading'].includes(action)) {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限失效，請重新掃描 QR Code 加入場次。' }, 403)

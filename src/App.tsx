@@ -6,6 +6,7 @@ import { CustomQuizReviewPage } from './routes/CustomQuizReviewPage'
 import { HomePage } from './routes/HomePage'
 import { JoinPage } from './routes/JoinPage'
 import { ParticipantPage } from './routes/ParticipantPage'
+import { RosterPage } from './routes/RosterPage'
 import { PresenterNewPage } from './routes/PresenterNewPage'
 import { PresenterPage } from './routes/PresenterPage'
 import { SessionReportPage } from './routes/SessionReportPage'
@@ -23,6 +24,7 @@ function AppRoutes() {
   const isDesktopPresenter = isDesktop && location.pathname.startsWith('/presenter/') && location.pathname !== '/presenter/new'
   const isSessionReport = location.pathname.startsWith('/session-report/')
   const isWordCloud = location.pathname.startsWith('/word-cloud/')
+  const isRoster = location.pathname.startsWith('/roster/')
 
   // A downloaded build has no project baked in, so ask the presenter for theirs
   // before anything else. Students arrive through a link that already carries one.
@@ -37,7 +39,7 @@ function AppRoutes() {
 
   return (
     <div className={isDesktop ? 'desktop-shell' : undefined}>
-      {!isDesktopOverlay && !isDesktopPresenter && !isCustomQuizReview && (
+      {!isDesktopOverlay && !isDesktopPresenter && !isCustomQuizReview && !isRoster && (
         <DesktopWindowChrome
           confirmClose={!isWordCloud}
           onBack={isSessionReport ? returnFromSessionReport : undefined}
@@ -50,6 +52,7 @@ function AppRoutes() {
         <Route path="/desktop-overlay/:sessionId" element={isDesktop ? <DesktopOverlayPage /> : <Navigate to="/" replace />} />
         <Route path="/custom-quiz-review/:sessionId/:questionId" element={isDesktop ? <CustomQuizReviewPage /> : <Navigate to="/" replace />} />
         <Route path="/session-report/:sessionId" element={isDesktop ? <SessionReportPage /> : <Navigate to="/" replace />} />
+        <Route path="/roster/:sessionId" element={isDesktop ? <RosterPage /> : <Navigate to="/" replace />} />
         <Route path="/word-cloud/:sessionId" element={isDesktop ? <WordCloudPage /> : <Navigate to="/" replace />} />
         <Route path="/join/:sessionId" element={<JoinPage />} />
         <Route path="/participant/:sessionId" element={<ParticipantPage />} />

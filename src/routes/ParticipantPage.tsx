@@ -25,6 +25,7 @@ import {
 } from '../lib/messageLimit'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
+import { trackParticipantPresence } from '../lib/participantPresence'
 import { participantLocaleFromStorage, participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, ParticipantQuizData, Question, Screenshot, Session, SessionAnalysis, SessionEvent, SharedContent } from '../types'
@@ -78,6 +79,12 @@ export function ParticipantPage() {
   const navigate = useNavigate()
   const location = useLocation()
   useSessionPresence(sessionId, session?.status === 'active' ? participant : null)
+
+  // Presence in the channel is live-only; this is what the report reads later.
+  useEffect(() => {
+    if (session?.status !== 'active' || !participant?.id || !participantToken) return
+    return trackParticipantPresence({ sessionId, participantId: participant.id, participantToken })
+  }, [participant?.id, participantToken, session?.status, sessionId])
   const localizedSummary = locale === 'en' ? sessionSummary?.translations?.en || sessionSummary : sessionSummary
   const participantName = participant?.name || localStorage.getItem(`interact_name_${sessionId}`) || ''
 

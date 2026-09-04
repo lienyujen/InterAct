@@ -26,6 +26,7 @@ declare global {
       openSessionReport: (sessionId: string, generate?: boolean) => Promise<void>
       returnFromSessionReport: () => Promise<boolean>
       openWordCloud: (sessionId: string) => Promise<void>
+      openRoster: (sessionId: string) => Promise<void>
       openCustomQuizReview: (sessionId: string, questionId: string) => Promise<void>
       minimize: () => Promise<void>
       close: () => Promise<void>
