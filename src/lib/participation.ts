@@ -1,4 +1,4 @@
-import type { Answer, Message, Participant, Question, QuizAttempt } from '../types'
+import type { Answer, FileResponse, Message, Participant, Question, QuizAttempt } from '../types'
 
 // One definition of "how involved was this student", shared by the live roster
 // and the exported report so the two can never disagree.
@@ -29,6 +29,10 @@ export type ParticipationRow = {
   correctCount: number
   quickCount: number
   buzzerWins: number
+  // Average AI mark across the upload questions this student was marked on,
+  // and how many of those there were. Null before anything has been marked.
+  uploadScore: number | null
+  uploadCount: number
   unfocusedMs: number
   focusStreakMs: number
   onlineMs: number
@@ -44,6 +48,9 @@ type Input = {
   // answers — being first on the buzzer is the same kind of quick as being
   // first to submit.
   buzzerWins?: Map<string, number>
+  // Marked uploads. Only rows the presenter actually paid to mark carry a
+  // score, so an unmarked class simply scores as it did before.
+  uploadMarks?: FileResponse[]
 }
 
 // Questions a student could actually have answered. A screen that was only
@@ -87,6 +94,23 @@ export function participationRows(input: Input): ParticipationRow[] {
     quizByParticipant.set(attempt.participant_id, current)
   }
 
+  // A student who photographed three pages carries the same mark on all three
+  // rows, so each question counts once: an essay is one score, not three.
+  const uploadByParticipant = new Map<string, { total: number; count: number }>()
+  const countedUploads = new Set<string>()
+  for (const mark of input.uploadMarks || []) {
+    if (mark.analysis_status !== 'success') continue
+    const marked = mark.analysis_json?.score
+    if (typeof marked !== 'number') continue
+    const key = `${mark.participant_id}:${mark.question_id}`
+    if (countedUploads.has(key)) continue
+    countedUploads.add(key)
+    const current = uploadByParticipant.get(mark.participant_id) || { total: 0, count: 0 }
+    current.total += marked
+    current.count += 1
+    uploadByParticipant.set(mark.participant_id, current)
+  }
+
   return input.participants.map((participant) => {
     const own = input.answers.filter((answer) => answer.participant_id === participant.id)
     const answeredQuestionIds = new Set(own.map((answer) => answer.question_id))
@@ -104,6 +128,8 @@ export function participationRows(input: Input): ParticipationRow[] {
     const focusStreakMs = participant.focus_streak_ms || 0
     const onlineMs = Math.max(0, new Date(participant.last_seen_at).getTime() - new Date(participant.joined_at).getTime())
     const quiz = quizByParticipant.get(participant.id)
+    const upload = uploadByParticipant.get(participant.id)
+    const uploadScore = upload ? Math.round(upload.total / upload.count) : null
 
     let score = 0
     score += answeredQuestionIds.size * 10
@@ -112,6 +138,11 @@ export function participationRows(input: Input): ParticipationRow[] {
     score += buzzerWins * 5
     score += Math.min(messageCount * 2, 20)
     if (quiz && quiz.max > 0) score += Math.round((quiz.score / quiz.max) * 20)
+    // A marked upload is worth what a quiz is worth, on the same 20-point
+    // scale, so a class assessed on paper is not scored lower than one
+    // assessed on screen. Correct uploads also reach correctCount through the
+    // answer row the marker writes back, the same as any other question.
+    if (uploadScore !== null) score += Math.round((uploadScore / 100) * 20)
     // Attention is worth acknowledging in both directions, but only once the
     // student has been present long enough for the figure to mean anything.
     if (focusStreakMs >= 10 * 60_000) score += 10
@@ -150,6 +181,8 @@ export function participationRows(input: Input): ParticipationRow[] {
       correctCount,
       quickCount,
       buzzerWins,
+      uploadScore,
+      uploadCount: upload?.count || 0,
       unfocusedMs,
       focusStreakMs,
       onlineMs,

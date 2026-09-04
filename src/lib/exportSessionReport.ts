@@ -164,6 +164,10 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     ['錄音作答數', metrics.audio_response_count],
     ['錄音完成分析數', metrics.analyzed_audio_count],
     ['錄音平均分數', metrics.average_audio_score ?? '尚無完成的錄音分析'],
+    ['上傳作答人次', metrics.file_submission_count ?? 0],
+    ['上傳檔案數', metrics.file_count ?? 0],
+    ['已批改人次', metrics.marked_file_submission_count ?? 0],
+    ['上傳作答平均分數', metrics.average_file_score ?? '尚無完成的批改'],
     ['文字／連結派送數', data.sharedContents.length],
   ])
   const interactionStart = 11
@@ -213,6 +217,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       messages: data.messages,
       quizAttempts: data.customQuizResults.attempts,
       buzzerWins: buzzerWinsFrom(data.buzzerEvents),
+      uploadMarks: data.fileResponses,
     }).map((row) => [row.participant.id, row]),
   )
 
@@ -227,6 +232,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     { header: '離開畫面（分）', key: 'unfocusedMinutes', width: 15 },
     { header: '彈幕次數', key: 'messageCount', width: 14 },
     { header: '作答次數', key: 'answerCount', width: 14 },
+    { header: '上傳作答分數', key: 'uploadScore', width: 14 },
   ]
   for (const participant of data.participants) {
     const participation = participationByParticipant.get(participant.id)
@@ -240,6 +246,9 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       unfocusedMinutes: minutes(participant.unfocused_ms),
       messageCount: messageCountByParticipant.get(participant.id) || 0,
       answerCount: answerCountByParticipant.get(participant.id) || 0,
+      // Blank rather than 0 when nothing was marked, so an empty cell always
+      // means "no upload marked" instead of "marked and scored nothing".
+      uploadScore: participation?.uploadScore ?? '',
     })
   }
   participants.getColumn('joinedAt').numFmt = 'yyyy-mm-dd hh:mm:ss'

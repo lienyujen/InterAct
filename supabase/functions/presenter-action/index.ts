@@ -462,6 +462,21 @@ Deno.serve(async (req) => {
           analyzed_at: new Date().toISOString(),
         }).in('id', readableIds).select('*')
         if (updateError) throw updateError
+        // The mark is the answer to this question, so it goes where every other
+        // question's answer goes: the placeholder row the upload created. From
+        // there the roster's score, the 神準 badge, the correct-rate on the
+        // report and the Excel sheet all read it without knowing it came from a
+        // photograph. partial is not 答對, and an open-ended piece is not marked
+        // right or wrong at all.
+        const isCorrect = analysis.verdict === 'correct' ? true
+          : analysis.verdict === 'unscored' ? null
+          : false
+        const { error: answerError } = await supabase.from('answers')
+          .update({ is_correct: isCorrect })
+          .eq('question_id', fileRow.question_id)
+          .eq('participant_id', fileRow.participant_id)
+        if (answerError) throw answerError
+
         // Anything in the same submission the model cannot open is settled now
         // too, so the presenter is never left with a row asking to be marked
         // that pressing again would not change.

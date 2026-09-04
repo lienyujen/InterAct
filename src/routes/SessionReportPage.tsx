@@ -67,6 +67,21 @@ function BulletList({ items }: { items: string[] }) {
   return <ul className="report-list">{items.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}</ul>
 }
 
+const fileAnalysisLabels: Record<string, string> = {
+  pending: '尚未批改',
+  analyzing: '批改中',
+  success: '已批改',
+  failed: '批改失敗',
+  unsupported: 'AI 無法讀取此格式',
+}
+
+const uploadVerdictLabels: Record<string, string> = {
+  correct: '正確',
+  partial: '部分正確',
+  incorrect: '不正確',
+  unscored: '未評分',
+}
+
 export function SessionReportPage() {
   const { sessionId = '' } = useParams()
   const [searchParams] = useSearchParams()
@@ -208,6 +223,21 @@ export function SessionReportPage() {
     }])),
     [reportData?.questions],
   )
+
+  // One row per student per question, the way the mark itself was made.
+  const uploadSubmissions = useMemo(() => {
+    const groups = new Map<string, FileResponse[]>()
+    for (const response of reportData?.fileResponses || []) {
+      const key = `${response.question_id}:${response.participant_id}`
+      const existing = groups.get(key)
+      if (existing) existing.push(response)
+      else groups.set(key, [response])
+    }
+    const rank = (response: FileResponse) => response.analysis_status === 'success' ? 0
+      : response.analysis_status === 'unsupported' ? 2 : 1
+    return [...groups.entries()].map(([key, files]) =>
+      [key, [...files].sort((left, right) => rank(left) - rank(right))] as const)
+  }, [reportData?.fileResponses])
 
   async function exportExcel() {
     if (!reportData || !analysis || !metrics) return
@@ -374,6 +404,38 @@ export function SessionReportPage() {
             </table>
           </div>
         ) : <p className="muted">本場次沒有錄音評測。</p>}
+      </section>
+
+      <section className="report-section">
+        <h2>上傳作答批改</h2>
+        {uploadSubmissions.length ? (
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead><tr><th>題次／題型</th><th>姓名</th><th>檔案</th><th>判定／分數</th><th>AI 批改</th><th>做得好</th><th>可改進</th></tr></thead>
+              <tbody>
+                {uploadSubmissions.map(([key, files]) => {
+                  const lead = files[0]
+                  const item = lead.analysis_json
+                  const meta = questionMeta.get(lead.question_id)
+                  return (
+                    <tr key={key}>
+                      <td>{meta ? `${meta.number}．${meta.type}` : '—'}</td>
+                      <td>{lead.participant_name}</td>
+                      <td>{files.map((file) => file.name).join('、')}</td>
+                      <td>
+                        {item?.verdict ? uploadVerdictLabels[item.verdict] || item.verdict : fileAnalysisLabels[lead.analysis_status] || '—'}
+                        <br />{typeof item?.score === 'number' ? `${item.score} 分` : '—'}
+                      </td>
+                      <td>{item?.summary_zh_tw || lead.error_message || '—'}</td>
+                      <td>{item?.strengths_zh_tw.join('、') || '—'}</td>
+                      <td>{item?.improvements_zh_tw.join('、') || '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="muted">本場次沒有上傳作答。</p>}
       </section>
 
       <div className="report-two-column">

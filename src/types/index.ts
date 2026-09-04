@@ -240,6 +240,12 @@ export type SessionMetrics = {
   audio_response_count: number
   analyzed_audio_count: number
   average_audio_score: number | null
+  // Written earlier than the fields above by older analyses, which is why
+  // these are optional: a report generated before uploads existed has none.
+  file_submission_count?: number
+  file_count?: number
+  marked_file_submission_count?: number
+  average_file_score?: number | null
   duration_minutes: number
 }
 

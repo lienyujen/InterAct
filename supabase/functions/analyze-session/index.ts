@@ -132,11 +132,11 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (!regenerate && cached?.input_json?.analysis_version === 8) {
+    if (!regenerate && cached?.input_json?.analysis_version === 9) {
       return jsonResponse({ analysis: cached.output_json, metrics: cached.input_json?.metrics, cached: true })
     }
 
-    const [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, audioResponseResult, questionAnalysisResult, exitTicketResult] = await Promise.all([
+    const [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, audioResponseResult, fileResponseResult, questionAnalysisResult, exitTicketResult] = await Promise.all([
       supabase.from('participants').select('id').eq('session_id', sessionId).order('joined_at').limit(5000),
       supabase.from('messages').select('participant_id, content, created_at').eq('session_id', sessionId).order('created_at').limit(5000),
       supabase.from('shared_contents').select('body, url, created_at').eq('session_id', sessionId).order('created_at').limit(1000),
@@ -144,11 +144,12 @@ Deno.serve(async (req) => {
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
       supabase.from('answers').select('question_id, participant_id, answer_value, answer_values, answer_text, is_correct').eq('session_id', sessionId).order('submitted_at').limit(10000),
       supabase.from('audio_responses').select('question_id, analysis_status, detected_language, transcript, score, analysis_json, submitted_at').eq('session_id', sessionId).order('submitted_at').limit(10000),
+      supabase.from('file_responses').select('question_id, participant_id, name, mime_type, analysis_status, analysis_json, submitted_at').eq('session_id', sessionId).order('submitted_at').limit(10000),
       supabase.from('ai_summaries').select('question_id, output_json').eq('session_id', sessionId).eq('type', 'question_analysis').eq('status', 'success').order('created_at').limit(500),
       supabase.from('exit_tickets').select('most_useful, still_confused, understanding_score, engagement_score, next_suggestion, response_text, rating').eq('session_id', sessionId).order('submitted_at').limit(5000),
     ])
 
-    for (const result of [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, audioResponseResult, questionAnalysisResult, exitTicketResult]) {
+    for (const result of [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, audioResponseResult, fileResponseResult, questionAnalysisResult, exitTicketResult]) {
       if (result.error) throw result.error
     }
 
@@ -159,6 +160,19 @@ Deno.serve(async (req) => {
     const questions = questionResult.data || []
     const answers = answerResult.data || []
     const audioResponses = audioResponseResult.data || []
+    // A student's pages carry one mark between them, so the submission — not
+    // the file — is the unit everything below counts in.
+    const fileResponses = fileResponseResult.data || []
+    const fileSubmissions = [...fileResponses.reduce((byStudent, upload) => {
+      const key = `${upload.question_id}:${upload.participant_id}`
+      const kept = byStudent.get(key)
+      const better = !kept
+        || (kept.analysis_status !== 'success' && upload.analysis_status === 'success')
+        || (kept.analysis_status === 'unsupported' && upload.analysis_status !== 'unsupported')
+      if (better) byStudent.set(key, { ...upload, file_count: (kept?.file_count || 0) + 1 })
+      else byStudent.set(key, { ...kept, file_count: kept.file_count + 1 })
+      return byStudent
+    }, new Map()).values()]
     const questionAnalyses = questionAnalysisResult.data || []
     const exitTickets = exitTicketResult.data || []
     const { data: quizzes, error: quizError } = await supabase.from('quizzes').select('*')
@@ -205,6 +219,7 @@ Deno.serve(async (req) => {
       )
       const assessed = questionAnswers.filter((answer) => answer.is_correct !== null)
       const questionAudioResponses = audioResponses.filter((response) => response.question_id === question.id)
+      const questionUploads = fileSubmissions.filter((upload) => upload.question_id === question.id)
       const quiz = quizByQuestion.get(question.id)
       const questionQuizItems = quiz ? (quizItems || []).filter((item) => item.quiz_id === quiz.id) : []
       const questionQuizAttempts = quiz ? (quizAttempts || []).filter((attempt) => attempt.quiz_id === quiz.id) : []
@@ -264,12 +279,26 @@ Deno.serve(async (req) => {
           score: response.score,
           analysis: response.analysis_json,
         })),
+        // Written work the class handed in on paper. Only marked rows carry an
+        // analysis; the unmarked ones are listed so the report can say plainly
+        // how much of the class it is speaking for.
+        file_submissions: questionUploads.map((upload, index) => ({
+          response_number: index + 1,
+          file_count: upload.file_count,
+          analysis_status: upload.analysis_status,
+          verdict: upload.analysis_json?.verdict ?? null,
+          score: upload.analysis_json?.score ?? null,
+          summary: upload.analysis_json?.summary_zh_tw ?? null,
+          strengths: upload.analysis_json?.strengths_zh_tw ?? [],
+          improvements: upload.analysis_json?.improvements_zh_tw ?? [],
+        })),
         prior_ai_analysis: analysisByQuestion.get(question.id) || null,
         custom_quiz: customQuiz,
       }
     })
 
     const analyzedAudioResponses = audioResponses.filter((response) => response.analysis_status === 'success' && typeof response.score === 'number')
+    const markedUploads = fileSubmissions.filter((upload) => upload.analysis_status === 'success' && typeof upload.analysis_json?.score === 'number')
 
     const metrics = {
       participant_count: participants.length,
@@ -290,11 +319,17 @@ Deno.serve(async (req) => {
       average_audio_score: analyzedAudioResponses.length
         ? Math.round((analyzedAudioResponses.reduce((total, response) => total + response.score, 0) / analyzedAudioResponses.length) * 10) / 10
         : null,
+      file_submission_count: fileSubmissions.length,
+      file_count: fileResponses.length,
+      marked_file_submission_count: markedUploads.length,
+      average_file_score: markedUploads.length
+        ? Math.round((markedUploads.reduce((total, upload) => total + upload.analysis_json.score, 0) / markedUploads.length) * 10) / 10
+        : null,
       duration_minutes: durationMinutes,
     }
 
     summaryInput = {
-      analysis_version: 8,
+      analysis_version: 9,
       session: {
         title: session.title,
         created_at: session.created_at,
@@ -319,7 +354,7 @@ Deno.serve(async (req) => {
     }
 
     const result = await callAiJson(
-      '你是 InterAct 的課堂互動與形成性評量分析顧問。請先以繁體中文根據匿名化統計、講師派送的課程文字與連結、課堂原文逐字稿、彈幕內容、每題作答結果、錄音評測、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告；再於 translations.en 輸出結構相同、證據與意義一致的自然英文版本。英文版本是翻譯，不可另行推論。lesson_transcript 是講師授課內容：若有內容，lesson_key_points 必須將整節課整理成精煉、具結構且可直接給教師與學生閱讀的課堂重點，不可逐句照抄、不可顯示逐字稿；若 lesson_transcript 為空，中英文 lesson_key_points 都必須回傳空陣列。逐字稿可用來核對互動脈絡與提出教學建議，但不可把講師說的話誤認為學生意見或學習證據。錄音題的 audio_evaluations 包含匿名化逐字稿、分數及個別 AI 評語，必須納入該題的 result_summary、evidence 與整體學習分析。自訂測驗的 custom_quiz 包含題目、選項、正確答案、匿名化學生答案、得分與回饋，必須逐題分析其答題表現、錯誤與迷思，並納入對應的 question_findings；只要 attempts 有資料，就不可把該測驗判斷為無人作答。instructor_shared_contents 是講師提供的課程參考資料。所有結論都要指出資料證據；資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
+      '你是 InterAct 的課堂互動與形成性評量分析顧問。請先以繁體中文根據匿名化統計、講師派送的課程文字與連結、課堂原文逐字稿、彈幕內容、每題作答結果、錄音評測、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告；再於 translations.en 輸出結構相同、證據與意義一致的自然英文版本。英文版本是翻譯，不可另行推論。lesson_transcript 是講師授課內容：若有內容，lesson_key_points 必須將整節課整理成精煉、具結構且可直接給教師與學生閱讀的課堂重點，不可逐句照抄、不可顯示逐字稿；若 lesson_transcript 為空，中英文 lesson_key_points 都必須回傳空陣列。逐字稿可用來核對互動脈絡與提出教學建議，但不可把講師說的話誤認為學生意見或學習證據。錄音題的 audio_evaluations 包含匿名化逐字稿、分數及個別 AI 評語，必須納入該題的 result_summary、evidence 與整體學習分析。上傳作答題的 file_submissions 是學生寫在紙上或做成檔案後上傳、再由 AI 逐份批改的結果，一位學生一筆（file_count 是他交了幾個檔）；判定與分數必須納入該題的 result_summary 與 evidence，analysis_status 不是 success 的代表尚未批改，只能算在未批改份數裡，不可當成沒作答，也不可臆測其內容。自訂測驗的 custom_quiz 包含題目、選項、正確答案、匿名化學生答案、得分與回饋，必須逐題分析其答題表現、錯誤與迷思，並納入對應的 question_findings；只要 attempts 有資料，就不可把該測驗判斷為無人作答。instructor_shared_contents 是講師提供的課程參考資料。所有結論都要指出資料證據；資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
       summaryInput,
       sessionAnalysisSchema,
       'deep',

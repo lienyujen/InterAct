@@ -6,7 +6,7 @@ import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
 import { buzzerWinsFrom, participationRows } from '../lib/participation'
 import type { ParticipationRow } from '../lib/participation'
-import type { Answer, Message, Participant, Question, SessionCustomQuizResults, SessionEvent } from '../types'
+import type { Answer, FileResponse, Message, Participant, Question, SessionCustomQuizResults, SessionEvent } from '../types'
 
 type SortMode = 'engagement' | 'name' | 'joined'
 
@@ -29,6 +29,7 @@ export function RosterPage() {
   const [answers, setAnswers] = useState<Answer[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [quiz, setQuiz] = useState<SessionCustomQuizResults | null>(null)
+  const [uploadMarks, setUploadMarks] = useState<FileResponse[]>([])
   const [events, setEvents] = useState<SessionEvent[]>([])
   const [sort, setSort] = useState<SortMode>('engagement')
   const [calling, setCalling] = useState('')
@@ -51,14 +52,21 @@ export function RosterPage() {
     setMessages((m.data || []) as Message[])
     setEvents((e.data || []) as SessionEvent[])
 
-    // Quiz attempts only come back through the presenter action, and the score
+    // Quiz attempts and marked uploads only come back through the presenter
+    // action — file_responses is private to the presenter — and the score
     // would be wrong without them.
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) return
-    const { data } = await supabase.functions.invoke('presenter-action', {
-      body: { action: 'get_session_custom_quiz_results', sessionId, presenterToken },
-    })
-    if (data) setQuiz(data as SessionCustomQuizResults)
+    const [quizResult, uploadResult] = await Promise.all([
+      supabase.functions.invoke('presenter-action', {
+        body: { action: 'get_session_custom_quiz_results', sessionId, presenterToken },
+      }),
+      supabase.functions.invoke('presenter-action', {
+        body: { action: 'get_file_responses', sessionId, presenterToken },
+      }),
+    ])
+    if (quizResult.data) setQuiz(quizResult.data as SessionCustomQuizResults)
+    setUploadMarks((uploadResult.data?.responses || []) as FileResponse[])
   }, [sessionId])
 
   useEffect(() => {
@@ -92,6 +100,7 @@ export function RosterPage() {
       messages,
       quizAttempts: quiz?.attempts || [],
       buzzerWins: buzzerWinsFrom(events),
+      uploadMarks,
     })
     const online = (row: ParticipationRow) => onlineParticipantIds.includes(row.participant.id)
     const scored = computed.some((row) => row.score > 0)
@@ -105,7 +114,7 @@ export function RosterPage() {
       if (!scored) return a.participant.name.localeCompare(b.participant.name, 'zh-Hant')
       return b.score - a.score
     })
-  }, [answers, events, messages, onlineParticipantIds, participants, questions, quiz, sort])
+  }, [answers, events, messages, onlineParticipantIds, participants, questions, quiz, sort, uploadMarks])
 
   const onlineCount = rows.filter((row) => onlineParticipantIds.includes(row.participant.id)).length
 
@@ -183,7 +192,16 @@ export function RosterPage() {
                   {pending && <span className="roster-tag is-pending">未作答</span>}
                   {distracted && <span className="roster-tag is-distracted">離開 {minutes(row.unfocusedMs)} 分</span>}
                 </span>
-                <span className="roster-score" title={`作答 ${row.answerCount}．答對 ${row.correctCount}．彈幕 ${row.messageCount}．搶答 ${row.quickCount}`}>
+                <span
+                  className="roster-score"
+                  title={[
+                    `作答 ${row.answerCount}`,
+                    `答對 ${row.correctCount}`,
+                    `彈幕 ${row.messageCount}`,
+                    `搶答 ${row.quickCount}`,
+                    row.uploadScore !== null ? `上傳作答 ${row.uploadScore} 分` : '',
+                  ].filter(Boolean).join('．')}
+                >
                   {row.score}
                 </span>
                 <button
