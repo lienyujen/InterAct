@@ -1,5 +1,6 @@
 import { corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
+import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/owner.ts'
 
 const codeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 const speakerLanguages = new Set(['zh-tw', 'en'])
@@ -36,6 +37,9 @@ Deno.serve(async (req) => {
 
   try {
     const input = await req.json()
+    // Starting a class spends this project's own Gemini and OpenAI credits, so
+    // it takes more than the publishable key every student already holds.
+    if (ownerKeyConfigured() && !isOwner(input)) return jsonResponse({ message: ownerRefusalMessage(input) }, 403)
     const title = typeof input.title === 'string' ? input.title.trim().slice(0, 120) : ''
     const sourceLanguage = normalizedLanguage(input.captionSourceLanguage, speakerLanguages)
     const interpretationLanguages = Array.isArray(input.interpretationLanguages)

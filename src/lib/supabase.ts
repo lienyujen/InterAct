@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { getOwnerKey } from './ownerKey'
 
 const STORAGE_KEY = 'interact:backend'
 
@@ -73,6 +74,35 @@ export const supabase = config
       realtime: { params: { eventsPerSecond: 20 } },
     })
   : null
+
+// Functions that act on the teacher's behalf rather than a student's.
+const ownerFunctions = new Set(['create-session', 'presenter-action', 'gemini-caption-relay', 'openai-realtime-session'])
+
+// Attached here rather than at each call site: there are dozens of them, and a
+// credential that is only present when someone remembered to pass it is not a
+// credential at all.
+if (supabase) {
+  type Invoke = typeof supabase.functions.invoke
+  type InvokeOptions = Parameters<Invoke>[1]
+  // Patched on the prototype, not the instance: `client.functions` is a getter
+  // that builds a fresh FunctionsClient on every access, so assigning to
+  // `supabase.functions.invoke` decorates an object that is thrown away before
+  // anything calls it — the key silently never went anywhere.
+  const prototype = Object.getPrototypeOf(supabase.functions) as { invoke: Invoke; __interactOwnerKey?: boolean }
+  if (!prototype.__interactOwnerKey) {
+    const original = prototype.invoke
+    prototype.invoke = function patched(this: unknown, name: string, options?: InvokeOptions) {
+      const ownerKey = getOwnerKey()
+      const body = options?.body
+      if (ownerKey && ownerFunctions.has(name) && body && typeof body === 'object'
+        && !Array.isArray(body) && !(body instanceof FormData)) {
+        return original.call(this, name, { ...options, body: { ...(body as Record<string, unknown>), ownerKey } })
+      }
+      return original.call(this, name, options)
+    } as Invoke
+    prototype.__interactOwnerKey = true
+  }
+}
 
 export function requireSupabase() {
   if (!supabase) {

@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { SetupNotice } from '../components/SetupNotice'
 import { BackendSetup } from '../components/BackendSetup'
 import { getPresenterToken, savePresenterToken } from '../lib/presenterAuth'
+import { hasOwnerKey } from '../lib/ownerKey'
 import { deleteManagedSession, endManagedSession, listManagedSessions } from '../lib/presenterSessions'
 import type { ManagedSession } from '../lib/presenterSessions'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
@@ -103,10 +104,13 @@ export function PresenterNewPage() {
 
   async function runPendingAction() {
     if (!pendingAction) return
+    // A class started on another computer leaves no token here, and refusing on
+    // that basis is what made the leftover sessions impossible to clear. The
+    // management key stands in for it; without either, the server still says no.
     const presenterToken = getPresenterToken(pendingAction.session.id)
-    if (!presenterToken) {
+    if (!presenterToken && !hasOwnerKey()) {
       setPendingAction(null)
-      setManagementError('找不到這個場次的講者權限。')
+      setManagementError('這台電腦沒有這個場次的講者權限，也沒有管理金鑰。請到系統設定貼上金鑰。')
       return
     }
 

@@ -179,6 +179,19 @@ export async function verifyBackend(ref: string, token: string) {
   }
 }
 
+// Replacing this secret is how a machine loses access: the old value stops
+// being accepted the moment the new one lands, so a laptop left behind in a
+// classroom cannot keep starting classes on the teacher's account.
+export async function setOwnerKey(ref: string, token: string, ownerKey: string) {
+  const result = await call({
+    path: `/v1/projects/${ref}/secrets`,
+    method: 'POST',
+    token,
+    json: [{ name: 'INTERACT_OWNER_KEY', value: ownerKey }],
+  })
+  if (!result.ok) throw new Error(describe(result.body, '設定管理金鑰失敗', result.status))
+}
+
 export async function setSecrets(ref: string, token: string, secrets: Record<string, string>) {
   const entries = Object.entries(secrets)
     .map(([name, value]) => ({ name, value: value.trim() }))

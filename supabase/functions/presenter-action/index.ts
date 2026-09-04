@@ -2,6 +2,7 @@ import { callAiJson, corsHeaders, jsonResponse, errorDetail } from '../_shared/a
 import { generateCustomQuiz } from '../_shared/custom-quiz.ts'
 import { analyzeFileResponse, isAnalyzableFile } from '../_shared/file-analysis.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
+import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/owner.ts'
 
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -123,7 +124,28 @@ Deno.serve(async (req) => {
     const action = typeof input.action === 'string' ? input.action : ''
     const supabase = getAdminClient()
 
+    // Lets the settings screen tell the presenter straight away whether the key
+    // they just pasted is the one this project expects, instead of letting them
+    // discover it when a class fails to start.
+    if (action === 'verify_owner_key') {
+      if (!ownerKeyConfigured()) {
+        return jsonResponse({ ok: true, configured: false, message: '這個專案尚未設定管理金鑰，目前任何電腦都能開課。請執行一次自動部署以產生金鑰。' })
+      }
+      if (isOwner(input)) return jsonResponse({ ok: true, configured: true, message: '金鑰正確，這台電腦可以開課與管理場次。' })
+      return jsonResponse({ ok: false, configured: true, message: ownerRefusalMessage(input) })
+    }
+
     if (action === 'list_sessions') {
+      if (isOwner(input)) {
+        const { data: owned, error: ownedError } = await supabase
+          .from('sessions')
+          .select('id, title, code, status, created_at, ended_at')
+          .order('created_at', { ascending: false })
+          .limit(500)
+        if (ownedError) throw ownedError
+        return jsonResponse({ sessions: owned || [] })
+      }
+
       const credentials: Array<{ sessionId: string; presenterToken: string }> = Array.isArray(input.credentials)
         ? input.credentials
           .map((credential: unknown) => {
@@ -164,16 +186,22 @@ Deno.serve(async (req) => {
 
     const sessionId = typeof input.sessionId === 'string' ? input.sessionId : ''
     const presenterToken = typeof input.presenterToken === 'string' ? input.presenterToken : ''
-    if (!sessionId || !presenterToken || !action) return jsonResponse({ message: '缺少講者操作所需資料。' }, 400)
+    // The owner is here precisely because this machine never held a token for
+    // the class it is trying to tidy up, so demanding one would defeat the point.
+    const owner = isOwner(input)
+    if (!sessionId || !action || (!presenterToken && !owner)) {
+      return jsonResponse({ message: '缺少講者操作所需資料。' }, 400)
+    }
 
-    const tokenHash = await hashPresenterToken(presenterToken)
-    const { data: keyRecord } = await supabase
-      .from('presenter_session_keys')
-      .select('session_id')
-      .eq('session_id', sessionId)
-      .eq('token_hash', tokenHash)
-      .maybeSingle()
-    if (!keyRecord) return jsonResponse({ message: '講者權限驗證失敗。' }, 403)
+    const keyRecord = presenterToken
+      ? (await supabase
+        .from('presenter_session_keys')
+        .select('session_id')
+        .eq('session_id', sessionId)
+        .eq('token_hash', await hashPresenterToken(presenterToken))
+        .maybeSingle()).data
+      : null
+    if (!keyRecord && !owner) return jsonResponse({ message: '講者權限驗證失敗。' }, 403)
 
     if (action === 'update_session') {
       const values: Record<string, boolean | number | string | string[] | null> = {}

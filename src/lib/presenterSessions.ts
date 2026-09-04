@@ -28,16 +28,16 @@ export async function listManagedSessions() {
   return (data?.sessions || []) as ManagedSession[]
 }
 
-export async function endManagedSession(sessionId: string, presenterToken: string) {
+export async function endManagedSession(sessionId: string, presenterToken?: string | null) {
   const { error } = await requireSupabase().functions.invoke('presenter-action', {
-    body: { action: 'end_session', sessionId, presenterToken },
+    body: presenterToken ? { action: 'end_session', sessionId, presenterToken } : { action: 'end_session', sessionId },
   })
   if (error) throw new Error(await functionErrorMessage(error, '無法關閉場次。'))
 }
 
-export async function deleteManagedSession(sessionId: string, presenterToken: string) {
+export async function deleteManagedSession(sessionId: string, presenterToken?: string | null) {
   const { error } = await requireSupabase().functions.invoke('presenter-action', {
-    body: { action: 'delete_session', sessionId, presenterToken },
+    body: presenterToken ? { action: 'delete_session', sessionId, presenterToken } : { action: 'delete_session', sessionId },
   })
   if (error) throw new Error(await functionErrorMessage(error, '無法永久移除場次。'))
   removePresenterToken(sessionId)

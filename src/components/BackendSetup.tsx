@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { CheckCircle2, CircleDashed, ExternalLink, KeyRound, LoaderCircle, Rocket, Save, Server, XCircle } from 'lucide-react'
-import { backendConfig, clearBackendConfig, saveBackendConfig, testBackendConfig } from '../lib/supabase'
-import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setSecrets, verifyBackend } from '../lib/backendDeploy'
+import { backendConfig, clearBackendConfig, requireSupabase, saveBackendConfig, testBackendConfig } from '../lib/supabase'
+import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setOwnerKey, setSecrets, verifyBackend } from '../lib/backendDeploy'
+import { generateOwnerKey, getOwnerKey, saveOwnerKey } from '../lib/ownerKey'
 import type { DeployStep } from '../lib/backendDeploy'
 
 type Props = {
@@ -28,6 +29,8 @@ export function BackendSetup({ onCancel }: Props) {
   const [reurlKey, setReurlKey] = useState('')
   const [steps, setSteps] = useState<DeployStep[]>([])
   const [deploying, setDeploying] = useState(false)
+  const [ownerKey, setOwnerKeyState] = useState(getOwnerKey())
+  const [ownerNotice, setOwnerNotice] = useState('')
 
   const cleanRef = normalizeRef(ref)
 
@@ -47,6 +50,7 @@ export function BackendSetup({ onCancel }: Props) {
       { slug: '建立資料表與儲存空間', status: 'pending' },
       ...deployableFunctions.map((slug) => ({ slug, status: 'pending' as const })),
       { slug: '設定 API 金鑰', status: 'pending' },
+      { slug: '產生管理金鑰', status: 'pending' },
       { slug: '檢查部署結果', status: 'pending' },
     ]
     setSteps(plan)
@@ -81,6 +85,14 @@ export function BackendSetup({ onCancel }: Props) {
           OPENAI_API_KEY: openaiKey,
           REURL_API_KEY: reurlKey,
         }),
+        // Reuses whatever this machine already holds, so re-running the wizard
+        // does not silently lock out the presenter's other computers.
+        async () => {
+          const key = getOwnerKey() || generateOwnerKey()
+          await setOwnerKey(cleanRef, token.trim(), key)
+          saveOwnerKey(key)
+          setOwnerKeyState(key)
+        },
         () => verifyBackend(cleanRef, token.trim()),
       ]
 
@@ -102,6 +114,47 @@ export function BackendSetup({ onCancel }: Props) {
         setNotice('後端部署完成，測試連線後即可儲存。')
         setToken('')
       }
+    } finally {
+      setDeploying(false)
+    }
+  }
+
+  // Saving a key locally proves nothing — the project may have been given a
+  // different one since. Asking now turns a mismatch into a sentence here rather
+  // than a refusal at the start of a class.
+  async function checkOwnerKey(candidate: string) {
+    const trimmed = candidate.trim()
+    saveOwnerKey(trimmed)
+    if (!trimmed) { setOwnerNotice(''); return }
+    setOwnerNotice('驗證中…')
+    try {
+      const { data, error: checkError } = await requireSupabase().functions.invoke('presenter-action', {
+        body: { action: 'verify_owner_key', ownerKey: trimmed },
+      })
+      if (checkError) { setOwnerNotice('無法驗證金鑰，請確認網路與專案設定。'); return }
+      setOwnerNotice(String(data?.message || ''))
+    } catch {
+      setOwnerNotice('無法驗證金鑰，請確認網路與專案設定。')
+    }
+  }
+
+  // Revocation. Writing a new secret is what actually cuts a machine off, so it
+  // needs the access token — the same one the deployment uses, and just as
+  // deliberately not stored.
+  async function regenerateOwnerKey() {
+    setError('')
+    setOwnerNotice('')
+    if (!REF_PATTERN.test(cleanRef)) { setError('請先填入正確的專案識別碼。'); return }
+    if (!token.trim()) { setError('重新產生管理金鑰需要 Supabase 存取權杖，請在下方展開的區塊填入。'); return }
+    setDeploying(true)
+    try {
+      const next = generateOwnerKey()
+      await setOwnerKey(cleanRef, token.trim(), next)
+      saveOwnerKey(next)
+      setOwnerKeyState(next)
+      setOwnerNotice('已換發新金鑰。其他電腦上的舊金鑰立刻失效，需要重新貼上這一組。')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '重新產生管理金鑰失敗。')
     } finally {
       setDeploying(false)
     }
@@ -202,6 +255,32 @@ export function BackendSetup({ onCancel }: Props) {
           商業使用者請自行託管並填入自己的網址。
         </p>
 
+        {/* What separates this machine from any other holding the same publishable
+            key. Shown rather than hidden: the presenter has to carry it to their
+            other computers, and knowing its value is how they notice it is
+            missing on one. */}
+        <label>
+          管理金鑰
+          <input
+            placeholder="部署時自動產生，或貼上另一台電腦的金鑰"
+            value={ownerKey}
+            onChange={(event) => { setOwnerKeyState(event.target.value); setOwnerNotice('') }}
+            onBlur={() => void checkOwnerKey(ownerKey)}
+          />
+        </label>
+        <p className="field-hint">
+          開課與管理場次都需要它，學生端不需要。換一台電腦時貼上同一組即可。
+          {ownerKey && (
+            <>
+              {' '}
+              <button className="link-button" type="button" onClick={() => { void navigator.clipboard?.writeText(ownerKey); setOwnerNotice('已複製。') }}>
+                複製
+              </button>
+            </>
+          )}
+        </p>
+        {ownerNotice && <p className="success"><CheckCircle2 size={15} /> {ownerNotice}</p>}
+
         {error && <p className="error">{error}</p>}
         {notice && <p className="success"><CheckCircle2 size={15} /> {notice}</p>}
 
@@ -290,6 +369,9 @@ export function BackendSetup({ onCancel }: Props) {
               ))}
             </ul>
           )}
+          <button className="danger-ghost-button" disabled={deploying} type="button" onClick={() => void regenerateOwnerKey()}>
+            <KeyRound size={17} />重新產生管理金鑰（切斷其他電腦）
+          </button>
         </details>
 
         <div className="backend-setup-footer">

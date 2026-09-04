@@ -4547,3 +4547,15 @@ h2 {
 .roster-empty {
   margin: 4px 0;
 }
+
+.link-button {
+  background: none;
+  border: 0;
+  color: var(--primary, #1463ff);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+

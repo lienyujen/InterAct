@@ -25,6 +25,22 @@ const languageNames: Record<string, string> = {
   fr: 'French',
 }
 
+// BCP-47 hints for the transcriber. Naming the variety matters for Chinese:
+// left to detect the language itself the model answers in Simplified, which is
+// wrong for a Taiwanese classroom.
+const bcp47: Record<string, string> = {
+  'zh-tw': 'cmn-Hant-TW',
+  en: 'en-US',
+  es: 'es-ES',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+  vi: 'vi-VN',
+  de: 'de-DE',
+  id: 'id-ID',
+  th: 'th-TH',
+  fr: 'fr-FR',
+}
+
 function setupFor(mode: string, sourceLanguage: string, targetLanguage: string, resumeHandle: string) {
   const source = languageNames[sourceLanguage] || 'the speaker\'s language'
   // A live session is capped at about ten minutes. Resumption lets the next one
@@ -46,11 +62,17 @@ function setupFor(mode: string, sourceLanguage: string, targetLanguage: string, 
       },
     }
   }
+  const hint = bcp47[sourceLanguage]
   return {
     model: `models/${TRANSCRIBE_MODEL}`,
-    inputAudioTranscription: {},
+    inputAudioTranscription: {
+      // SMART drops fillers, repetitions and false starts and adds light
+      // punctuation — a lecture transcript rather than a stenographic record.
+      mode: 'SMART',
+      ...(hint ? { languageCodes: [hint] } : {}),
+    },
     sessionResumption,
-    systemInstruction: { parts: [{ text: `Transcribe the speaker verbatim in ${source}.` }] },
+    systemInstruction: { parts: [{ text: `Transcribe the speaker in ${source}.` }] },
   }
 }
 
