@@ -133,6 +133,8 @@ VITE_PUBLIC_APP_URL=https://你的帳號.github.io/你的repo
 
 **https://www.paypal.com/paypalme/lienyujen**
 
+**LINE Bank 銀行帳戶：824 連線商業銀行（總行 6880），帳號： 111011583074**
+
 **付款後請留存收據**，該收據即為你的商業使用授權證明。金額由你依使用規模自行斟酌，沒有固定價目。
 
 有其他授權需求或疑問，歡迎直接與作者聯繫。
