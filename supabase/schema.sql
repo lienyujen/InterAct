@@ -690,7 +690,7 @@ returns void
 language sql
 security definer
 set search_path = public
-as $
+as $$
   update public.participants
   set last_seen_at = now(),
       unfocused_ms = unfocused_ms + greatest(unfocused_delta, 0),
@@ -699,7 +699,7 @@ as $
       -- ten minutes at a time" means.
       focus_streak_ms = greatest(focus_streak_ms, greatest(focus_streak, 0))
   where id = target_id;
-$;
+$$;
 
 
 insert into storage.buckets (id, name, public)
