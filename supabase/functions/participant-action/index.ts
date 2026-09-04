@@ -130,9 +130,12 @@ Deno.serve(async (req) => {
       // A single report cannot exceed the interval by much; anything larger is a
       // clock jump rather than inattention.
       const unfocused = Number.isFinite(reported) ? Math.min(Math.max(Math.round(reported), 0), 30 * 60_000) : 0
+      const streak = Number(input.focusStreakMs)
+      const focusStreak = Number.isFinite(streak) ? Math.min(Math.max(Math.round(streak), 0), 12 * 60 * 60_000) : 0
       const { error } = await supabase.rpc('bump_participant_presence', {
         target_id: participantId,
         unfocused_delta: unfocused,
+        focus_streak: focusStreak,
       })
       if (error) throw error
       return jsonResponse({ ok: true })

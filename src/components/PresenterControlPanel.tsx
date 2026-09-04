@@ -1,4 +1,4 @@
-import { AudioLines, BellRing, Captions, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Square, Users } from 'lucide-react'
+import { AudioLines, Captions, CircleDot, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Square, Users } from 'lucide-react'
 import { isPlusEdition } from '../lib/edition'
 import type { Session } from '../types'
 
@@ -65,7 +65,7 @@ export function PresenterControlPanel({
             type="button"
             onClick={onStartBuzzer}
           >
-            <BellRing size={19} />
+            <CircleDot size={19} />
           </button>
           <button
             aria-label="抽籤"

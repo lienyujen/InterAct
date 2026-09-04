@@ -4,9 +4,9 @@ import { ArrowDownWideNarrow, Hand, Users, X } from 'lucide-react'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
-import { participationRows } from '../lib/participation'
+import { buzzerWinsFrom, participationRows } from '../lib/participation'
 import type { ParticipationRow } from '../lib/participation'
-import type { Answer, Message, Participant, Question, SessionCustomQuizResults } from '../types'
+import type { Answer, Message, Participant, Question, SessionCustomQuizResults, SessionEvent } from '../types'
 
 type SortMode = 'engagement' | 'name' | 'joined'
 
@@ -29,6 +29,7 @@ export function RosterPage() {
   const [answers, setAnswers] = useState<Answer[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [quiz, setQuiz] = useState<SessionCustomQuizResults | null>(null)
+  const [events, setEvents] = useState<SessionEvent[]>([])
   const [sort, setSort] = useState<SortMode>('engagement')
   const [calling, setCalling] = useState('')
   const [error, setError] = useState('')
@@ -37,16 +38,18 @@ export function RosterPage() {
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId) return
     const supabase = requireSupabase()
-    const [p, q, a, m] = await Promise.all([
+    const [p, q, a, m, e] = await Promise.all([
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at').limit(5000),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
       supabase.from('answers').select('*').eq('session_id', sessionId).limit(10000),
       supabase.from('messages').select('*').eq('session_id', sessionId).limit(5000),
+      supabase.from('session_events').select('*').eq('session_id', sessionId).eq('event_type', 'buzzer').limit(2000),
     ])
     setParticipants((p.data || []) as Participant[])
     setQuestions((q.data || []) as Question[])
     setAnswers((a.data || []) as Answer[])
     setMessages((m.data || []) as Message[])
+    setEvents((e.data || []) as SessionEvent[])
 
     // Quiz attempts only come back through the presenter action, and the score
     // would be wrong without them.
@@ -63,7 +66,7 @@ export function RosterPage() {
     if (!isSupabaseConfigured || !sessionId) return
     const supabase = requireSupabase()
     const channel = supabase.channel(`roster:${sessionId}`)
-    for (const table of ['participants', 'answers', 'messages', 'questions']) {
+    for (const table of ['participants', 'answers', 'messages', 'questions', 'session_events']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `session_id=eq.${sessionId}` }, () => void load())
     }
     channel.subscribe()
@@ -88,6 +91,7 @@ export function RosterPage() {
       answers,
       messages,
       quizAttempts: quiz?.attempts || [],
+      buzzerWins: buzzerWinsFrom(events),
     })
     const online = (row: ParticipationRow) => onlineParticipantIds.includes(row.participant.id)
     const scored = computed.some((row) => row.score > 0)
@@ -101,7 +105,7 @@ export function RosterPage() {
       if (!scored) return a.participant.name.localeCompare(b.participant.name, 'zh-Hant')
       return b.score - a.score
     })
-  }, [answers, messages, onlineParticipantIds, participants, questions, quiz, sort])
+  }, [answers, events, messages, onlineParticipantIds, participants, questions, quiz, sort])
 
   const onlineCount = rows.filter((row) => onlineParticipantIds.includes(row.participant.id)).length
 

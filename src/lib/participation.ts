@@ -28,7 +28,9 @@ export type ParticipationRow = {
   gradedCount: number
   correctCount: number
   quickCount: number
+  buzzerWins: number
   unfocusedMs: number
+  focusStreakMs: number
   onlineMs: number
 }
 
@@ -38,6 +40,10 @@ type Input = {
   answers: Answer[]
   messages: Message[]
   quizAttempts: QuizAttempt[]
+  // Wins from the buzzer round, which live in session_events rather than in
+  // answers — being first on the buzzer is the same kind of quick as being
+  // first to submit.
+  buzzerWins?: Map<string, number>
 }
 
 // Questions a student could actually have answered. A screen that was only
@@ -91,7 +97,11 @@ export function participationRows(input: Input): ParticipationRow[] {
     const correctCount = own.filter((answer) => answer.is_correct === true).length
     const messageCount = messageCounts.get(participant.id) || 0
     const quickCount = quickByParticipant.get(participant.id) || 0
+    const buzzerWins = input.buzzerWins?.get(participant.id) || 0
     const unfocusedMs = participant.unfocused_ms || 0
+    // The longest unbroken stretch with the page in front of them; leaving
+    // starts it over, so this is not the same as "not away for long overall".
+    const focusStreakMs = participant.focus_streak_ms || 0
     const onlineMs = Math.max(0, new Date(participant.last_seen_at).getTime() - new Date(participant.joined_at).getTime())
     const quiz = quizByParticipant.get(participant.id)
 
@@ -99,30 +109,33 @@ export function participationRows(input: Input): ParticipationRow[] {
     score += answeredQuestionIds.size * 10
     score += correctCount * 5
     score += quickCount * 5
+    score += buzzerWins * 5
     score += Math.min(messageCount * 2, 20)
     if (quiz && quiz.max > 0) score += Math.round((quiz.score / quiz.max) * 20)
     // Attention is worth acknowledging in both directions, but only once the
     // student has been present long enough for the figure to mean anything.
-    if (onlineMs >= 10 * 60_000) {
-      if (unfocusedMs < 60_000) score += 10
-      else if (unfocusedMs >= 10 * 60_000) score -= 10
-    }
+    if (focusStreakMs >= 10 * 60_000) score += 10
+    else if (onlineMs >= 10 * 60_000 && unfocusedMs >= 10 * 60_000) score -= 10
 
     const badges: Badge[] = []
-    if (askedCount >= 2 && answeredQuestionIds.size >= askedCount) {
+    if (askedCount >= 3 && answeredQuestionIds.size >= askedCount) {
       badges.push({ key: 'perfect', icon: '🏅', label: '全勤', detail: `${askedCount} 題全數作答` })
     }
-    if (quickCount >= 3) {
-      badges.push({ key: 'quick', icon: '⚡', label: '手快', detail: `${quickCount} 次搶先作答` })
+    if (quickCount >= 3 || buzzerWins >= 2) {
+      const detail = [
+        quickCount >= 3 ? `${quickCount} 次搶先作答` : '',
+        buzzerWins >= 2 ? `${buzzerWins} 次搶答成功` : '',
+      ].filter(Boolean).join('、')
+      badges.push({ key: 'quick', icon: '⚡', label: '手快', detail })
     }
     if (gradedCount >= 3 && correctCount / gradedCount >= 0.8) {
       badges.push({ key: 'accurate', icon: '🎯', label: '神準', detail: `${correctCount}/${gradedCount} 題答對` })
     }
-    if (messageCount >= 5) {
+    if (messageCount > 4) {
       badges.push({ key: 'vocal', icon: '💬', label: '熱烈', detail: `${messageCount} 則彈幕` })
     }
-    if (onlineMs >= 10 * 60_000 && unfocusedMs < 60_000) {
-      badges.push({ key: 'focused', icon: '👀', label: '專注', detail: '幾乎未離開畫面' })
+    if (focusStreakMs >= 10 * 60_000) {
+      badges.push({ key: 'focused', icon: '👀', label: '專注', detail: `連續專注 ${Math.floor(focusStreakMs / 60_000)} 分鐘` })
     }
     score += badges.length * BADGE_POINTS
 
@@ -136,10 +149,25 @@ export function participationRows(input: Input): ParticipationRow[] {
       gradedCount,
       correctCount,
       quickCount,
+      buzzerWins,
       unfocusedMs,
+      focusStreakMs,
       onlineMs,
     }
   })
+}
+
+// Buzzer results are session events rather than answers, so both callers build
+// the tally the same way here instead of each counting them their own way.
+export function buzzerWinsFrom(events: Array<{ event_type: string; payload: Record<string, unknown> | null }>) {
+  const wins = new Map<string, number>()
+  for (const event of events) {
+    if (event.event_type !== 'buzzer') continue
+    const winnerId = event.payload?.winner_id
+    if (typeof winnerId !== 'string') continue
+    wins.set(winnerId, (wins.get(winnerId) || 0) + 1)
+  }
+  return wins
 }
 
 export function badgeText(badges: Badge[]) {

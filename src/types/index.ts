@@ -47,6 +47,7 @@ export type Participant = {
   joined_at: string
   last_seen_at: string
   unfocused_ms?: number
+  focus_streak_ms?: number
 }
 
 export type Message = {
@@ -388,6 +389,7 @@ export type SessionReportData = {
   answers: Answer[]
   audioResponses: AudioResponse[]
   fileResponses: FileResponse[]
+  buzzerEvents: SessionEvent[]
   customQuizResults: SessionCustomQuizResults
   aiSummaries: AiSummary[]
   exitTickets: ExitTicket[]

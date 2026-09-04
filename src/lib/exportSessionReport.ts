@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs'
 import type { QuestionAnalysis, SessionAnalysis, SessionMetrics, SessionReportData } from '../types'
-import { badgeText, participationRows } from './participation'
+import { badgeText, buzzerWinsFrom, participationRows } from './participation'
 
 const COLORS = {
   primary: '1463FF',
@@ -205,6 +205,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       answers: data.answers,
       messages: data.messages,
       quizAttempts: data.customQuizResults.attempts,
+      buzzerWins: buzzerWinsFrom(data.buzzerEvents),
     }).map((row) => [row.participant.id, row]),
   )
 

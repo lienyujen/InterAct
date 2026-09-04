@@ -38,6 +38,7 @@ create table if not exists public.participants (
   joined_at timestamptz not null default now(),
   last_seen_at timestamptz not null default now(),
   unfocused_ms bigint not null default 0,
+  focus_streak_ms bigint not null default 0,
   unique (session_id, device_id)
 );
 
@@ -675,21 +676,30 @@ alter table public.sessions
 -- Tracks how long a student had the class page in the background. Added here
 -- rather than only in the table above so a project deployed earlier gains it.
 alter table public.participants
-  add column if not exists unfocused_ms bigint not null default 0;
+  add column if not exists unfocused_ms bigint not null default 0,
+  add column if not exists focus_streak_ms bigint not null default 0;
 
 -- Accumulating a column cannot be expressed through the REST API, and reading
 -- then writing would lose concurrent heartbeats.
-create or replace function public.bump_participant_presence(target_id uuid, unfocused_delta bigint)
+create or replace function public.bump_participant_presence(
+  target_id uuid,
+  unfocused_delta bigint,
+  focus_streak bigint default 0
+)
 returns void
 language sql
 security definer
 set search_path = public
-as $$
+as $
   update public.participants
   set last_seen_at = now(),
-      unfocused_ms = unfocused_ms + greatest(unfocused_delta, 0)
+      unfocused_ms = unfocused_ms + greatest(unfocused_delta, 0),
+      -- The client reports its current unbroken stretch, which resets to zero
+      -- when the student leaves; keeping the largest is what "was focused for
+      -- ten minutes at a time" means.
+      focus_streak_ms = greatest(focus_streak_ms, greatest(focus_streak, 0))
   where id = target_id;
-$$;
+$;
 
 
 insert into storage.buckets (id, name, public)

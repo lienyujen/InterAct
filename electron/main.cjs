@@ -349,11 +349,19 @@ function createReportWindow(sessionId, generate = false) {
 
 function createRosterWindow(sessionId) {
   if (rosterWindow && !rosterWindow.isDestroyed()) {
-    if (rosterWindow.isMinimized()) rosterWindow.restore()
-    rosterWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, ROSTER_RELATIVE_LEVEL)
-    rosterWindow.show()
-    rosterWindow.moveTop()
-    rosterWindow.focus()
+    // Minimised means it was put aside rather than finished with, so bring it
+    // back instead of closing something the presenter cannot see.
+    if (rosterWindow.isMinimized()) {
+      rosterWindow.restore()
+      rosterWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, ROSTER_RELATIVE_LEVEL)
+      rosterWindow.show()
+      rosterWindow.moveTop()
+      rosterWindow.focus()
+      return
+    }
+    // Otherwise the count behaves like the toggle it looks like: a second click
+    // puts the roster away again.
+    rosterWindow.close()
     return
   }
 

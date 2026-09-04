@@ -15,6 +15,9 @@ export function trackParticipantPresence({ sessionId, participantId, participant
   let hiddenSince = document.visibilityState === 'hidden' ? Date.now() : 0
   let unreportedMs = 0
   let stopped = false
+  // Restarts whenever they leave, so it measures one unbroken stretch of
+  // attention rather than the total time they happened to be present.
+  let focusedSince = document.visibilityState === 'visible' ? Date.now() : 0
 
   const settle = () => {
     if (!hiddenSince) return
@@ -26,9 +29,10 @@ export function trackParticipantPresence({ sessionId, participantId, participant
     settle()
     const unfocusedMs = unreportedMs
     unreportedMs = 0
+    const focusStreakMs = focusedSince ? Date.now() - focusedSince : 0
     try {
       const { error } = await requireSupabase().functions.invoke('participant-action', {
-        body: { action: 'heartbeat', sessionId, participantId, participantToken, unfocusedMs },
+        body: { action: 'heartbeat', sessionId, participantId, participantToken, unfocusedMs, focusStreakMs },
         ...(keepalive ? { headers: { 'keep-alive': 'true' } } : {}),
       })
       // Put it back rather than lose it, so a dropped beat does not understate
@@ -43,9 +47,11 @@ export function trackParticipantPresence({ sessionId, participantId, participant
   const onVisibility = () => {
     if (document.visibilityState === 'hidden') {
       if (!hiddenSince) hiddenSince = Date.now()
+      focusedSince = 0
       return
     }
     settle()
+    focusedSince = Date.now()
     // Report as soon as they come back, so a long absence is not held until the
     // next beat — or lost entirely if they close the tab first.
     void send()
