@@ -1,10 +1,9 @@
-import { AudioLines, Captions, CircleDot, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, MessageSquare, MonitorUp, Play, Send, Settings, Shapes, Sparkles, Square, Users } from 'lucide-react'
+import { AudioLines, Captions, CircleDot, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Users } from 'lucide-react'
 import { isPlusEdition } from '../lib/edition'
-import type { Question, Session } from '../types'
+import type { Session } from '../types'
 
 type Props = {
   session: Session
-  currentQuestion: Question | null
   onlineCount: number
   busy: boolean
   buzzerActive: boolean
@@ -21,15 +20,12 @@ type Props = {
   onOpenSettings: () => void
   onToggleRecording: () => void
   onToggleCaptionVisibility: () => void
-  onStopQuestion: () => void
-  onResumeQuestion: () => void
   onGenerateExitTicket: () => void
   onEndClass: () => void
 }
 
 export function PresenterControlPanel({
   session,
-  currentQuestion,
   onlineCount,
   busy,
   buzzerActive,
@@ -46,16 +42,9 @@ export function PresenterControlPanel({
   onOpenSettings,
   onToggleRecording,
   onToggleCaptionVisibility,
-  onStopQuestion,
-  onResumeQuestion,
   onGenerateExitTicket,
   onEndClass,
 }: Props) {
-  // The control follows the question the class is on: stopping is reversible,
-  // so the same place has to offer the way back or the teacher will not press it.
-  const answering = currentQuestion?.status === 'active'
-  const resumable = currentQuestion?.status === 'stopped'
-
   return (
     <section className="panel control-panel">
       <div className="metric-row">
@@ -196,16 +185,6 @@ export function PresenterControlPanel({
             </>
           )}
         </div>
-        <button
-          className={`stop-question-button${resumable ? ' is-resume' : ''}`}
-          type="button"
-          title={answering ? '停止收答，之後仍可恢復' : '讓學生可以再次作答'}
-          onClick={resumable ? onResumeQuestion : onStopQuestion}
-          disabled={busy || (!answering && !resumable)}
-        >
-          {resumable ? <Play size={16} /> : <Square size={16} />}
-          {resumable ? '恢復作答' : '停止作答'}
-        </button>
         {isPlusEdition && captionError && <p className="error caption-control-error">{captionError}</p>}
       </div>
     </section>

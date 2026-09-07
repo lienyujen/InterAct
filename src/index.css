@@ -4707,15 +4707,35 @@ h2 {
   color: var(--danger, #c62828);
 }
 
-.stop-question-button {
-  margin-top: 8px;
-  width: 100%;
+/* Sits with the question it acts on, beside the status badge, so a presenter
+   looking at the results is looking at the control that changes them. */
+.question-stop-control {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
 }
 
-.stop-question-button.is-resume {
+.question-stop-button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 5px 12px;
+}
+
+.question-stop-button:hover {
+  background: var(--surface-subtle);
+  border-color: var(--border-strong);
+}
+
+.question-stop-button.is-resume {
   background: var(--pale-green, #ecfdf5);
   border-color: rgb(46 125 50 / 35%);
   color: var(--success, #2e7d32);
+}
+
+.question-stop-error {
+  font-size: 0.76rem;
 }
 
 /* The student's own mark, which arrives long after they uploaded and is the

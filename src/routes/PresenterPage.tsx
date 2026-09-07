@@ -1297,13 +1297,6 @@ export function PresenterPage() {
 
 
 
-  // The panel acts on the question the class is on, which is not always the one
-  // the presenter has selected in the history to look back at.
-  const currentPanelQuestion = useMemo(
-    () => questions.find((item) => item.id === session?.current_question_id) || null,
-    [questions, session?.current_question_id],
-  )
-
   // One fetch feeds both places uploads are shown; each takes the question it
   // is actually displaying rather than assuming they are the same one.
   const questionFileResponses = useMemo(
@@ -1611,12 +1604,9 @@ export function PresenterPage() {
           buzzerActive={isBuzzerPending(buzzerEvent)}
           captionError={captionError}
           onlineCount={onlineParticipants.length}
-          currentQuestion={currentPanelQuestion}
           session={session}
           onDrawLottery={drawLottery}
           onStartBuzzer={startBuzzer}
-          onStopQuestion={stopQuestion}
-          onResumeQuestion={resumeQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}
@@ -1649,6 +1639,9 @@ export function PresenterPage() {
             onlineCount={onlineParticipants.length}
             question={question}
             results={quizResults}
+            isCurrentQuestion={question?.id === session.current_question_id}
+            onStopQuestion={stopQuestion}
+            onResumeQuestion={resumeQuestion}
             onUpdateAnswer={updateCustomQuizAnswer}
           />
         ) : <QuestionResult
@@ -1666,6 +1659,8 @@ export function PresenterPage() {
           onlineCount={onlineParticipants.length}
           question={question}
           onAnalyze={analyzeQuestion}
+          onStopQuestion={stopQuestion}
+          onResumeQuestion={resumeQuestion}
           onAnalyzeFile={(responseId) => void analyzeFileResponse(responseId).catch((error) => {
             setAnalysisError(error instanceof Error ? error.message : 'AI 批改失敗。')
           })}

@@ -2,12 +2,16 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { BrainCircuit, Check, Clock3, Maximize2, Save, X } from 'lucide-react'
 import type { PresenterQuizResults, Question } from '../types'
+import { QuestionStopControl } from './QuestionStopControl'
 
 type Props = {
   anonymousEnabled: boolean
   question: Question
   results: PresenterQuizResults | null
   onlineCount: number
+  isCurrentQuestion: boolean
+  onStopQuestion: () => Promise<void>
+  onResumeQuestion: () => Promise<void>
   onUpdateAnswer: (itemId: string, acceptedAnswers: string[]) => Promise<void>
 }
 
@@ -81,7 +85,7 @@ export function QuizAnswerEditor({ showAnswers, busyItemId, draftAnswers, result
   )
 }
 
-export function CustomQuizResult({ anonymousEnabled, question, results, onlineCount, onUpdateAnswer }: Props) {
+export function CustomQuizResult({ anonymousEnabled, question, results, onlineCount, isCurrentQuestion, onStopQuestion, onResumeQuestion, onUpdateAnswer }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [busyItemId, setBusyItemId] = useState('')
   const [error, setError] = useState('')
@@ -145,6 +149,13 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
         <div><p className="eyebrow"><BrainCircuit size={17} />自訂測驗</p><h2>{results.quiz.title || question.title}</h2></div>
         <div className="custom-quiz-heading-actions">
           <span>{results.attempts.length}/{onlineCount} 人作答</span>
+          <QuestionStopControl
+            busy={Boolean(busyItemId)}
+            isCurrentQuestion={isCurrentQuestion}
+            question={question}
+            onResume={onResumeQuestion}
+            onStop={onStopQuestion}
+          />
           <button aria-label="放大檢視測驗" className="icon-button" title="放大檢視測驗" type="button" onClick={openExpandedReview}><Maximize2 size={20} /></button>
         </div>
       </div>

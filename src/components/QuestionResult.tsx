@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
 import { answerDeadline, formatSeconds, useSecondsLeft } from '../lib/questionTiming'
+import { QuestionStopControl } from './QuestionStopControl'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
 type Props = {
@@ -22,6 +23,8 @@ type Props = {
   onlineCount: number
   onAnalyze: () => void
   onAnalyzeFile: (responseId: string) => void
+  onStopQuestion: () => Promise<void>
+  onResumeQuestion: () => Promise<void>
   onDrawUnanswered: (questionId: string) => void
   onSetCorrectAnswer: (answer: string) => void
 }
@@ -44,8 +47,10 @@ function QuestionStatusActions({
   isCurrentQuestion,
   onlineCount,
   onDrawUnanswered,
+  onStopQuestion,
+  onResumeQuestion,
   question,
-}: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered'> & { question: Question }) {
+}: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered' | 'onStopQuestion' | 'onResumeQuestion'> & { question: Question }) {
   // The presenter has to see the clock the class is watching, or they are
   // deciding when to move on blind — which is the whole reason a timed
   // question was set. Same function as the student's, so the two agree.
@@ -73,6 +78,13 @@ function QuestionStatusActions({
           <Dice5 size={20} />
         </button>
       )}
+      <QuestionStopControl
+        busy={busy}
+        isCurrentQuestion={isCurrentQuestion}
+        question={question}
+        onResume={onResumeQuestion}
+        onStop={onStopQuestion}
+      />
       <span className={`status ${question.status}`}>{question.status}</span>
     </div>
   )
