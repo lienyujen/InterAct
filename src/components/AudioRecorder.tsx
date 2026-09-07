@@ -24,6 +24,7 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState('')
+  const [preparingLeft, setPreparingLeft] = useState<number | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const startedAtRef = useRef(0)
@@ -41,15 +42,42 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
     releaseMicrophone()
   }, [question.id])
 
+  // A spoken answer is not bounded by the session's wall clock — the upload that
+  // follows can take a while, and a server deadline would throw away recordings
+  // that were made in time. What bounds it is the recorder itself.
+  const maxDurationMs = question.answer_seconds ? question.answer_seconds * 1000 : MAX_DURATION_MS
+
   useEffect(() => {
     if (!recording) return
     const timer = window.setInterval(() => {
       const next = Date.now() - startedAtRef.current
       setElapsed(next)
-      if (next >= MAX_DURATION_MS && recorderRef.current?.state === 'recording') recorderRef.current.stop()
+      if (next >= maxDurationMs && recorderRef.current?.state === 'recording') recorderRef.current.stop()
     }, 200)
     return () => window.clearInterval(timer)
-  }, [recording])
+  }, [maxDurationMs, recording])
+
+  // The preparation clock starts when the student opens the question, and
+  // reaching zero starts the recording rather than merely unlocking the button:
+  // a challenge that then waits for another tap is not a timed challenge.
+  useEffect(() => {
+    if (!question.prepare_seconds || response || question.status !== 'active') return
+    setPreparingLeft(question.prepare_seconds)
+    const startedAt = Date.now()
+    const timer = window.setInterval(() => {
+      const left = Math.max(0, Math.ceil((question.prepare_seconds! * 1000 - (Date.now() - startedAt)) / 1000))
+      setPreparingLeft(left)
+      if (left === 0) {
+        window.clearInterval(timer)
+        setPreparingLeft(null)
+        void startRecording()
+      }
+    }, 250)
+    return () => window.clearInterval(timer)
+    // Deliberately keyed on the question alone: re-running this when the
+    // recording starts would restart the countdown that just fired it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [question.id, question.prepare_seconds, question.status])
 
   async function startRecording() {
     setError('')
@@ -143,9 +171,14 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
   return (
     <div className="audio-recorder">
       <p className="muted">{participantText(locale, 'recordingHint')}</p>
+      {preparingLeft !== null && (
+        <p aria-live="off" className={`answer-countdown${preparingLeft <= 3 ? ' is-urgent' : ''}`}>
+          {participantText(locale, 'preparing')} {preparingLeft}
+        </p>
+      )}
       <button
         className={recording ? 'recording-button active' : 'recording-button'}
-        disabled={busy}
+        disabled={busy || preparingLeft !== null}
         type="button"
         onClick={recording ? stopRecording : startRecording}
       >

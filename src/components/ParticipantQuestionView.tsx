@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Send } from 'lucide-react'
 import { AudioRecorder } from './AudioRecorder'
 import { participantText } from '../lib/participantI18n'
+import { answerDeadline, formatSeconds, useSecondsLeft } from '../lib/questionTiming'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import type { Answer, AudioResponse, Question } from '../types'
 
@@ -19,6 +20,7 @@ type Props = {
 export function ParticipantQuestionView({ question, answer, audioBusy, audioResponse, onSubmit, onSubmitAudio, locale = 'zh-TW' }: Props) {
   const [textAnswer, setTextAnswer] = useState('')
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
+  const secondsLeft = useSecondsLeft(question ? answerDeadline(question) : null)
 
   useEffect(() => {
     setTextAnswer('')
@@ -29,6 +31,12 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
   // and the screenshot; rendering here as well would print the question twice.
   if (!question || ['send_screen', 'custom_quiz', 'file_upload'].includes(question.type)) return null
   const isAudioQuestion = question.type === 'pronunciation' || question.type === 'oral_response'
+  // The clock running out and the teacher stopping the question are separate
+  // things and the student is told which happened: "it closed" and "the teacher
+  // closed it" call for different reactions, and one message for both makes the
+  // app feel arbitrary.
+  const timeUp = secondsLeft === 0
+  const acceptingAnswers = question.status === 'active' && !timeUp
   const translation = locale === 'en' ? question.translations?.en : undefined
   const englishTypeTitles: Partial<Record<Question['type'], string>> = {
     poll: 'Poll',
@@ -55,12 +63,18 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
   return (
     <section className="panel participant-question">
       <h2>{prompt}</h2>
+      {secondsLeft !== null && secondsLeft > 0 && question.status === 'active' && (
+        <p aria-live="off" className={`answer-countdown${secondsLeft <= 10 ? ' is-urgent' : ''}`}>
+          {participantText(locale, 'timeLeft')} {formatSeconds(secondsLeft)}
+        </p>
+      )}
       {question.status !== 'active' && <p className="muted">{participantText(locale, 'questionEnded')}</p>}
+      {question.status === 'active' && timeUp && <p className="muted">{participantText(locale, 'answerClosed')}</p>}
       {isAudioQuestion && (
         <AudioRecorder busy={audioBusy} locale={locale} question={question} response={audioResponse} onSubmit={onSubmitAudio} />
       )}
       {answer && !isAudioQuestion && <p className="success">{participantText(locale, 'submittedAnswer')}{answer.answer_values?.map(displayAnswer).join(locale === 'en' ? ', ' : '、') || (answer.answer_value ? displayAnswer(answer.answer_value) : answer.answer_text)}</p>}
-      {!answer && question.status === 'active' && question.type === 'short_answer' && (
+      {!answer && acceptingAnswers && question.type === 'short_answer' && (
         <form className="short-answer-form" onSubmit={submitShortAnswer}>
           <textarea
             maxLength={1000}
@@ -71,7 +85,7 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
           <button type="submit"><Send size={18} />{participantText(locale, 'submitAnswer')}</button>
         </form>
       )}
-      {!answer && !isAudioQuestion && question.status === 'active' && question.type !== 'short_answer' && question.allow_multiple && (
+      {!answer && !isAudioQuestion && acceptingAnswers && question.type !== 'short_answer' && question.allow_multiple && (
         <form
           className="multi-choice-form"
           onSubmit={(event) => {
@@ -101,7 +115,7 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
           <button disabled={!selectedOptions.length} type="submit"><Send size={18} />{participantText(locale, 'submitAnswer')}</button>
         </form>
       )}
-      {!answer && !isAudioQuestion && question.status === 'active' && question.type !== 'short_answer' && !question.allow_multiple && (
+      {!answer && !isAudioQuestion && acceptingAnswers && question.type !== 'short_answer' && !question.allow_multiple && (
         <div className="choice-list">
           {question.options.map((option, index) => (
             <button key={option} type="button" onClick={() => onSubmit(option)}>

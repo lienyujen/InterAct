@@ -88,10 +88,34 @@ create table if not exists public.questions (
   correct_answer text null,
   correct_answers text[] not null default '{}'::text[],
   started_at timestamptz null default now(),
+  -- Null means untimed. Two clocks rather than one because the pause before
+  -- speaking IS the exercise in a spoken challenge, while a written question
+  -- has nothing to prepare; one combined field would lie about one of them.
+  prepare_seconds integer null check (prepare_seconds is null or prepare_seconds between 5 and 300),
+  answer_seconds integer null check (answer_seconds is null or answer_seconds between 5 and 600),
   stopped_at timestamptz null,
   translations jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+-- Added ahead of the policies below, which read answer_seconds: on a database
+-- created before timing existed the policy would otherwise be built against a
+-- column that is not there yet.
+alter table public.questions
+  add column if not exists prepare_seconds integer null,
+  add column if not exists answer_seconds integer null;
+
+do $mig$ begin
+  alter table public.questions
+    add constraint questions_prepare_seconds_check
+    check (prepare_seconds is null or prepare_seconds between 5 and 300);
+exception when duplicate_object then null; end $mig$;
+
+do $mig$ begin
+  alter table public.questions
+    add constraint questions_answer_seconds_check
+    check (answer_seconds is null or answer_seconds between 5 and 600);
+exception when duplicate_object then null; end $mig$;
 
 alter table public.sessions
   drop constraint if exists sessions_current_question_id_fkey;
@@ -470,6 +494,16 @@ with check (
       and questions.session_id = answers.session_id
       and questions.status = 'active'
       and questions.type <> 'custom_quiz'
+      -- Three seconds of grace for the round trip on school wifi. Without it a
+      -- student who taps at 29.8s is rejected at 30.2s, their answer vanishes,
+      -- and the teacher sees a bug rather than a deadline. It is never shown:
+      -- the grace quietly rescues an answer sent just before the deadline
+      -- rather than advertising itself as extra time.
+      and (
+        questions.answer_seconds is null
+        or questions.started_at is null
+        or now() <= questions.started_at + make_interval(secs => questions.answer_seconds + 3)
+      )
   )
   and exists (
     select 1 from public.participants

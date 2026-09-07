@@ -4,7 +4,7 @@ import { requireSupabase } from '../lib/supabase'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import { downloadHref, publicFileUrl } from '../lib/fileLinks'
-import type { SharedFile } from '../types'
+import type { FileAnalysis, FileAnalysisStatus, SharedFile } from '../types'
 
 type Props = {
   sessionId: string
@@ -91,6 +91,20 @@ type UploadProps = {
   locale: ParticipantLocale
 }
 
+type StudentMark = {
+  id: string
+  name: string
+  analysis_status: FileAnalysisStatus
+  analysis_json: FileAnalysis | null
+}
+
+const verdictLabels: Record<string, { 'zh-TW': string; en: string }> = {
+  correct: { 'zh-TW': '正確', en: 'Correct' },
+  partial: { 'zh-TW': '部分正確', en: 'Partly correct' },
+  incorrect: { 'zh-TW': '不正確', en: 'Incorrect' },
+  unscored: { 'zh-TW': '已批閱', en: 'Reviewed' },
+}
+
 export function ParticipantFileUpload({
   sessionId,
   questionId,
@@ -102,6 +116,7 @@ export function ParticipantFileUpload({
   locale,
 }: UploadProps) {
   const [uploaded, setUploaded] = useState<string[]>([])
+  const [marks, setMarks] = useState<StudentMark[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -114,6 +129,36 @@ export function ParticipantFileUpload({
     && typeof window.matchMedia === 'function'
     && window.matchMedia('(pointer: coarse)').matches
   ))
+
+  // The mark lands minutes after the upload, whenever the teacher gets to it,
+  // and file_responses is revoked from anon and kept out of the realtime
+  // publication so a student cannot read the table. So the page asks for its
+  // own rows instead, through the function that returns only theirs.
+  useEffect(() => {
+    if (!questionId || !participantToken) return
+    let cancelled = false
+    const supabase = requireSupabase()
+
+    async function read() {
+      const { data } = await supabase.functions.invoke('participant-action', {
+        body: { action: 'get_file_result', sessionId, participantId, participantToken, questionId },
+      })
+      if (!cancelled) setMarks((data?.responses || []) as StudentMark[])
+    }
+    void read()
+
+    const timer = window.setInterval(() => void read(), 12_000)
+    // A phone suspends timers as soon as it goes to the background, so a student
+    // who locked their screen while waiting would come back to the state they
+    // left rather than to their mark.
+    const onVisible = () => { if (document.visibilityState === 'visible') void read() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [participantId, participantToken, questionId, sessionId, uploaded.length])
 
   async function upload(files: File[]) {
     if (!files.length) return
@@ -215,6 +260,51 @@ export function ParticipantFileUpload({
         <ul className="participant-uploaded-list">
           {uploaded.map((name, index) => <li key={`${index}-${name}`}><Sparkles size={13} />{name}</li>)}
         </ul>
+      )}
+      <StudentMarks locale={locale} marks={marks} />
+    </section>
+  )
+}
+
+// One student's own mark, in the language they are reading the class in. The
+// analysis already carries both, so nothing is translated here at display time.
+function StudentMarks({ locale, marks }: { locale: ParticipantLocale; marks: StudentMark[] }) {
+  // Pages of one answer all carry the same mark, so showing it once is showing
+  // it correctly — repeating it per file would read as several separate marks.
+  const marked = marks.find((mark) => mark.analysis_status === 'success' && mark.analysis_json)
+  const waiting = !marked && marks.some((mark) => mark.analysis_status === 'analyzing')
+  if (!marked) {
+    return waiting ? <p className="muted participant-mark-waiting">{participantText(locale, 'marking')}</p> : null
+  }
+
+  const result = marked.analysis_json as FileAnalysis
+  const english = locale === 'en'
+  const summary = english ? result.summary_en : result.summary_zh_tw
+  const strengths = english ? result.strengths_en : result.strengths_zh_tw
+  const improvements = english ? result.improvements_en : result.improvements_zh_tw
+  const verdict = result.verdict ? verdictLabels[result.verdict] : null
+
+  return (
+    <section className="participant-mark">
+      <h3>{participantText(locale, 'yourMark')}</h3>
+      <div className="participant-mark-headline">
+        {verdict && <span className={`file-verdict is-${result.verdict}`}>{verdict[locale]}</span>}
+        {typeof result.score === 'number' && (
+          <span className="participant-mark-score">{result.score}{participantText(locale, 'points')}</span>
+        )}
+      </div>
+      <p>{summary}</p>
+      {strengths.length > 0 && (
+        <>
+          <h4>{participantText(locale, 'didWell')}</h4>
+          <ul>{strengths.map((item, index) => <li key={index}>{item}</li>)}</ul>
+        </>
+      )}
+      {improvements.length > 0 && (
+        <>
+          <h4>{participantText(locale, 'canImprove')}</h4>
+          <ul>{improvements.map((item, index) => <li key={index}>{item}</li>)}</ul>
+        </>
       )}
     </section>
   )

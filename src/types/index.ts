@@ -148,6 +148,9 @@ export type Question = {
   allow_multiple: boolean
   correct_answer: string | null
   correct_answers: string[]
+  // Null means untimed; src/lib/questionTiming.ts decides which types carry which.
+  prepare_seconds: number | null
+  answer_seconds: number | null
   started_at: string | null
   stopped_at: string | null
   created_at: string

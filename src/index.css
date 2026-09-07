@@ -4631,3 +4631,135 @@ h2 {
   background: var(--surface);
   border: 1px solid var(--border);
 }
+
+/* The teacher's answer clock, set as chips because this gets chosen mid-class
+   and a row of taps beats typing into a spinner while the room waits. */
+.question-timing {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.timing-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.timing-row-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  min-width: 4.5em;
+}
+
+.timing-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.timing-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 5px 12px;
+}
+
+.timing-chip:hover {
+  border-color: var(--border-strong);
+}
+
+.timing-chip.is-selected {
+  background: var(--primary-soft);
+  border-color: rgb(91 92 226 / 45%);
+  font-weight: 600;
+}
+
+/* Both sides render the same number from the same function, so the teacher is
+   never deciding when to move on against a different clock from the class. */
+.answer-countdown,
+.question-countdown {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.answer-countdown {
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.question-countdown {
+  background: var(--surface-subtle);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  padding: 3px 10px;
+}
+
+.answer-countdown.is-urgent,
+.question-countdown.is-urgent {
+  color: var(--danger, #c62828);
+}
+
+.stop-question-button {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.stop-question-button.is-resume {
+  background: var(--pale-green, #ecfdf5);
+  border-color: rgb(46 125 50 / 35%);
+  color: var(--success, #2e7d32);
+}
+
+/* The student's own mark, which arrives long after they uploaded and is the
+   only thing on the page that answers "how did I do". */
+.participant-mark {
+  background: var(--surface-subtle);
+  border-radius: var(--radius-lg);
+  margin-top: 12px;
+  padding: 14px 16px;
+}
+
+.participant-mark h3 {
+  font-size: 0.92rem;
+  margin: 0 0 8px;
+}
+
+.participant-mark h4 {
+  font-size: 0.84rem;
+  margin: 12px 0 4px;
+}
+
+.participant-mark p {
+  line-height: 1.7;
+  margin: 0;
+}
+
+.participant-mark ul {
+  line-height: 1.7;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.participant-mark-headline {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.participant-mark-score {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.participant-mark-waiting {
+  margin-top: 12px;
+}

@@ -7,6 +7,17 @@ import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/own
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload'])
+const timedTypes = new Set(['poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response'])
+const spokenTypes = new Set(['pronunciation', 'oral_response'])
+
+// Three outcomes, and the difference carries weight: null is "untimed",
+// undefined is "the client sent rubbish". Coercing bad input to null would
+// silently dispatch an untimed question the teacher thought they had timed.
+function timingSeconds(value: unknown, max: number) {
+  if (value === null || value === undefined) return null
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 5 || value > max) return undefined
+  return value
+}
 const speakerLanguages = new Set(['zh-tw', 'en'])
 // 'source' is the presenter asking for the transcript unaltered.
 const captionDisplayLanguages = new Set(['zh-tw', 'en', 'es', 'ja', 'ko', 'vi', 'de', 'id', 'th', 'fr', 'source'])
@@ -834,6 +845,11 @@ Deno.serve(async (req) => {
 
       const options = normalizedOptions(input.options)
       const allowMultiple = Boolean(input.allowMultiple) && ['poll', 'multiple_choice'].includes(type)
+      const prepareSeconds = spokenTypes.has(type) ? timingSeconds(input.prepareSeconds, 300) : null
+      const answerSeconds = timedTypes.has(type) ? timingSeconds(input.answerSeconds, 600) : null
+      if (prepareSeconds === undefined || answerSeconds === undefined) {
+        return jsonResponse({ message: '時間設定不正確。' }, 400)
+      }
       const promptText = typeof input.promptText === 'string' ? input.promptText.trim().slice(0, 1000) : ''
       const titles: Record<string, string> = {
         send_screen: '派送畫面',
@@ -891,6 +907,8 @@ Deno.serve(async (req) => {
           options,
           translations,
           allow_multiple: allowMultiple,
+          prepare_seconds: prepareSeconds,
+          answer_seconds: answerSeconds,
         })
         .select('*')
         .single()
@@ -918,6 +936,35 @@ Deno.serve(async (req) => {
         .maybeSingle()
       if (error) throw error
       if (!data) return jsonResponse({ message: '題目已停止或不存在。' }, 409)
+      return jsonResponse({ question: data })
+    }
+
+    if (action === 'resume_question') {
+      const questionId = input.questionId
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const { data: current, error: currentError } = await supabase
+        .from('sessions').select('current_question_id, status').eq('id', sessionId).maybeSingle()
+      if (currentError) throw currentError
+      if (!current || current.status !== 'active') return jsonResponse({ message: '課堂已結束。' }, 409)
+      // Reviving an older question would leave two of them accepting answers
+      // while every student's page shows only the newer one.
+      if (current.current_question_id !== questionId) {
+        return jsonResponse({ message: '這題已經不是目前的題目，請重新派送。' }, 409)
+      }
+      const { data, error } = await supabase
+        .from('questions')
+        // started_at moves to now because it is what the answer clock counts
+        // from: a timed question reopened after its window had passed would
+        // otherwise come back already expired, refusing every answer it just
+        // invited. The teacher is granting more time, not un-expiring old time.
+        .update({ status: 'active', stopped_at: null, started_at: new Date().toISOString() })
+        .eq('id', questionId)
+        .eq('session_id', sessionId)
+        .eq('status', 'stopped')
+        .select('*')
+        .maybeSingle()
+      if (error) throw error
+      if (!data) return jsonResponse({ message: '這題目前不是停止狀態。' }, 409)
       return jsonResponse({ question: data })
     }
 

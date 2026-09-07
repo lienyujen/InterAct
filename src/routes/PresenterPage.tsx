@@ -10,6 +10,7 @@ import { QRCodePanel } from '../components/QRCodePanel'
 import { ExitTicketResult } from '../components/ExitTicketResult'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { QuestionEditor } from '../components/QuestionEditor'
+import type { QuestionTiming } from '../components/QuestionEditor'
 import type { CustomQuizSettings } from '../lib/customQuiz'
 import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
@@ -769,7 +770,7 @@ export function PresenterPage() {
     void interpretationAudioContextRef.current?.close()
   }, [clearCaptionDisplayTimers])
 
-  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, quizSettings?: CustomQuizSettings) {
+  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, quizSettings?: CustomQuizSettings) {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
     setBusy(true)
@@ -815,6 +816,8 @@ export function PresenterPage() {
           questionType: type,
           options,
           allowMultiple,
+          prepareSeconds: timing.prepareSeconds,
+          answerSeconds: timing.answerSeconds,
           promptText,
         },
       })
@@ -966,13 +969,13 @@ export function PresenterPage() {
     cropCapture(rect)
   }
 
-  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, quizSettings?: CustomQuizSettings) {
+  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, quizSettings?: CustomQuizSettings) {
     if (!captureFile) return
 
     setAnalysisError('')
     setEditorOpen(false)
     try {
-      await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText, quizSettings)
+      await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText, timing, quizSettings)
       setCaptureFile(null)
       setCapturePreviewUrl(null)
     } catch (error) {
@@ -1001,6 +1004,24 @@ export function PresenterPage() {
     })
     if (error) throw error
     if (!data?.question) throw new Error(data?.message || '停止作答失敗。')
+  }
+
+  // Reopening the question the class is on, so a teacher who stopped it can
+  // give another minute without re-dispatching and losing the answers already in.
+  async function resumeQuestion() {
+    if (!session?.current_question_id) return
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: {
+        action: 'resume_question',
+        sessionId,
+        presenterToken,
+        questionId: session.current_question_id,
+      },
+    })
+    if (error) throw new Error(await edgeFunctionErrorMessage(error, '恢復作答失敗。'))
+    if (!data?.question) throw new Error(data?.message || '恢復作答失敗。')
   }
 
   async function setCorrectAnswer(answer: string) {
@@ -1275,6 +1296,13 @@ export function PresenterPage() {
   }
 
 
+
+  // The panel acts on the question the class is on, which is not always the one
+  // the presenter has selected in the history to look back at.
+  const currentPanelQuestion = useMemo(
+    () => questions.find((item) => item.id === session?.current_question_id) || null,
+    [questions, session?.current_question_id],
+  )
 
   // One fetch feeds both places uploads are shown; each takes the question it
   // is actually displaying rather than assuming they are the same one.
@@ -1583,10 +1611,12 @@ export function PresenterPage() {
           buzzerActive={isBuzzerPending(buzzerEvent)}
           captionError={captionError}
           onlineCount={onlineParticipants.length}
+          currentQuestion={currentPanelQuestion}
           session={session}
           onDrawLottery={drawLottery}
           onStartBuzzer={startBuzzer}
           onStopQuestion={stopQuestion}
+          onResumeQuestion={resumeQuestion}
           onToggleAnonymous={() => updateSession({ anonymous_enabled: !session.anonymous_enabled })}
           onToggleDanmaku={() => updateSession({ danmaku_enabled: !session.danmaku_enabled })}
           onCaptureScreen={window.interactDesktop ? captureWindowsScreen : undefined}

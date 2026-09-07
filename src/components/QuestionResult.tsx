@@ -2,6 +2,7 @@ import { AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Sparkl
 import { useMemo, useState } from 'react'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
+import { answerDeadline, formatSeconds, useSecondsLeft } from '../lib/questionTiming'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
 type Props = {
@@ -45,12 +46,21 @@ function QuestionStatusActions({
   onDrawUnanswered,
   question,
 }: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered'> & { question: Question }) {
+  // The presenter has to see the clock the class is watching, or they are
+  // deciding when to move on blind — which is the whole reason a timed
+  // question was set. Same function as the student's, so the two agree.
+  const secondsLeft = useSecondsLeft(answerDeadline(question))
   const canDrawUnanswered = isCurrentQuestion
     && question.type !== 'send_screen'
     && (question.status === 'stopped' || question.status === 'closed')
 
   return (
     <div className="question-heading-actions">
+      {secondsLeft !== null && question.status === 'active' && (
+        <span aria-live="off" className={`question-countdown${secondsLeft <= 10 ? ' is-urgent' : ''}`}>
+          {formatSeconds(secondsLeft)}
+        </span>
+      )}
       {canDrawUnanswered && (
         <button
           aria-label="抽選本題未作答學生"

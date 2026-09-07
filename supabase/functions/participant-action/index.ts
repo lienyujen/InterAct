@@ -275,6 +275,32 @@ Deno.serve(async (req) => {
     }
 
 
+    if (action === 'get_file_result') {
+      const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
+      if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)
+      const questionId = typeof input.questionId === 'string' ? input.questionId : ''
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+      const { data, error } = await supabase.from('file_responses')
+        .select('id, name, analysis_status, analysis_json, submitted_at, analyzed_at')
+        .eq('question_id', questionId)
+        .eq('session_id', sessionId)
+        .eq('participant_id', participantId)
+        .order('submitted_at')
+      if (error) throw error
+      // Only a finished mark is handed over. A failure is the teacher's problem
+      // to retry, not something to show a student as though they were graded,
+      // and error_message carries server detail that is not theirs to read.
+      const responses = (data || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        analysis_status: row.analysis_status,
+        analysis_json: row.analysis_status === 'success' ? row.analysis_json : null,
+        submitted_at: row.submitted_at,
+        analyzed_at: row.analyzed_at,
+      }))
+      return jsonResponse({ responses })
+    }
+
     if (['prepare_file_upload', 'submit_file_response'].includes(action)) {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)

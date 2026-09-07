@@ -2,6 +2,8 @@ import { Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { QuestionType, QuizRequestedType } from '../types'
 import { CustomQuizFields } from './CustomQuizFields'
+import { TimingRow } from './TimingRow'
+import { ANSWER_PRESETS, PREPARE_PRESETS, canBeTimed, canPrepare } from '../lib/questionTiming'
 import { quizSettingsFrom } from '../lib/customQuiz'
 import type { CustomQuizSettings } from '../lib/customQuiz'
 
@@ -12,8 +14,17 @@ type Props = {
   open: boolean
   previewUrl: string | null
   onCancel: () => void
-  onCreate: (type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, quizSettings?: CustomQuizSettings) => void
+  onCreate: (
+    type: QuestionType,
+    options: string[],
+    allowMultiple: boolean,
+    promptText: string,
+    timing: QuestionTiming,
+    quizSettings?: CustomQuizSettings,
+  ) => void
 }
+
+export type QuestionTiming = { prepareSeconds: number | null; answerSeconds: number | null }
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'send_screen', label: '派送畫面' },
@@ -34,6 +45,8 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
   const [quizCount, setQuizCount] = useState('auto')
   const [quizType, setQuizType] = useState<QuizRequestedType>('random')
   const [quizDirection, setQuizDirection] = useState('')
+  const [prepareSeconds, setPrepareSeconds] = useState<number | null>(null)
+  const [answerSeconds, setAnswerSeconds] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -44,6 +57,8 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
     setQuizCount('auto')
     setQuizType('random')
     setQuizDirection('')
+    setPrepareSeconds(null)
+    setAnswerSeconds(null)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -63,10 +78,13 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
           if (type === 'custom_quiz') {
             const direction = quizDirection.trim()
             if (!direction) return
-            onCreate(type, [], false, direction, quizSettingsFrom(quizCount, quizType, direction))
+            onCreate(type, [], false, direction, { prepareSeconds: null, answerSeconds: null }, quizSettingsFrom(quizCount, quizType, direction))
             return
           }
-          onCreate(type, finalOptions, editableOptions && allowMultiple, type === 'send_screen' ? '' : promptText.trim())
+          onCreate(type, finalOptions, editableOptions && allowMultiple, type === 'send_screen' ? '' : promptText.trim(), {
+            prepareSeconds: canPrepare(type) ? prepareSeconds : null,
+            answerSeconds: canBeTimed(type) ? answerSeconds : null,
+          })
         }}
       >
         <h2>截圖派題</h2>
@@ -151,6 +169,26 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
               onChange={(event) => setPromptText(event.target.value)}
             />
           </label>
+        )}
+        {canBeTimed(type) && (
+          <div className="question-timing">
+            {canPrepare(type) && (
+              <TimingRow
+                label="準備時間"
+                offLabel="不準備"
+                presets={PREPARE_PRESETS}
+                value={prepareSeconds}
+                onChange={setPrepareSeconds}
+              />
+            )}
+            <TimingRow
+              label="作答時間"
+              offLabel="不限時"
+              presets={ANSWER_PRESETS}
+              value={answerSeconds}
+              onChange={setAnswerSeconds}
+            />
+          </div>
         )}
         <div className="modal-actions">
           <button className="ghost-button" type="button" onClick={onCancel}>
