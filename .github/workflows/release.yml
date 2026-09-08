@@ -63,7 +63,10 @@ jobs:
           echo "No Supabase project embedded."
 
       - name: Package Windows app
-        run: pnpm exec electron-builder --win portable zip --x64 --publish never
+        # Zip only. The single-file portable build re-extracts its whole payload
+        # to a temp folder on every launch, so it starts slowly and was never the
+        # one to recommend; shipping both only invited people to pick the worse one.
+        run: pnpm exec electron-builder --win zip --x64 --publish never
 
       - name: Publish release
         env:
@@ -74,10 +77,8 @@ jobs:
           notes=$(cat <<'MD'
           ## 下載
 
-          | 檔案 | 說明 |
-          |---|---|
-          | `InterAct.zip` | 解壓後直接執行資料夾內的 `InterAct.exe`，開啟較快，**建議使用** |
-          | `InterAct.exe` | 單一檔案免安裝版，每次啟動需自我解壓，較慢 |
+          下載 `InterAct.zip`，解壓縮後執行資料夾裡的 `InterAct.exe` 即可，免安裝。
+          建議解壓到固定位置（例如桌面或文件夾），之後直接從那裡開啟。
 
           ## 首次使用
 
@@ -99,5 +100,4 @@ jobs:
           gh release create "$TAG" \
             --title "InterAct $TAG" \
             --notes "$notes" \
-            release/InterAct.exe \
             release/InterAct.zip
