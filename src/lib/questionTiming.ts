@@ -27,11 +27,17 @@ export function canPrepare(type: QuestionType) {
 export const ANSWER_PRESETS: Array<number | null> = [null, 30, 60, 90, 180]
 export const PREPARE_PRESETS: Array<number | null> = [null, 10, 20, 30]
 
-// Said the way a teacher says it out loud, not as a raw second count.
-export function formatSeconds(seconds: number) {
-  if (seconds < 60) return `${seconds}秒`
+// Said the way it is said out loud, not as a raw second count. The teacher's
+// chips are always Chinese because that interface is; the student's limit
+// follows whatever language they are reading the class in.
+export function formatSeconds(seconds: number, locale: 'zh-TW' | 'en' = 'zh-TW') {
   const minutes = Math.floor(seconds / 60)
   const rest = seconds % 60
+  if (locale === 'en') {
+    if (seconds < 60) return `${seconds}s`
+    return rest ? `${minutes}m ${rest}s` : `${minutes}m`
+  }
+  if (seconds < 60) return `${seconds}秒`
   return rest ? `${minutes}分${rest}秒` : `${minutes}分鐘`
 }
 

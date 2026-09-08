@@ -415,6 +415,16 @@ export function QuestionResult(props: Props) {
           <QuestionStatusActions {...props} question={question} />
         </div>
         {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
+        {/* A spoken answer has no session-wide countdown to show — each student's
+            clock starts when they begin, not when the question went out. What the
+            presenter needs here is confirmation that the limits they set took. */}
+        {(question.prepare_seconds || question.answer_seconds) && (
+          <p className="muted question-timing-summary">
+            {question.prepare_seconds ? `準備 ${formatSeconds(question.prepare_seconds)}，時間到自動開始錄音` : '不準備'}
+            {' · '}
+            {question.answer_seconds ? `錄音最長 ${formatSeconds(question.answer_seconds)}` : '錄音不限時'}
+          </p>
+        )}
         <p className="muted">已錄音 {answers.length} 人</p>
         {question.status === 'active' ? (
           <p className="muted">停止作答後會顯示個別 AI 評測與錄音播放器。</p>

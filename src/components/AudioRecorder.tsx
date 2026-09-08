@@ -1,6 +1,7 @@
 import { CircleStop, Mic, RotateCcw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { recordingToWav } from '../lib/audio'
+import { formatSeconds } from '../lib/questionTiming'
 import type { AudioResponse, Question } from '../types'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
@@ -102,7 +103,7 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
         releaseMicrophone()
       }
       recorder.onstop = async () => {
-        const durationMs = Math.min(MAX_DURATION_MS, Date.now() - startedAtRef.current)
+        const durationMs = Math.min(maxDurationMs, Date.now() - startedAtRef.current)
         setRecording(false)
         releaseMicrophone()
         if (cancelledRef.current) return
@@ -170,7 +171,13 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
 
   return (
     <div className="audio-recorder">
-      <p className="muted">{participantText(locale, 'recordingHint')}</p>
+      {/* The limit the teacher actually set, not the ceiling built into the app:
+          telling a student "up to 3 minutes" and cutting them off at 30 seconds
+          is worse than saying nothing. */}
+      <p className="muted">
+        {participantText(locale, 'recordingLimit')} {formatSeconds(Math.round(maxDurationMs / 1000), locale)}。
+        {participantText(locale, 'recordingHint')}
+      </p>
       {preparingLeft !== null && (
         <p aria-live="off" className={`answer-countdown${preparingLeft <= 3 ? ' is-urgent' : ''}`}>
           {participantText(locale, 'preparing')} {preparingLeft}
@@ -183,7 +190,9 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
         onClick={recording ? stopRecording : startRecording}
       >
         {recording ? <CircleStop size={28} /> : busy ? <RotateCcw className="spin" size={28} /> : <Mic size={28} />}
-        <span>{recording ? `${participantText(locale, 'stopRecording')} ${formatDuration(elapsed)}` : busy ? participantText(locale, 'uploading') : participantText(locale, 'startRecording')}</span>
+        <span>{recording
+          ? `${participantText(locale, 'stopRecording')} ${formatDuration(question.answer_seconds ? maxDurationMs - elapsed : elapsed)}`
+          : busy ? participantText(locale, 'uploading') : participantText(locale, 'startRecording')}</span>
       </button>
       {error && <p className="error">{error}</p>}
     </div>
