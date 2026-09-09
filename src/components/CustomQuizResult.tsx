@@ -153,6 +153,8 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
             busy={Boolean(busyItemId)}
             isCurrentQuestion={isCurrentQuestion}
             question={question}
+            canRepeat={false}
+            onNextRound={async () => {}}
             onResume={onResumeQuestion}
             onStop={onStopQuestion}
           />

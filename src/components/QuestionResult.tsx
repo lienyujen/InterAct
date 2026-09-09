@@ -27,6 +27,7 @@ type Props = {
   onAnalyzeFile: (responseId: string) => void
   onStopQuestion: () => Promise<void>
   onResumeQuestion: () => Promise<void>
+  onNextRound: () => Promise<void>
   // The dispatched screenshot, which the class's taps are drawn back onto.
   screenshotUrl: string | null
   onDrawUnanswered: (questionId: string) => void
@@ -53,8 +54,9 @@ function QuestionStatusActions({
   onDrawUnanswered,
   onStopQuestion,
   onResumeQuestion,
+  onNextRound,
   question,
-}: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered' | 'onStopQuestion' | 'onResumeQuestion'> & { question: Question }) {
+}: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered' | 'onStopQuestion' | 'onResumeQuestion' | 'onNextRound'> & { question: Question }) {
   // The presenter has to see the clock the class is watching, or they are
   // deciding when to move on blind — which is the whole reason a timed
   // question was set. Same function as the student's, so the two agree.
@@ -86,6 +88,8 @@ function QuestionStatusActions({
         busy={busy}
         isCurrentQuestion={isCurrentQuestion}
         question={question}
+        canRepeat={['poll', 'multiple_choice', 'true_false', 'short_answer', 'hotspot', 'ordering', 'matching'].includes(question.type)}
+        onNextRound={onNextRound}
         onResume={onResumeQuestion}
         onStop={onStopQuestion}
       />
@@ -359,6 +363,77 @@ function UploadResults({
   )
 }
 
+function RoundComparison({ answers, question, correctAnswers }: {
+  answers: Answer[]
+  question: Question
+  correctAnswers: string[]
+}) {
+  const rounds = useMemo(() => {
+    const byRound = new Map<number, Answer[]>()
+    for (const answer of answers) {
+      const list = byRound.get(answer.round) || []
+      list.push(answer)
+      byRound.set(answer.round, list)
+    }
+    return [...byRound.entries()].sort((a, b) => a[0] - b[0])
+  }, [answers])
+
+  if (rounds.length < 2) return null
+
+  const [firstRound, ...rest] = rounds
+  const latestRound = rest[rest.length - 1]
+  const pick = (entry: Answer) => entry.answer_value || entry.answer_values?.[0] || entry.answer_text || ''
+  const before = new Map(firstRound[1].map((entry) => [entry.participant_id, pick(entry)]))
+  const moves = new Map<string, number>()
+  let changed = 0
+  let gained = 0
+  let lost = 0
+  for (const entry of latestRound[1]) {
+    const from = before.get(entry.participant_id)
+    if (from === undefined) continue
+    const to = pick(entry)
+    if (from === to) continue
+    changed += 1
+    if (correctAnswers.length) {
+      if (!correctAnswers.includes(from) && correctAnswers.includes(to)) gained += 1
+      if (correctAnswers.includes(from) && !correctAnswers.includes(to)) lost += 1
+    }
+    const key = `${from} → ${to}`
+    moves.set(key, (moves.get(key) || 0) + 1)
+  }
+  const rate = (list: Answer[]) => correctAnswers.length
+    ? Math.round((list.filter((entry) => correctAnswers.includes(pick(entry))).length / list.length) * 100)
+    : null
+
+  return (
+    <section className="panel round-comparison">
+      <h2>兩輪對照</h2>
+      <div className="round-summary">
+        {rounds.map(([round, list]) => (
+          <div key={round}>
+            <strong>第 {round} 輪</strong>
+            <span>{list.length} 人作答{rate(list) === null ? '' : ` · 答對 ${rate(list)}%`}</span>
+          </div>
+        ))}
+      </div>
+      <p className="muted">
+        {changed
+          ? `${changed} 人改了答案`
+          : '沒有人改答案 —— 討論沒有動搖任何人，這本身就是一個發現。'}
+        {correctAnswers.length && changed ? ` · 改對 ${gained} 人、改錯 ${lost} 人` : ''}
+      </p>
+      {moves.size > 0 && (
+        <ul className="round-moves">
+          {[...moves.entries()].sort((a, b) => b[1] - a[1]).map(([move, count]) => (
+            <li key={move}><span>{move}</span><b>{count} 人</b></li>
+          ))}
+        </ul>
+      )}
+      {question.status === 'active' && <p className="muted">第 {latestRound[0]} 輪還在作答中。</p>}
+    </section>
+  )
+}
+
 export function QuestionResult(props: Props) {
   const { anonymousEnabled, question, answers, audioResponses, analysis, onSetCorrectAnswer } = props
 
@@ -514,8 +589,11 @@ export function QuestionResult(props: Props) {
     )
   }
 
-  const counts = countByAnswer(answers)
-  const correctness = correctnessStats(question, answers)
+  // The bars show the round the class is on; the comparison panel below is
+  // what carries the earlier ones.
+  const currentRoundAnswers = answers.filter((entry) => entry.round === question.answer_round)
+  const counts = countByAnswer(currentRoundAnswers)
+  const correctness = correctnessStats(question, currentRoundAnswers)
   const correctAnswers = question.correct_answers?.length
     ? question.correct_answers
     : question.correct_answer
@@ -532,11 +610,11 @@ export function QuestionResult(props: Props) {
         {(analysis?.question_understanding.detected_question || question.prompt_text) && (
           <p className="detected-question">{analysis?.question_understanding.detected_question || question.prompt_text}</p>
         )}
-        <p className="muted">已作答 {answers.length} 人</p>
+        <p className="muted">已作答 {currentRoundAnswers.length} 人{question.answer_round > 1 ? `（第 ${question.answer_round} 輪）` : ''}</p>
         <div className="option-results">
           {question.options.map((option) => {
             const count = counts[option] || 0
-            const rate = answers.length ? Math.round((count / answers.length) * 100) : 0
+            const rate = currentRoundAnswers.length ? Math.round((count / currentRoundAnswers.length) * 100) : 0
             const canSetCorrectAnswer = question.status !== 'active'
               && (question.type === 'multiple_choice' || question.type === 'true_false')
 
@@ -575,6 +653,7 @@ export function QuestionResult(props: Props) {
           </p>
         )}
       </section>
+      <RoundComparison answers={answers} correctAnswers={correctAnswers} question={question} />
       <AiAnalysisPanel {...props} />
     </>
   )

@@ -973,6 +973,42 @@ Deno.serve(async (req) => {
       return jsonResponse({ question: data })
     }
 
+    // Asking the same question again after the class has argued about it. The
+    // first round's answers stay where they are — the comparison between the
+    // two is the whole reason to do it.
+    if (action === 'next_round') {
+      const questionId = input.questionId
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const { data: current, error: currentError } = await supabase
+        .from('sessions').select('current_question_id, status').eq('id', sessionId).maybeSingle()
+      if (currentError) throw currentError
+      if (!current || current.status !== 'active') return jsonResponse({ message: '課堂已結束。' }, 409)
+      if (current.current_question_id !== questionId) {
+        return jsonResponse({ message: '這題已經不是目前的題目，請重新派送。' }, 409)
+      }
+      const { data: existing, error: existingError } = await supabase
+        .from('questions').select('answer_round').eq('id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (existingError) throw existingError
+      if (!existing) return jsonResponse({ message: '找不到題目。' }, 404)
+      const { data, error } = await supabase
+        .from('questions')
+        .update({
+          status: 'active',
+          stopped_at: null,
+          started_at: new Date().toISOString(),
+          answer_round: existing.answer_round + 1,
+        })
+        .eq('id', questionId)
+        .eq('session_id', sessionId)
+        // Compare-and-set on the round, so a double tap cannot skip one.
+        .eq('answer_round', existing.answer_round)
+        .select('*')
+        .maybeSingle()
+      if (error) throw error
+      if (!data) return jsonResponse({ message: '這題剛剛已經開了新的一輪。' }, 409)
+      return jsonResponse({ question: data })
+    }
+
     if (action === 'get_recording_results') {
       const questionId = input.questionId
       if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)

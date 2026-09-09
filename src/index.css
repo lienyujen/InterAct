@@ -4852,3 +4852,52 @@ h2 {
 .hotspot-results-panel .hotspot-frame {
   margin-top: 10px;
 }
+
+/* 兩輪對照: the migration is the finding, so it gets its own panel rather than
+   a line under the bars. */
+.round-comparison h2 {
+  font-size: 1rem;
+  margin: 0 0 10px;
+}
+
+.round-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  margin-bottom: 10px;
+}
+
+.round-summary > div {
+  background: var(--surface-subtle);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+}
+
+.round-summary span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.round-moves {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.round-moves li {
+  display: flex;
+  font-size: 0.86rem;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.question-stop-button.is-repeat {
+  background: var(--primary-soft);
+  border-color: rgb(91 92 226 / 30%);
+}

@@ -1038,6 +1038,19 @@ export function PresenterPage() {
     if (!data?.question) throw new Error(data?.message || '恢復作答失敗。')
   }
 
+  // The same question asked again after the class has argued about it. The
+  // first round stays put; the comparison is the point.
+  async function nextRound() {
+    if (!session?.current_question_id) return
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'next_round', sessionId, presenterToken, questionId: session.current_question_id },
+    })
+    if (error) throw new Error(await edgeFunctionErrorMessage(error, '無法開始新的一輪。'))
+    if (!data?.question) throw new Error(data?.message || '無法開始新的一輪。')
+  }
+
   async function setCorrectAnswer(answer: string) {
     if (!question || question.status === 'active') return
     const presenterToken = getPresenterToken(sessionId)
@@ -1692,6 +1705,7 @@ export function PresenterPage() {
             setAnalysisError(error instanceof Error ? error.message : 'AI 批改失敗。')
           })}
           onDrawUnanswered={drawUnanswered}
+          onNextRound={nextRound}
           onSetCorrectAnswer={setCorrectAnswer}
         />}
         {session.exit_ticket_prompt && session.exit_ticket_category && (

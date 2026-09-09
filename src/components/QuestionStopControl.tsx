@@ -1,4 +1,4 @@
-import { Play, Square } from 'lucide-react'
+import { Play, RotateCcw, Square } from 'lucide-react'
 import { useState } from 'react'
 import type { Question } from '../types'
 
@@ -10,12 +10,16 @@ type Props = {
   busy: boolean
   onStop: () => Promise<void>
   onResume: () => Promise<void>
+  onNextRound: () => Promise<void>
+  // A second round only makes sense where the class picks from the same
+  // options again; a recording or an upload is not asked twice this way.
+  canRepeat: boolean
 }
 
 // One button that changes its mind rather than two that each go one way. The
 // title says the stop is reversible, because a teacher who does not know that
 // will not press it in the middle of an activity.
-export function QuestionStopControl({ question, isCurrentQuestion, busy, onStop, onResume }: Props) {
+export function QuestionStopControl({ question, isCurrentQuestion, busy, canRepeat, onStop, onResume, onNextRound }: Props) {
   const [toggling, setToggling] = useState(false)
   const [error, setError] = useState('')
 
@@ -49,6 +53,19 @@ export function QuestionStopControl({ question, isCurrentQuestion, busy, onStop,
         {resumable ? <Play size={15} /> : <Square size={15} />}
         {resumable ? '恢復作答' : '停止作答'}
       </button>
+      {resumable && canRepeat && (
+        // Reopening carries on the round that was stopped; this starts a fresh
+        // one, which is what a teacher wants once the class has argued about it.
+        <button
+          className="question-stop-button is-repeat"
+          disabled={busy || toggling}
+          title="讓全班重答一次，並與上一輪對照"
+          type="button"
+          onClick={() => void run(onNextRound)}
+        >
+          <RotateCcw size={15} />再做一次
+        </button>
+      )}
       {error && <span className="error question-stop-error">{error}</span>}
     </span>
   )
