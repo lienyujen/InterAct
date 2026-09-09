@@ -148,12 +148,17 @@ export function ParticipantPage() {
     if (nextSession?.current_question_id) {
       const [{ data: questionData }, { data: answerData }] = await Promise.all([
         supabase.from('questions').select('*').eq('id', nextSession.current_question_id).single(),
-        supabase.from('answers').select('*').eq('question_id', nextSession.current_question_id).eq('participant_id', participantId).maybeSingle(),
+        // Every round, not one row: 再做一次 leaves the earlier answer in place,
+        // so asking for a single row is an error rather than a miss.
+        supabase.from('answers').select('*').eq('question_id', nextSession.current_question_id).eq('participant_id', participantId).order('round'),
       ])
       if (requestId !== loadSequence.current) return
       const nextQuestion = questionData as Question | null
       setQuestion(nextQuestion)
-      setAnswer((answerData as Answer | null) || null)
+      // Only this round counts as answered. Once the teacher opens another one,
+      // the student is unanswered again and the form comes back.
+      const rounds = (answerData || []) as Answer[]
+      setAnswer(rounds.find((entry) => entry.round === nextQuestion?.answer_round) || null)
       if (nextQuestion?.type === 'custom_quiz') {
         if (loadedQuizQuestionId.current !== nextQuestion.id) setQuizData(null)
       }
@@ -348,6 +353,7 @@ export function ParticipantPage() {
           answer_value: isShortAnswer ? null : singleValue,
           answer_values: isShortAnswer ? null : answerValues,
           answer_text: isShortAnswer ? singleValue : null,
+          round: question.answer_round,
         })
         .select('*')
         .single()

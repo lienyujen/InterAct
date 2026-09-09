@@ -860,6 +860,11 @@ Deno.serve(async (req) => {
       // The sequence, or the right-hand item for each prompt in order. Empty
       // for an ordering question the presenter dispatched without an answer.
       const correctValues = ['ordering', 'matching'].includes(type) ? normalizedOptions(input.correctValues) : []
+      // Equal lengths are also all-zero when the model found nothing to pair, and
+      // a question with no pairs is not a question — the class would get a blank.
+      if (['ordering', 'matching'].includes(type) && options.length < 2) {
+        return jsonResponse({ message: 'AI 在這張截圖裡找不到可以出題的內容，換一張或在題目欄說明出題方向。' }, 400)
+      }
       if (type === 'matching' && (choices.length !== options.length || correctValues.length !== options.length)) {
         return jsonResponse({ message: '配對題的題目、選項與答案數量不一致。' }, 400)
       }
@@ -1103,6 +1108,30 @@ Deno.serve(async (req) => {
     // question_keys is denied to anon so the class cannot read the answer out of
     // devtools before giving it, which also means the presenter's own page has to
     // ask for it here rather than selecting it.
+    // Everything the enlarged 圖上點選 window draws. It runs in its own
+    // BrowserWindow with no presenter page under it, so it fetches its own copy
+    // rather than being handed one.
+    if (action === 'get_hotspot_result') {
+      const questionId = input.questionId
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const { data: question, error: questionError } = await supabase
+        .from('questions')
+        .select('id, type, title, prompt_text, max_pins, answer_round, screenshot_id')
+        .eq('id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (questionError) throw questionError
+      if (!question || question.type !== 'hotspot') return jsonResponse({ message: '這一題不是圖上點選。' }, 404)
+
+      const [{ data: answers, error: answerError }, { data: shot }] = await Promise.all([
+        supabase.from('answers').select('participant_name, answer_values, round')
+          .eq('question_id', questionId).eq('session_id', sessionId).order('submitted_at'),
+        question.screenshot_id
+          ? supabase.from('screenshots').select('public_url').eq('id', question.screenshot_id).maybeSingle()
+          : Promise.resolve({ data: null }),
+      ])
+      if (answerError) throw answerError
+      return jsonResponse({ question, answers: answers || [], imageUrl: shot?.public_url || null })
+    }
+
     if (action === 'get_ordering_key') {
       const questionId = input.questionId
       if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)

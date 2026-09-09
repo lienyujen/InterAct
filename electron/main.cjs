@@ -480,9 +480,9 @@ function createWordCloudWindow(sessionId) {
   })
 }
 
-function createCustomQuizReviewWindow(sessionId, questionId) {
+function createQuestionDetailWindow(route, title) {
   if (quizReviewWindow && !quizReviewWindow.isDestroyed()) {
-    loadAppRoute(quizReviewWindow, `/custom-quiz-review/${sessionId}/${questionId}`)
+    loadAppRoute(quizReviewWindow, route)
     if (quizReviewWindow.isMinimized()) quizReviewWindow.restore()
     quizReviewWindow.show()
     quizReviewWindow.moveTop()
@@ -514,7 +514,7 @@ function createCustomQuizReviewWindow(sessionId, questionId) {
     maximizable: true,
     alwaysOnTop: true,
     backgroundColor: '#f7f8fb',
-    title: 'InterAct 自訂測驗檢視',
+    title,
     icon: APP_WINDOW_ICON_PATH,
     webPreferences: {
       contextIsolation: true,
@@ -533,7 +533,7 @@ function createCustomQuizReviewWindow(sessionId, questionId) {
   })
   configureWebContents(nextQuizReviewWindow)
   nextQuizReviewWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, QUIZ_REVIEW_RELATIVE_LEVEL)
-  loadAppRoute(nextQuizReviewWindow, `/custom-quiz-review/${sessionId}/${questionId}`)
+  loadAppRoute(nextQuizReviewWindow, route)
   nextQuizReviewWindow.once('ready-to-show', () => {
     nextQuizReviewWindow.show()
     nextQuizReviewWindow.moveTop()
@@ -732,7 +732,13 @@ ipcMain.handle('window:open-word-cloud', (_event, sessionId) => {
 ipcMain.handle('window:open-custom-quiz-review', (_event, sessionId, questionId) => {
   requireUuid(sessionId)
   requireUuid(questionId, 'question')
-  createCustomQuizReviewWindow(sessionId, questionId)
+  createQuestionDetailWindow(`/custom-quiz-review/${sessionId}/${questionId}`, 'InterAct 自訂測驗檢視')
+})
+
+ipcMain.handle('window:open-hotspot-review', (_event, sessionId, questionId) => {
+  requireUuid(sessionId)
+  requireUuid(questionId, 'question')
+  createQuestionDetailWindow(`/hotspot-review/${sessionId}/${questionId}`, 'InterAct 圖上點選檢視')
 })
 
 ipcMain.handle('capture:list', listCaptureSources)

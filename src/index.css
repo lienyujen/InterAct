@@ -5032,46 +5032,6 @@ h2 {
   white-space: nowrap;
 }
 
-/* The unmarked ordering question's whole point: item against position, so the
-   steps the class agreed on and the ones it split over are visible at a glance.
-   It scrolls sideways rather than shrinking, because eight columns of 5% text
-   on a laptop is not a reading. */
-.ordering-matrix-scroll {
-  margin-top: 8px;
-  overflow-x: auto;
-}
-
-.ordering-matrix {
-  border-collapse: collapse;
-  font-size: 0.8rem;
-  min-width: 100%;
-}
-
-.ordering-matrix th,
-.ordering-matrix td {
-  padding: 6px 8px;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.ordering-matrix thead th {
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.ordering-matrix tbody th {
-  font-weight: 500;
-  max-width: 220px;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-}
-
-.ordering-matrix td {
-  background: color-mix(in srgb, var(--primary, #5b5ce2) var(--tint, 0%), transparent);
-  border-radius: 4px;
-}
-
 .ordering-key-editor {
   border-top: 1px solid var(--border);
   margin-top: 16px;
@@ -5187,4 +5147,186 @@ h2 {
 .generated-pair-arrow {
   color: var(--muted);
   flex: 0 0 auto;
+}
+
+/* 依權重排出來的全班順序: the answer the class gave, already worked out. The
+   weight sits on the right so the list reads as a list first and a measurement
+   second. */
+.ordering-ranked {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+
+.ordering-ranked li {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ordering-ranked-item {
+  font-size: 0.9rem;
+}
+
+.ordering-ranked-weight {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+/* The key editor pairs by tapping, so each prompt owns a row of its choices
+   rather than a dropdown. Wraps, because six answers do not fit on one line. */
+.matching-key-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.matching-key-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.matching-key-list .matching-prompt {
+  font-weight: 600;
+}
+
+.matching-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.matching-choice {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.82rem;
+  padding: 5px 12px;
+}
+
+.matching-choice.is-picked {
+  background: var(--primary, #5b5ce2);
+  border-color: var(--primary, #5b5ce2);
+  color: #fff;
+}
+
+.matching-choice:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* 圖上點選放大檢視. The picture is the whole result, so the enlarged view is the
+   picture and nothing else — it fills the window and the pins scale with it. */
+.hotspot-heading-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The thumbnail is a button so the whole picture is the target, not just the
+   small icon in the heading. */
+.hotspot-thumb-button {
+  background: none;
+  border: 0;
+  cursor: zoom-in;
+  display: block;
+  padding: 0;
+  width: 100%;
+}
+
+.hotspot-review-modal {
+  background: var(--surface);
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: 22px;
+  box-shadow: 0 28px 90px rgb(24 34 58 / 35%);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 88vh;
+  overflow: hidden;
+  width: 88vw;
+}
+
+.hotspot-review-modal > header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+
+.hotspot-review-modal > header h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+/* Centres the image and caps it at the space available, so a tall screenshot
+   is bounded by the height and a wide one by the width. */
+.hotspot-review-stage {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
+}
+
+.hotspot-review-stage .hotspot-frame {
+  max-height: 100%;
+  width: auto;
+}
+
+.hotspot-review-stage .hotspot-image {
+  max-height: 78vh;
+  object-fit: contain;
+  width: auto;
+}
+
+/* The standalone desktop window: same stage, but it is the whole window. */
+.hotspot-review-window {
+  background: var(--surface);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.hotspot-review-window > header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 14px 20px;
+  -webkit-app-region: drag;
+}
+
+.hotspot-review-window > header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.hotspot-review-window > header .show-answers-toggle,
+.hotspot-review-window > header .icon-button {
+  -webkit-app-region: no-drag;
+}
+
+.hotspot-review-window > .muted,
+.hotspot-review-window > .error {
+  margin: 10px 20px 0;
+}
+
+.hotspot-review-window .hotspot-review-stage .hotspot-image {
+  max-height: 82vh;
 }

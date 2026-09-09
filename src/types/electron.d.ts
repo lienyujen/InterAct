@@ -28,6 +28,7 @@ declare global {
       openWordCloud: (sessionId: string) => Promise<void>
       openRoster: (sessionId: string) => Promise<void>
       openCustomQuizReview: (sessionId: string, questionId: string) => Promise<void>
+      openHotspotReview: (sessionId: string, questionId: string) => Promise<void>
       minimize: () => Promise<void>
       close: () => Promise<void>
       listCaptureSources: () => Promise<InterActCaptureSource[]>

@@ -815,6 +815,16 @@ export function PresenterPage() {
     return next
   }
 
+  // So the class is not handed the answer in reading order.
+  function shuffle<T>(list: T[]) {
+    const copy = [...list]
+    for (let index = copy.length - 1; index > 0; index -= 1) {
+      const target = Math.floor(Math.random() * (index + 1))
+      ;[copy[index], copy[target]] = [copy[target], copy[index]]
+    }
+    return copy
+  }
+
   async function generateQuestionItems(kind: 'ordering' | 'matching', direction: string): Promise<GeneratedItems> {
     if (!captureFile) throw new Error('找不到截圖，請重新截圖。')
     const presenterToken = requirePresenterToken()
@@ -835,6 +845,20 @@ export function PresenterPage() {
       // Reuses the upload the AI already read, when there was one.
       const prepared = await prepareScreenshot(file)
 
+      // 配對題 is written here rather than in the dialog and is never drawn on the
+      // way past: the presenter dispatches with their screen on the projector, so a
+      // preview of the pairs would hand the class the answers.
+      let dispatchOptions = options
+      let dispatchKey = key
+      if (type === 'matching') {
+        const generated = await generateQuestionItems('matching', promptText)
+        const pairs = generated.pairs || []
+        if (pairs.length < 2) throw new Error('AI 在這張截圖裡找不到可以配對的內容，換一張或在出題方向欄說明要配什麼。')
+        dispatchOptions = pairs.map((pair) => pair.left)
+        const answers = pairs.map((pair) => pair.right)
+        dispatchKey = { choices: shuffle(answers), correctValues: answers }
+      }
+
       const { data, error } = await supabase.functions.invoke('presenter-action', {
         body: type === 'custom_quiz' ? {
           action: 'create_custom_quiz',
@@ -852,12 +876,12 @@ export function PresenterPage() {
           screenshotId: prepared.screenshotId,
           storagePath: prepared.storagePath,
           questionType: type,
-          options,
+          options: dispatchOptions,
           allowMultiple,
           prepareSeconds: timing.prepareSeconds,
           answerSeconds: timing.answerSeconds,
-          choices: key.choices,
-          correctValues: key.correctValues,
+          choices: dispatchKey.choices,
+          correctValues: dispatchKey.correctValues,
           promptText,
         },
       })
@@ -1820,7 +1844,7 @@ export function PresenterPage() {
         previewUrl={capturePreviewUrl}
         onCancel={cancelQuestionEditor}
         onCreate={createScreenshotQuestion}
-        onGenerate={generateQuestionItems}
+        onGenerate={(direction) => generateQuestionItems('ordering', direction)}
       />
       {fileTransferOpen && (
         <FileTransferModal

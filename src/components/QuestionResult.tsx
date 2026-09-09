@@ -1,6 +1,6 @@
-import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Shuffle, Sparkles } from 'lucide-react'
+import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Maximize2, Shuffle, Sparkles, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import type { CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
@@ -576,24 +576,33 @@ function MatchingKeyEditor({ prompts, choices, current, busy, onSubmit }: {
 
   return (
     <div className="ordering-key-editor">
-      <p className="muted">為每一個題目指定正確的配對。</p>
-      <ul className="matching-list">
+      <p className="muted">點選每一個題目的正確配對。</p>
+      {/* Buttons rather than a select. A native dropdown is an OS-level window in
+          the desktop app, and anything that touches focus while it is open closes
+          it — including a student answering, which reloads this panel underneath.
+          Buttons are ordinary DOM and nothing can dismiss them. */}
+      <ul className="matching-key-list">
         {prompts.map((prompt, index) => (
           <li key={prompt}>
             <span className="matching-prompt">{prompt}</span>
-            <select
-              aria-label={prompt}
-              disabled={busy || saving}
-              value={picked[index]}
-              onChange={(event) => choose(index, event.target.value)}
-            >
-              <option value="">—</option>
-              {choices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
-            </select>
+            <span className="matching-choice-row">
+              {choices.map((choice) => (
+                <button
+                  className={`matching-choice${picked[index] === choice ? ' is-picked' : ''}`}
+                  disabled={busy || saving}
+                  key={choice}
+                  type="button"
+                  onClick={() => choose(index, choice)}
+                >
+                  {choice}
+                </button>
+              ))}
+            </span>
           </li>
         ))}
       </ul>
       <div className="ordering-actions">
+        <span className="muted">{picked.filter(Boolean).length} / {prompts.length}</span>
         <button
           disabled={busy || saving || !complete || unchanged}
           type="button"
@@ -646,51 +655,43 @@ function OrderingMistakes({ answers, correctValues }: { answers: Answer[]; corre
 // so a class that agrees on the first two steps and splits on the rest reads as
 // exactly that.
 function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[] }) {
-  const counts = items.map((item) => items.map((_, position) =>
-    answers.filter((entry) => (entry.answer_values || [])[position] === item).length))
-  // Mean position, so the consensus order is the class's own answer rather than
-  // whichever single sequence happened to be most popular.
-  const consensus = items
-    .map((item, row) => {
-      const total = counts[row].reduce((sum, count) => sum + count, 0)
-      const weighted = counts[row].reduce((sum, count, position) => sum + count * (position + 1), 0)
-      return { item, mean: total ? weighted / total : items.length + 1 }
+  // The class's answer, worked out by weight rather than shown as a table for
+  // the presenter to work out themselves: each item is scored by the average
+  // place it was given, and the list is that score in order. 同意度 is the share
+  // who put it exactly where the class landed — high means the class agreed,
+  // low means the item is where it is only because the disagreement cancelled out.
+  const ranked = items
+    .map((item) => {
+      const places = answers
+        .map((entry) => (entry.answer_values || []).indexOf(item))
+        .filter((place) => place >= 0)
+      const mean = places.length
+        ? places.reduce((sum, place) => sum + place + 1, 0) / places.length
+        : items.length + 1
+      return { item, mean, places }
     })
     .sort((a, b) => a.mean - b.mean)
+    .map((entry, index) => {
+      const agreed = entry.places.filter((place) => place === index).length
+      return {
+        ...entry,
+        agreement: entry.places.length ? Math.round((agreed / entry.places.length) * 100) : 0,
+      }
+    })
 
   return (
     <>
-      <h3 className="ordering-subheading">全班的排序分布</h3>
-      <div className="ordering-matrix-scroll">
-        <table className="ordering-matrix">
-          <thead>
-            <tr>
-              <th>項目</th>
-              {items.map((_, position) => <th key={position}>第 {position + 1}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, row) => (
-              <tr key={item}>
-                <th scope="row">{item}</th>
-                {counts[row].map((count, position) => {
-                  const rate = answers.length ? Math.round((count / answers.length) * 100) : 0
-                  return (
-                    // Capped well short of solid: the darkest cell still has to be
-                    // readable black-on-tint on a projector.
-                    <td key={position} style={{ '--tint': `${Math.round(rate * 0.45)}%` } as CSSProperties}>
-                      <span>{rate ? `${rate}%` : '·'}</span>
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <h3 className="ordering-subheading">全班的共識順序</h3>
-      <ol className="ordering-consensus">
-        {consensus.map((entry) => <li key={entry.item}>{entry.item}</li>)}
+      <h3 className="ordering-subheading">全班的排序（依權重）</h3>
+      <ol className="ordering-ranked">
+        {ranked.map((entry) => (
+          <li key={entry.item}>
+            <span className="ordering-ranked-item">{entry.item}</span>
+            <span className="ordering-ranked-weight">
+              <b>{entry.mean.toFixed(1)}</b>
+              <span className="muted">平均名次 · 同意度 {entry.agreement}%</span>
+            </span>
+          </li>
+        ))}
       </ol>
     </>
   )
@@ -726,6 +727,76 @@ function MatchingBreakdown({ prompts, answers, correctValues }: {
         )
       })}
     </ul>
+  )
+}
+
+// Its own component so the enlarge state is a hook on the branch that uses it
+// rather than one on the dispatcher, which returns early for half the types.
+function HotspotResults(props: Props & { question: Question }) {
+  const { anonymousEnabled, answers, question, screenshotUrl } = props
+  const [expanded, setExpanded] = useState(false)
+
+  // Every tap the class made, back on the picture they were looking at. The
+  // reading a presenter wants is not how many were wrong but where they all
+  // went — eighteen pins in one place is the next thing to explain.
+  const current = answers.filter((entry) => entry.round === question.answer_round)
+  const pins = current.flatMap((entry, index) => parsePins(entry.answer_values).map((point) => ({
+    ...point,
+    label: pinLabel(entry.participant_name, anonymousEnabled, index),
+  })))
+
+  // The panel is a column beside the class list, so the picture in it is a
+  // thumbnail. Same gesture as 自訂測驗: a real window in the desktop app, a
+  // full-screen overlay everywhere else.
+  function enlarge() {
+    if (window.interactDesktop) {
+      void window.interactDesktop.openHotspotReview(question.session_id, question.id)
+      return
+    }
+    setExpanded(true)
+  }
+
+  return (
+    <section className="panel result-panel hotspot-results-panel">
+      <div className="panel-heading">
+        <h2>{question.title}</h2>
+        <span className="hotspot-heading-actions">
+          {screenshotUrl && (
+            <button aria-label="放大檢視點選結果" className="icon-button" title="放大檢視點選結果" type="button" onClick={enlarge}>
+              <Maximize2 size={20} />
+            </button>
+          )}
+          <QuestionStatusActions {...props} question={question} />
+        </span>
+      </div>
+      {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
+      <p className="muted">
+        已作答 {current.length} 人 · 共 {pins.length} 個標記
+        {question.max_pins && question.max_pins > 1 ? `（每人最多 ${question.max_pins} 個）` : ''}
+        {question.answer_round > 1 ? ` · 第 ${question.answer_round} 輪` : ''}
+      </p>
+      {screenshotUrl
+        ? (
+          <button className="hotspot-thumb-button" title="放大檢視點選結果" type="button" onClick={enlarge}>
+            <HotspotImage alt="學生點選結果" imageUrl={screenshotUrl} pins={pins} />
+          </button>
+        )
+        : <p className="muted">找不到這一題的截圖。</p>}
+      {expanded && screenshotUrl && createPortal(
+        <div className="custom-quiz-review-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setExpanded(false) }}>
+          <section aria-label="圖上點選放大檢視" aria-modal="true" className="hotspot-review-modal" role="dialog">
+            <header>
+              <h2>{question.prompt_text || question.title}</h2>
+              <button aria-label="關閉放大視窗" className="icon-button" title="關閉" type="button" onClick={() => setExpanded(false)}><X size={22} /></button>
+            </header>
+            <div className="hotspot-review-stage">
+              <HotspotImage alt="學生點選結果" imageUrl={screenshotUrl} pins={pins} />
+            </div>
+          </section>
+        </div>,
+        document.body,
+      )}
+    </section>
   )
 }
 
@@ -841,28 +912,7 @@ export function QuestionResult(props: Props) {
     )
   }
 
-  if (question.type === 'hotspot') {
-    // Every tap the class made, back on the picture they were looking at. The
-    // reading a presenter wants is not how many were wrong but where they all
-    // went — eighteen pins in one place is the next thing to explain.
-    const pins = answers.flatMap((entry, index) => parsePins(entry.answer_values).map((point) => ({
-      ...point,
-      label: pinLabel(entry.participant_name, anonymousEnabled, index),
-    })))
-    return (
-      <section className="panel result-panel hotspot-results-panel">
-        <div className="panel-heading">
-          <h2>{question.title}</h2>
-          <QuestionStatusActions {...props} question={question} />
-        </div>
-        {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
-        <p className="muted">已作答 {answers.length} 人 · 共 {pins.length} 個標記{question.max_pins && question.max_pins > 1 ? `（每人最多 ${question.max_pins} 個）` : ''}</p>
-        {props.screenshotUrl
-          ? <HotspotImage alt="學生點選結果" imageUrl={props.screenshotUrl} pins={pins} />
-          : <p className="muted">找不到這一題的截圖。</p>}
-      </section>
-    )
-  }
+  if (question.type === 'hotspot') return <HotspotResults {...props} question={question} />
 
   if (question.type === 'pronunciation' || question.type === 'oral_response') {
     return (
