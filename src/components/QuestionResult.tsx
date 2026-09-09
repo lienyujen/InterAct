@@ -2,7 +2,7 @@ import { AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Sparkl
 import { useMemo, useState } from 'react'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
-import { answerDeadline, formatSeconds, useSecondsLeft } from '../lib/questionTiming'
+import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
 import { QuestionStopControl } from './QuestionStopControl'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
@@ -31,7 +31,7 @@ type Props = {
 
 type AnalysisProps = Pick<Props,
   'question' | 'answers' | 'analysis' | 'analysisBusy' | 'analysisError' | 'onAnalyze' | 'onSetCorrectAnswer'
-  | 'fileResponses' | 'gradeProgress'>
+  | 'fileResponses' | 'gradeProgress' | 'audioResponses'>
 
 function ItemList({ items }: { items: string[] }) {
   if (!items.length) return <p className="muted">目前沒有可列出的項目。</p>
@@ -54,7 +54,7 @@ function QuestionStatusActions({
   // The presenter has to see the clock the class is watching, or they are
   // deciding when to move on blind — which is the whole reason a timed
   // question was set. Same function as the student's, so the two agree.
-  const secondsLeft = useSecondsLeft(answerDeadline(question))
+  const secondsLeft = useSecondsLeft(presenterDeadline(question))
   const canDrawUnanswered = isCurrentQuestion
     && question.type !== 'send_screen'
     && (question.status === 'stopped' || question.status === 'closed')
@@ -91,11 +91,17 @@ function QuestionStatusActions({
 }
 
 function AiAnalysisPanel({
-  question, answers, analysis, analysisBusy, analysisError, fileResponses, gradeProgress, onAnalyze, onSetCorrectAnswer,
+  question, answers, analysis, analysisBusy, analysisError, fileResponses, audioResponses, gradeProgress, onAnalyze, onSetCorrectAnswer,
 }: AnalysisProps) {
-  if (!question || ['send_screen', 'pronunciation', 'oral_response'].includes(question.type)) return null
+  if (!question || question.type === 'send_screen') return null
 
   const isUpload = question.type === 'file_upload'
+  // A spoken answer is already assessed one student at a time; what this adds
+  // is the reading across the room that no individual evaluation can give.
+  const isSpoken = question.type === 'pronunciation' || question.type === 'oral_response'
+  const assessed = isSpoken
+    ? audioResponses.filter((response) => response.analysis_status === 'success').length
+    : 0
   // Counted in students, because that is what a press costs: one call covers
   // every page one student sent.
   const unmarked = isUpload
@@ -104,7 +110,7 @@ function AiAnalysisPanel({
       .map((response) => response.participant_id)).size
     : 0
   const canAnalyze = question.status !== 'active'
-    && (isUpload ? fileResponses.length > 0 : answers.length > 0)
+    && (isUpload ? fileResponses.length > 0 : isSpoken ? assessed > 0 : answers.length > 0)
   const suggestion = analysis?.question_understanding.suggested_correct_answer
   const canApplySuggestion = Boolean(
     suggestion
@@ -123,11 +129,17 @@ function AiAnalysisPanel({
             ? gradeProgress ? `批改中 ${gradeProgress.done}/${gradeProgress.total}...` : '分析中...'
             : isUpload
               ? unmarked ? `批改剩下 ${unmarked} 人並分析` : analysis ? '重新分析' : '分析全班'
+              : isSpoken
+                ? analysis ? '重新分析' : '綜整全班口說'
               : analysis ? '重新分析' : 'AI 分析'}
         </button>
       </div>
       {!canAnalyze && (
-        <p className="muted">停止作答且至少收到一份答案後，即可手動執行分析。</p>
+        <p className="muted">
+          {isSpoken
+            ? '停止作答、且至少有一份錄音完成 AI 評測後，才能綜整全班。'
+            : '停止作答且至少收到一份答案後，即可手動執行分析。'}
+        </p>
       )}
       {canAnalyze && isUpload && (
         // Marking is the expensive half, so say plainly what this button will and
@@ -137,6 +149,11 @@ function AiAnalysisPanel({
             ? `會先批改尚未批改的 ${unmarked} 人，已批改過的不再重算，再彙整全班表現。`
             : '每個人都批改過了，這一步只讀批改結果彙整全班表現。'}
         </p>
+      )}
+      {canAnalyze && isSpoken && (
+        // Reads the individual evaluations rather than the recordings, so the
+        // class summary costs one text call however many students spoke.
+        <p className="muted">讀取 {assessed} 份已完成的 AI 評測，綜整全班的發音與表達，不會重新聽錄音。</p>
       )}
       {analysisError && <p className="error">{analysisError}</p>}
       {analysis && (
@@ -409,7 +426,8 @@ export function QuestionResult(props: Props) {
 
   if (question.type === 'pronunciation' || question.type === 'oral_response') {
     return (
-      <section className="panel result-panel audio-results-panel">
+      <>
+        <section className="panel result-panel audio-results-panel">
         <div className="panel-heading">
           <h2><AudioLines size={20} />{question.title}</h2>
           <QuestionStatusActions {...props} question={question} />
@@ -463,7 +481,9 @@ export function QuestionResult(props: Props) {
         ) : (
           <p className="muted">目前沒有錄音作答。</p>
         )}
-      </section>
+        </section>
+        <AiAnalysisPanel {...props} />
+      </>
     )
   }
 

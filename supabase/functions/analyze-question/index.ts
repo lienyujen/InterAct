@@ -136,14 +136,22 @@ Deno.serve(async (req) => {
     // An upload question collected through the file panel has no screenshot; it
     // is analysed from what the marker already wrote about each submission.
     const isFileUpload = question.type === 'file_upload'
+    // A spoken answer's row in `answers` is the placeholder [錄音已送出]; the
+    // substance is the per-student evaluation, which is what this reads.
+    const isSpoken = question.type === 'pronunciation' || question.type === 'oral_response'
     if (!question.screenshot_id && !isFileUpload) return jsonResponse({ message: '這個題目沒有截圖。' }, 400)
 
-    const [{ data: screenshot }, { data: answers }, participantResult, { data: uploads }] = await Promise.all([
+    const [{ data: screenshot }, { data: answers }, participantResult, { data: spoken }, { data: uploads }] = await Promise.all([
       question.screenshot_id
         ? supabase.from('screenshots').select('public_url').eq('id', question.screenshot_id).single()
         : Promise.resolve({ data: null }),
       supabase.from('answers').select('answer_value, answer_values, answer_text').eq('question_id', questionId).order('submitted_at'),
       supabase.from('participants').select('id', { count: 'exact', head: true }).eq('session_id', sessionId),
+      isSpoken
+        ? supabase.from('audio_responses')
+          .select('participant_id, analysis_status, detected_language, transcript, score, analysis_json')
+          .eq('question_id', questionId).order('submitted_at')
+        : Promise.resolve({ data: null }),
       isFileUpload
         ? supabase.from('file_responses')
           .select('participant_id, name, analysis_status, analysis_json, error_message')
@@ -156,6 +164,10 @@ Deno.serve(async (req) => {
       if (!uploads?.length) return jsonResponse({ message: '目前沒有學生上傳的作答。' }, 400)
       if (!uploads.some((upload) => upload.analysis_status === 'success')) {
         return jsonResponse({ message: '請先批改至少一份作答，再執行完整分析。' }, 400)
+      }
+    } else if (isSpoken) {
+      if (!spoken?.some((item) => item.analysis_status === 'success')) {
+        return jsonResponse({ message: '請先等錄音完成 AI 評測，再執行完整分析。' }, 400)
       }
     } else if (!answers?.length) {
       return jsonResponse({ message: '目前沒有可分析的答案。' }, 400)
@@ -185,7 +197,21 @@ Deno.serve(async (req) => {
         return byStudent
       }, new Map()).values()]
       : []
-    const anonymousAnswers = isFileUpload
+    const anonymousAnswers = isSpoken
+      ? (spoken || []).map((item, index) => ({
+        response_number: index + 1,
+        assessed: item.analysis_status === 'success',
+        detected_language: item.detected_language,
+        score: item.score,
+        transcript: item.transcript,
+        summary: item.analysis_json?.summary ?? null,
+        relevance: item.analysis_json?.relevance ?? null,
+        clarity: item.analysis_json?.clarity ?? null,
+        completeness: item.analysis_json?.completeness ?? null,
+        strengths: item.analysis_json?.strengths ?? [],
+        improvements: item.analysis_json?.improvements ?? [],
+      }))
+      : isFileUpload
       ? submissions.map((upload, index) => ({
         response_number: index + 1,
         marked: upload.analysis_status === 'success',
@@ -201,7 +227,9 @@ Deno.serve(async (req) => {
         selected_options: selectedValues(answer),
         written_response: answer.answer_text,
       }))
-    const responseCount = isFileUpload ? submissions.length : (answers || []).length
+    const responseCount = isSpoken ? (spoken || []).length
+      : isFileUpload ? submissions.length
+      : (answers || []).length
 
     summaryInput = {
       question_type: question.type,
@@ -231,7 +259,8 @@ Deno.serve(async (req) => {
 
     // Upload questions were marked file by file already, so this pass reads the
     // marks rather than the images and the class picture costs one text call.
-    const instruction = isFileUpload
+    const spokenInstruction = '你是 InterAct 的課堂形成性評量分析助理。這是一題口說作答（朗讀發音或口語表達）：每位學生各自錄音，並已由 AI 逐份評測，anonymous_answers 帶的是每份評測的分數、辨識語言、逐字稿與個別評語，不是原始音檔。請以繁體中文彙整全班的口說表現。若有題目截圖請據以判讀題目要求。suggested_correct_answer 一律填 null，口說沒有單一正解。response_analysis 要指出全班共通的優點、反覆出現的發音或表達問題，以及分數分布的意義；不可只把個別評語抄一遍，要看出跨學生的模式。teaching_recommendations 要針對聽到的問題給出可立即帶全班做的練習。尚未完成評測的份數要說明其對結論的影響，不可臆測其內容。'
+    const instruction = isSpoken ? spokenInstruction : isFileUpload
       ? '你是 InterAct 的課堂形成性評量分析助理。這是一題「上傳作答」：學生把答案寫在紙上或做成檔案後上傳，每份都已由 AI 逐份批改，anonymous_answers 帶的是每份批改的判定、分數與摘要，不是學生原文。請以繁體中文彙整全班表現。若有題目截圖請據以判讀題目；沒有截圖時以 presenter_question 為準。suggested_correct_answer 一律填 null，因為這種題型沒有選項可選。response_analysis 要指出全班共通的正確作法與反覆出現的錯誤步驟，並說明尚未批改的份數對結論的影響。teaching_recommendations 要針對觀察到的錯誤給出可立即執行的講解與追問。不可臆測尚未批改的內容。'
       : '你是 InterAct 的課堂形成性評量分析助理。請以繁體中文分析截圖中的題目與匿名化群體作答。若 presenter_question 有內容，detected_question 應優先忠實使用該題目；若為空，截圖有明確題幹時忠實轉寫或精簡，沒有明顯題幹時依畫面脈絡與選項產生中立、不誘導且不暗示正解的題目。無論是否有 presenter_question，都必須繼續根據截圖、選項及實際作答行為分析理解、證據、常見誤解與教學行動，不可只依題目文字推測。選擇題與是非題只能提出建議答案，最後決定權屬於講者。投票題不判定對錯。'
 

@@ -54,6 +54,19 @@ export function answerDeadline(question: Pick<Question, 'type' | 'answer_seconds
   return Number.isFinite(startedAt) ? startedAt + question.answer_seconds * 1000 : null
 }
 
+// The presenter's clock, which covers spoken answers too. Theirs is not a
+// deadline — nothing is refused when it reaches zero, because each student's
+// recorder starts when the question reaches them rather than when it went out.
+// It is "when should the room be done", which is the question a presenter is
+// actually asking while they wait, and it tracks closely enough to answer it.
+export function presenterDeadline(question: Pick<Question, 'type' | 'prepare_seconds' | 'answer_seconds' | 'started_at'>) {
+  if (!question.started_at) return null
+  const total = (question.prepare_seconds || 0) + (question.answer_seconds || 0)
+  if (!total) return null
+  const startedAt = Date.parse(question.started_at)
+  return Number.isFinite(startedAt) ? startedAt + total * 1000 : null
+}
+
 // A quarter-second tick, not one second: a timer woken once a second drifts
 // visibly against the clock it counts down to, and skips numbers outright once
 // the tab has been throttled.

@@ -255,7 +255,18 @@ export function PresenterPage() {
           const { data: recordingData } = await supabase.functions.invoke('presenter-action', {
             body: { action: 'get_recording_results', sessionId, presenterToken, questionId: targetQuestionId },
           })
-          setAudioResponses((recordingData?.responses || []) as AudioResponse[])
+          // The server signs a fresh URL every time this is asked for, so a
+          // plain replace changes every <audio src> on each realtime event and
+          // the player the presenter is listening to jumps back to the start.
+          // The URL that is already playing stays; only the rest is taken.
+          const nextResponses = (recordingData?.responses || []) as AudioResponse[]
+          setAudioResponses((current) => {
+            const playing = new Map(current.map((item) => [item.id, item.signed_url]))
+            return nextResponses.map((item) => {
+              const existing = playing.get(item.id)
+              return existing ? { ...item, signed_url: existing } : item
+            })
+          })
         }
       } else {
         setQuizResults(null)

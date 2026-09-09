@@ -1,5 +1,5 @@
 import { Languages, Mic, RefreshCw, Settings, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { CAPTION_DISPLAY_LANGUAGES, INTERPRETATION_LANGUAGES, SPEAKER_LANGUAGES, defaultInterpretationLanguages } from '../lib/captionLanguages'
 import type { Session } from '../types'
@@ -50,8 +50,20 @@ export function PresenterSettingsModal({
   const [microphoneLevel, setMicrophoneLevel] = useState(0)
   const [previewError, setPreviewError] = useState('')
 
+  // Seeded once per opening, not on every `session`. That object is replaced by
+  // every realtime event in the class — a student joining, an answer arriving,
+  // and above all the caption pipeline restarting when 送出即時口譯語音 is
+  // ticked. Re-seeding on each of those threw away whatever the presenter was
+  // half way through choosing, which is why the language selects jumped back
+  // and the checkbox would not stay ticked.
+  const seededRef = useRef(false)
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      seededRef.current = false
+      return
+    }
+    if (seededRef.current) return
+    seededRef.current = true
     setSourceLanguage(session.caption_source_language)
     setDisplayLanguage(session.caption_display_language)
     setFontSize(session.caption_font_size ?? 32)
