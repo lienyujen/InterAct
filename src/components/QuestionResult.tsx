@@ -1,5 +1,6 @@
-import { AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Sparkles } from 'lucide-react'
+import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Shuffle, Sparkles } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
@@ -32,6 +33,10 @@ type Props = {
   screenshotUrl: string | null
   onDrawUnanswered: (questionId: string) => void
   onSetCorrectAnswer: (answer: string) => void
+  // The ordering or matching key, empty when the question was dispatched without
+  // one. It never reaches the student, so the presenter reads it from here.
+  orderingKey: string[]
+  onSetOrderingKey: (values: string[]) => Promise<void>
 }
 
 type AnalysisProps = Pick<Props,
@@ -382,27 +387,45 @@ function RoundComparison({ answers, question, correctAnswers }: {
 
   const [firstRound, ...rest] = rounds
   const latestRound = rest[rest.length - 1]
-  const pick = (entry: Answer) => entry.answer_value || entry.answer_values?.[0] || entry.answer_text || ''
-  const before = new Map(firstRound[1].map((entry) => [entry.participant_id, pick(entry)]))
+  // The whole answer, not its first value: a student who reordered everything
+  // but the opening item has changed their mind, and comparing only that item
+  // would report the round as having moved nobody.
+  const pick = (entry: Answer) => entry.answer_values?.length
+    ? entry.answer_values.join('、')
+    : entry.answer_value || entry.answer_text || ''
+  // Ordering and matching are marked server-side, so the row already knows
+  // whether it was right; everything else is judged against the key the
+  // presenter set on the question.
+  const marked = ['ordering', 'matching'].includes(question.type)
+  const wasCorrect = (entry: Answer) => marked ? entry.is_correct === true : correctAnswers.includes(pick(entry))
+  const scored = marked
+    ? latestRound[1].some((entry) => entry.is_correct !== null)
+    : correctAnswers.length > 0
+  const before = new Map(firstRound[1].map((entry) => [entry.participant_id, entry]))
   const moves = new Map<string, number>()
   let changed = 0
   let gained = 0
   let lost = 0
   for (const entry of latestRound[1]) {
-    const from = before.get(entry.participant_id)
-    if (from === undefined) continue
+    const previous = before.get(entry.participant_id)
+    if (!previous) continue
+    const from = pick(previous)
     const to = pick(entry)
     if (from === to) continue
     changed += 1
-    if (correctAnswers.length) {
-      if (!correctAnswers.includes(from) && correctAnswers.includes(to)) gained += 1
-      if (correctAnswers.includes(from) && !correctAnswers.includes(to)) lost += 1
+    if (scored) {
+      if (!wasCorrect(previous) && wasCorrect(entry)) gained += 1
+      if (wasCorrect(previous) && !wasCorrect(entry)) lost += 1
     }
-    const key = `${from} → ${to}`
-    moves.set(key, (moves.get(key) || 0) + 1)
+    // A whole sequence on each side of an arrow is unreadable; for those two the
+    // counts above are the finding and the orders themselves are in the panel.
+    if (!marked) {
+      const key = `${from} → ${to}`
+      moves.set(key, (moves.get(key) || 0) + 1)
+    }
   }
-  const rate = (list: Answer[]) => correctAnswers.length
-    ? Math.round((list.filter((entry) => correctAnswers.includes(pick(entry))).length / list.length) * 100)
+  const rate = (list: Answer[]) => scored && list.length
+    ? Math.round((list.filter(wasCorrect).length / list.length) * 100)
     : null
 
   return (
@@ -420,7 +443,7 @@ function RoundComparison({ answers, question, correctAnswers }: {
         {changed
           ? `${changed} 人改了答案`
           : '沒有人改答案 —— 討論沒有動搖任何人，這本身就是一個發現。'}
-        {correctAnswers.length && changed ? ` · 改對 ${gained} 人、改錯 ${lost} 人` : ''}
+        {scored && changed ? ` · 改對 ${gained} 人、改錯 ${lost} 人` : ''}
       </p>
       {moves.size > 0 && (
         <ul className="round-moves">
@@ -431,6 +454,278 @@ function RoundComparison({ answers, question, correctAnswers }: {
       )}
       {question.status === 'active' && <p className="muted">第 {latestRound[0]} 輪還在作答中。</p>}
     </section>
+  )
+}
+
+// Setting the key by clicking the items in order rather than typing position
+// numbers into boxes: clicking cannot produce "two items in slot 3", which is
+// the mistake a numbered form invites and which would mark the whole class wrong.
+function OrderingKeyEditor({ items, current, busy, onSubmit }: {
+  items: string[]
+  current: string[]
+  busy: boolean
+  onSubmit: (values: string[]) => Promise<void>
+}) {
+  const [order, setOrder] = useState<string[]>(current)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [open, setOpen] = useState(!current.length)
+
+  const complete = order.length === items.length
+  const unchanged = order.length === current.length && order.every((value, index) => value === current[index])
+
+  async function save(values: string[]) {
+    setSaving(true)
+    setError('')
+    try {
+      await onSubmit(values)
+      setOpen(false)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '設定答案失敗。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="ordering-key-set">
+        <button className="ghost-button" disabled={busy} type="button" onClick={() => { setOrder(current); setOpen(true) }}>
+          修改正確順序
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ordering-key-editor">
+      <p className="muted">依正確順序點選項目，點第二次可以取消。</p>
+      <ul className="ordering-list">
+        {items.map((item) => {
+          const position = order.indexOf(item)
+          return (
+            <li key={item}>
+              <button
+                className={`ordering-option${position >= 0 ? ' is-placed' : ''}`}
+                disabled={busy || saving}
+                type="button"
+                onClick={() => setOrder((now) => now.includes(item)
+                  ? now.filter((value) => value !== item)
+                  : [...now, item])}
+              >
+                <span className="ordering-rank">{position >= 0 ? position + 1 : ''}</span>
+                <span>{item}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      <div className="ordering-actions">
+        <span className="muted">{order.length} / {items.length}</span>
+        <button disabled={busy || saving || !complete || unchanged} type="button" onClick={() => void save(order)}>
+          <CheckCircle2 size={16} />送出答案
+        </button>
+        {current.length > 0 && (
+          // Back to an open question. A key set by mistake otherwise leaves the
+          // whole class marked wrong with no way out but re-dispatching.
+          <button className="ghost-button" disabled={busy || saving} type="button" onClick={() => void save([])}>
+            改為無標準答案
+          </button>
+        )}
+        {current.length > 0 && (
+          <button className="ghost-button" disabled={busy || saving} type="button" onClick={() => setOpen(false)}>取消</button>
+        )}
+      </div>
+      {error && <p className="error">{error}</p>}
+    </div>
+  )
+}
+
+function MatchingKeyEditor({ prompts, choices, current, busy, onSubmit }: {
+  prompts: string[]
+  choices: string[]
+  current: string[]
+  busy: boolean
+  onSubmit: (values: string[]) => Promise<void>
+}) {
+  const [picked, setPicked] = useState<string[]>(() => prompts.map((_, index) => current[index] || ''))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [open, setOpen] = useState(!current.length)
+  const complete = picked.every(Boolean)
+  const unchanged = picked.every((value, index) => value === (current[index] || ''))
+
+  // The same swap the student widget does: a key with one choice used twice is
+  // one no answer can match, so it is not a state the form should be able to reach.
+  function choose(index: number, value: string) {
+    setPicked((now) => {
+      const held = value ? now.indexOf(value) : -1
+      return now.map((entry, at) => at === index ? value : at === held ? now[index] : entry)
+    })
+  }
+
+  // Folded away once it is set, the same as the ordering editor: a panel the
+  // presenter is reading results from should not open on a form.
+  if (!open) {
+    return (
+      <div className="ordering-key-set">
+        <button className="ghost-button" disabled={busy} type="button" onClick={() => setOpen(true)}>修改正確配對</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ordering-key-editor">
+      <p className="muted">為每一個題目指定正確的配對。</p>
+      <ul className="matching-list">
+        {prompts.map((prompt, index) => (
+          <li key={prompt}>
+            <span className="matching-prompt">{prompt}</span>
+            <select
+              aria-label={prompt}
+              disabled={busy || saving}
+              value={picked[index]}
+              onChange={(event) => choose(index, event.target.value)}
+            >
+              <option value="">—</option>
+              {choices.map((choice) => <option key={choice} value={choice}>{choice}</option>)}
+            </select>
+          </li>
+        ))}
+      </ul>
+      <div className="ordering-actions">
+        <button
+          disabled={busy || saving || !complete || unchanged}
+          type="button"
+          onClick={() => {
+            setSaving(true)
+            setError('')
+            onSubmit(picked)
+              .then(() => setOpen(false))
+              .catch((caught) => setError(caught instanceof Error ? caught.message : '設定答案失敗。'))
+              .finally(() => setSaving(false))
+          }}
+        >
+          <CheckCircle2 size={16} />送出答案
+        </button>
+        {current.length > 0 && (
+          <button className="ghost-button" disabled={busy || saving} type="button" onClick={() => setOpen(false)}>取消</button>
+        )}
+      </div>
+      {error && <p className="error">{error}</p>}
+    </div>
+  )
+}
+
+// Where a marked ordering question went wrong. Not a list of every sequence the
+// class produced — with six items there are 720 of them — but the ones more than
+// one student arrived at, which is where a shared misunderstanding shows.
+function OrderingMistakes({ answers, correctValues }: { answers: Answer[]; correctValues: string[] }) {
+  const wrong = new Map<string, number>()
+  for (const entry of answers) {
+    const given = entry.answer_values || []
+    if (given.length === correctValues.length && correctValues.every((value, index) => value === given[index])) continue
+    const key = given.join(' → ')
+    if (key) wrong.set(key, (wrong.get(key) || 0) + 1)
+  }
+  const shared = [...wrong.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
+  if (!shared.length) return null
+  return (
+    <>
+      <h3 className="ordering-subheading">最常見的錯誤順序</h3>
+      <ul className="ordering-mistakes">
+        {shared.map(([sequence, count]) => (
+          <li key={sequence}><span>{sequence}</span><b>{count} 人</b></li>
+        ))}
+      </ul>
+    </>
+  )
+}
+
+// The unmarked case the presenter asked for: every item against every position,
+// so a class that agrees on the first two steps and splits on the rest reads as
+// exactly that.
+function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[] }) {
+  const counts = items.map((item) => items.map((_, position) =>
+    answers.filter((entry) => (entry.answer_values || [])[position] === item).length))
+  // Mean position, so the consensus order is the class's own answer rather than
+  // whichever single sequence happened to be most popular.
+  const consensus = items
+    .map((item, row) => {
+      const total = counts[row].reduce((sum, count) => sum + count, 0)
+      const weighted = counts[row].reduce((sum, count, position) => sum + count * (position + 1), 0)
+      return { item, mean: total ? weighted / total : items.length + 1 }
+    })
+    .sort((a, b) => a.mean - b.mean)
+
+  return (
+    <>
+      <h3 className="ordering-subheading">全班的排序分布</h3>
+      <div className="ordering-matrix-scroll">
+        <table className="ordering-matrix">
+          <thead>
+            <tr>
+              <th>項目</th>
+              {items.map((_, position) => <th key={position}>第 {position + 1}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, row) => (
+              <tr key={item}>
+                <th scope="row">{item}</th>
+                {counts[row].map((count, position) => {
+                  const rate = answers.length ? Math.round((count / answers.length) * 100) : 0
+                  return (
+                    // Capped well short of solid: the darkest cell still has to be
+                    // readable black-on-tint on a projector.
+                    <td key={position} style={{ '--tint': `${Math.round(rate * 0.45)}%` } as CSSProperties}>
+                      <span>{rate ? `${rate}%` : '·'}</span>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <h3 className="ordering-subheading">全班的共識順序</h3>
+      <ol className="ordering-consensus">
+        {consensus.map((entry) => <li key={entry.item}>{entry.item}</li>)}
+      </ol>
+    </>
+  )
+}
+
+function MatchingBreakdown({ prompts, answers, correctValues }: {
+  prompts: string[]
+  answers: Answer[]
+  correctValues: string[]
+}) {
+  return (
+    <ul className="matching-breakdown">
+      {prompts.map((prompt, index) => {
+        const picks = answers.map((entry) => (entry.answer_values || [])[index]).filter(Boolean)
+        const right = correctValues[index]
+        const correct = picks.filter((pick) => pick === right).length
+        const rate = picks.length ? Math.round((correct / picks.length) * 100) : 0
+        const wrong = new Map<string, number>()
+        for (const pick of picks) if (pick !== right) wrong.set(pick, (wrong.get(pick) || 0) + 1)
+        const [worst] = [...wrong.entries()].sort((a, b) => b[1] - a[1])
+        return (
+          <li key={prompt}>
+            <div className="matching-breakdown-head">
+              <span className="matching-prompt">{prompt}</span>
+              <b className={rate >= 60 ? 'is-good' : 'is-weak'}>{rate}%</b>
+            </div>
+            <div className="bar-track"><div className="bar-fill" style={{ width: `${rate}%` }} /></div>
+            <p className="muted">
+              正解：{right || '尚未設定'} · 答對 {correct} / {picks.length} 人
+              {worst ? ` · 最常誤選「${worst[0]}」${worst[1]} 人` : ''}
+            </p>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 
@@ -499,6 +794,49 @@ export function QuestionResult(props: Props) {
           />
         </section>
         <AiAnalysisPanel {...props} />
+      </>
+    )
+  }
+
+  if (question.type === 'ordering' || question.type === 'matching') {
+    const roundAnswers = answers.filter((entry) => entry.round === question.answer_round)
+    const key = props.orderingKey
+    const marked = key.length > 0
+    const correct = roundAnswers.filter((entry) => entry.is_correct === true).length
+    const rate = roundAnswers.length ? Math.round((correct / roundAnswers.length) * 100) : 0
+    return (
+      <>
+        <section className="panel result-panel ordering-results-panel">
+          <div className="panel-heading">
+            <h2>{question.type === 'ordering' ? <ArrowDownUp size={20} /> : <Shuffle size={20} />}{question.title}</h2>
+            <QuestionStatusActions {...props} question={question} />
+          </div>
+          {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
+          <p className="muted">
+            已作答 {roundAnswers.length} 人{question.answer_round > 1 ? `（第 ${question.answer_round} 輪）` : ''}
+            {marked ? ` · 答對 ${correct} 人（${rate}%）` : ' · 這一題沒有標準答案'}
+          </p>
+          {marked && (
+            <>
+              <div className="bar-track"><div className="bar-fill" style={{ width: `${rate}%` }} /></div>
+              <h3 className="ordering-subheading">{question.type === 'ordering' ? '正確順序' : '正確配對'}</h3>
+              {question.type === 'ordering'
+                ? <ol className="ordering-consensus is-key">{key.map((item) => <li key={item}>{item}</li>)}</ol>
+                : <MatchingBreakdown answers={roundAnswers} correctValues={key} prompts={question.options} />}
+              {question.type === 'ordering' && <OrderingMistakes answers={roundAnswers} correctValues={key} />}
+            </>
+          )}
+          {/* Without a key there is nothing to be right about, so the panel shows
+              what the class thought instead of how many missed it. */}
+          {!marked && question.type === 'ordering' && <OrderingSpread answers={roundAnswers} items={question.options} />}
+          {!marked && question.type === 'matching' && (
+            <MatchingBreakdown answers={roundAnswers} correctValues={[]} prompts={question.options} />
+          )}
+          {question.type === 'ordering'
+            ? <OrderingKeyEditor busy={props.busy} current={key} items={question.options} onSubmit={props.onSetOrderingKey} />
+            : <MatchingKeyEditor busy={props.busy} choices={question.choices} current={key} prompts={question.options} onSubmit={props.onSetOrderingKey} />}
+        </section>
+        <RoundComparison answers={answers} correctAnswers={[]} question={question} />
       </>
     )
   }

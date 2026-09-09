@@ -275,6 +275,67 @@ Deno.serve(async (req) => {
     }
 
 
+    // Ordering and matching are filed here rather than straight into `answers`,
+    // because the key they are marked against is deliberately out of the
+    // student's reach — comparing the two has to happen on this side.
+    if (action === 'submit_ordered_answer') {
+      const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
+      if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)
+      const questionId = typeof input.questionId === 'string' ? input.questionId : ''
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+      const values = Array.isArray(input.values)
+        ? input.values.filter((value: unknown): value is string => typeof value === 'string')
+          .map((value) => value.slice(0, 500)).slice(0, 20)
+        : []
+      if (!values.length) return jsonResponse({ message: '請先完成作答。' }, 400)
+
+      const { data: question, error: questionError } = await supabase.from('questions')
+        .select('id, type, status, options, answer_round, answer_seconds, started_at')
+        .eq('id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (questionError) throw questionError
+      if (!question || !['ordering', 'matching'].includes(question.type)) {
+        return jsonResponse({ message: '找不到這一題。' }, 404)
+      }
+      if (question.status !== 'active') return jsonResponse({ message: '本題已停止作答。' }, 409)
+      // The insert policy enforces the deadline for answers the browser writes
+      // directly, but this path runs as service_role and skips it, so the same
+      // rule — the limit plus three seconds for a slow phone — is applied here.
+      if (question.answer_seconds && question.started_at) {
+        const closesAt = new Date(question.started_at).getTime() + (question.answer_seconds + 3) * 1000
+        if (Date.now() > closesAt) return jsonResponse({ message: '作答時間已經結束。' }, 409)
+      }
+      const { data: activeSession } = await supabase.from('sessions').select('status').eq('id', sessionId).maybeSingle()
+      if (activeSession?.status !== 'active') return jsonResponse({ message: '課程已經結束。' }, 409)
+      if (values.length !== (question.options as string[]).length) {
+        return jsonResponse({ message: '作答數量與題目不符。' }, 400)
+      }
+
+      const { data: key } = await supabase.from('question_keys')
+        .select('correct_values').eq('question_id', questionId).maybeSingle()
+      // No key means the presenter asked for an opinion, not an answer, so the
+      // row is filed unmarked and the panel reports the spread instead.
+      const correct = key?.correct_values as string[] | undefined
+      const isCorrect = correct?.length
+        ? correct.length === values.length && correct.every((value, index) => value === values[index])
+        : null
+
+      const { data: saved, error: insertError } = await supabase.from('answers').insert({
+        session_id: sessionId,
+        question_id: questionId,
+        participant_id: participantId,
+        participant_name: participant.name,
+        answer_values: values,
+        is_correct: isCorrect,
+        round: question.answer_round,
+      }).select('*').maybeSingle()
+      if (insertError) {
+        if (insertError.code === '23505') return jsonResponse({ message: '這一輪你已經作答過了。' }, 409)
+        throw insertError
+      }
+      // The key itself is never returned — only whether they matched it.
+      return jsonResponse({ answer: saved, isCorrect })
+    }
+
     if (action === 'get_file_result') {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)

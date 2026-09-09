@@ -95,6 +95,10 @@ create table if not exists public.questions (
   answer_seconds integer null check (answer_seconds is null or answer_seconds between 5 and 600),
   -- How many points one student may drop on a hotspot image. Null everywhere else.
   max_pins integer null check (max_pins is null or max_pins between 1 and 10),
+  -- The selectable side of a matching question. `options` holds the prompts,
+  -- this holds what they are matched against, shuffled. Both are visible; only
+  -- the pairing between them is secret, and that lives in question_keys.
+  choices text[] not null default '{}'::text[],
   -- Bumped by 再做一次 so the class can answer the same question twice and the
   -- two rounds can be compared. Answers carry the round they were given in.
   answer_round integer not null default 1,
@@ -110,6 +114,7 @@ alter table public.questions
   add column if not exists prepare_seconds integer null,
   add column if not exists answer_seconds integer null,
   add column if not exists max_pins integer null,
+  add column if not exists choices text[] not null default '{}'::text[],
   add column if not exists answer_round integer not null default 1;
 
 -- The base table above only runs on a fresh database, so an existing one keeps

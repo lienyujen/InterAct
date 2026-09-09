@@ -10,6 +10,7 @@ import type { Question, QuestionType } from '../types'
 // still honour stop and resume, which is what a teacher reaches for there.
 const timedTypes = new Set<QuestionType>([
   'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response',
+  'hotspot', 'ordering', 'matching',
 ])
 
 // Only a spoken answer has anything to prepare: the pause before speaking is

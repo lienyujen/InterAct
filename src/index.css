@@ -4901,3 +4901,212 @@ h2 {
   background: var(--primary-soft);
   border-color: rgb(91 92 226 / 30%);
 }
+/* 排序題 / 配對題: answered by tapping and by picking from a select, never by
+   dragging. A drag is the natural gesture on a desktop and the one gesture a
+   phone gets consistently wrong, and this is answered on phones. */
+.ordering-list,
+.matching-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.ordering-option {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.95rem;
+  gap: 10px;
+  justify-content: flex-start;
+  padding: 10px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.ordering-option:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.ordering-option.is-placed {
+  background: color-mix(in srgb, var(--primary, #5b5ce2) 12%, var(--surface));
+  border-color: var(--primary, #5b5ce2);
+}
+
+/* Always the width of a two-digit number, so placing an item does not shunt its
+   text sideways. */
+.ordering-rank {
+  align-items: center;
+  background: var(--surface-subtle);
+  border-radius: 50%;
+  color: var(--muted);
+  display: flex;
+  flex: 0 0 26px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  height: 26px;
+  justify-content: center;
+}
+
+.ordering-option.is-placed .ordering-rank {
+  background: var(--primary, #5b5ce2);
+  color: #fff;
+}
+
+.matching-list li {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.matching-prompt {
+  flex: 1 1 auto;
+  font-size: 0.95rem;
+}
+
+.matching-list select {
+  flex: 0 1 45%;
+  max-width: 45%;
+}
+
+.ordering-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.ordering-actions .muted {
+  margin-right: auto;
+}
+
+.ordering-subheading {
+  font-size: 0.9rem;
+  margin: 16px 0 0;
+}
+
+.ordering-consensus {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+
+.ordering-consensus li {
+  font-size: 0.9rem;
+}
+
+.ordering-consensus.is-key li::marker {
+  color: var(--primary, #5b5ce2);
+  font-weight: 700;
+}
+
+.ordering-mistakes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.ordering-mistakes li {
+  display: flex;
+  font-size: 0.84rem;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.ordering-mistakes b {
+  white-space: nowrap;
+}
+
+/* The unmarked ordering question's whole point: item against position, so the
+   steps the class agreed on and the ones it split over are visible at a glance.
+   It scrolls sideways rather than shrinking, because eight columns of 5% text
+   on a laptop is not a reading. */
+.ordering-matrix-scroll {
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.ordering-matrix {
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  min-width: 100%;
+}
+
+.ordering-matrix th,
+.ordering-matrix td {
+  padding: 6px 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ordering-matrix thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.ordering-matrix tbody th {
+  font-weight: 500;
+  max-width: 220px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+}
+
+.ordering-matrix td {
+  background: color-mix(in srgb, var(--primary, #5b5ce2) var(--tint, 0%), transparent);
+  border-radius: 4px;
+}
+
+.ordering-key-editor {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.ordering-key-set {
+  margin-top: 14px;
+}
+
+.matching-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.matching-breakdown-head {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.matching-breakdown b.is-good {
+  color: var(--success, #2e7d32);
+}
+
+.matching-breakdown b.is-weak {
+  color: var(--danger, #c62828);
+}
+
+.matching-breakdown p {
+  font-size: 0.8rem;
+  margin: 4px 0 0;
+}

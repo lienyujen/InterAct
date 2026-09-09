@@ -55,6 +55,7 @@ export function ParticipantPage() {
   const [audioBusy, setAudioBusy] = useState(false)
   const [quizData, setQuizData] = useState<ParticipantQuizData | null>(null)
   const [quizBusy, setQuizBusy] = useState(false)
+  const [orderedBusy, setOrderedBusy] = useState(false)
   const [quizLoadError, setQuizLoadError] = useState('')
   const [screenshot, setScreenshot] = useState<Screenshot | null>(null)
   const [exitTicket, setExitTicket] = useState<ExitTicket | null>(null)
@@ -357,6 +358,27 @@ export function ParticipantPage() {
     }
   }
 
+  // Ordering and matching go through the function rather than a plain insert:
+  // the key lives in a table students cannot read, so only the server can say
+  // whether they got it right.
+  async function submitOrderedAnswer(values: string[]) {
+    if (!participant || !participantToken || !question || !['ordering', 'matching'].includes(question.type)) return
+    setOrderedBusy(true)
+    setError('')
+    try {
+      const { data, error: submitError } = await requireSupabase().functions.invoke('participant-action', {
+        body: { action: 'submit_ordered_answer', sessionId, participantId: participant.id, participantToken, questionId: question.id, values },
+      })
+      if (submitError) throw submitError
+      if (!data?.answer) throw new Error(data?.message || '作答送出失敗。')
+      setAnswer(data.answer as Answer)
+    } catch (caught) {
+      setError(await participantFunctionMessage(caught, '作答送出失敗。'))
+    } finally {
+      setOrderedBusy(false)
+    }
+  }
+
   async function submitCustomQuiz(answers: QuizSubmission) {
     if (!participant || !participantToken || !question || question.type !== 'custom_quiz') return
     setQuizBusy(true)
@@ -651,6 +673,8 @@ export function ParticipantPage() {
         question={question}
         locale={locale}
         onSubmit={submitAnswer}
+        onSubmitOrdered={submitOrderedAnswer}
+        orderedBusy={orderedBusy}
         onSubmitAudio={submitAudio}
       />}
       <ParticipantQuestionHistory

@@ -10,7 +10,7 @@ import { QRCodePanel } from '../components/QRCodePanel'
 import { ExitTicketResult } from '../components/ExitTicketResult'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { QuestionEditor } from '../components/QuestionEditor'
-import type { QuestionTiming } from '../components/QuestionEditor'
+import type { GeneratedItems, QuestionKey, QuestionTiming } from '../components/QuestionEditor'
 import type { CustomQuizSettings } from '../lib/customQuiz'
 import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
@@ -101,6 +101,10 @@ export function PresenterPage() {
   // The presenter never needed the dispatched image back until 圖上點選, which
   // draws the class's taps onto it.
   const [questionScreenshotUrl, setQuestionScreenshotUrl] = useState<string | null>(null)
+  // The ordering or matching answer. Kept here rather than read off the question
+  // because it lives in a table the browser has no read grant on.
+  const [orderingKey, setOrderingKey] = useState<string[]>([])
+  const preparedShotRef = useRef<{ screenshotId: string; storagePath: string; file: File } | null>(null)
   // Read by the polling timer, which must not overwrite a row mid-marking.
   const markingRef = useRef(false)
   const [gradeProgress, setGradeProgress] = useState<{ done: number; total: number } | null>(null)
@@ -784,32 +788,52 @@ export function PresenterPage() {
     void interpretationAudioContextRef.current?.close()
   }, [clearCaptionDisplayTimers])
 
-  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, quizSettings?: CustomQuizSettings) {
+  // Uploads the capture once and remembers it, so the AI read and the dispatch
+  // that follows it share a single screenshot.
+  async function prepareScreenshot(file: File) {
+    const cached = preparedShotRef.current
+    if (cached && cached.file === file) return cached
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
+    const supabase = requireSupabase()
+    const { data: prepared, error: prepareError } = await supabase.functions.invoke('presenter-action', {
+      body: { action: 'prepare_screenshot_upload', sessionId, presenterToken, fileName: file.name },
+    })
+    if (prepareError) throw new Error(await edgeFunctionErrorMessage(prepareError, '無法準備截圖上傳。'))
+    if (!prepared?.screenshotId || !prepared?.storagePath || !prepared?.uploadToken) {
+      throw new Error(prepared?.message || '無法準備截圖上傳。')
+    }
+    const { error: uploadError } = await supabase.storage
+      .from('interact-screenshots')
+      .uploadToSignedUrl(prepared.storagePath, prepared.uploadToken, file, {
+        contentType: file.type || 'image/png',
+        upsert: false,
+      })
+    if (uploadError) throw uploadError
+    const next = { screenshotId: prepared.screenshotId as string, storagePath: prepared.storagePath as string, file }
+    preparedShotRef.current = next
+    return next
+  }
+
+  async function generateQuestionItems(kind: 'ordering' | 'matching', direction: string): Promise<GeneratedItems> {
+    if (!captureFile) throw new Error('找不到截圖，請重新截圖。')
+    const presenterToken = requirePresenterToken()
+    const prepared = await prepareScreenshot(captureFile)
+    const data = await callPresenter({
+      action: 'generate_question_items', sessionId, presenterToken,
+      storagePath: prepared.storagePath, kind, direction,
+    }, 'AI 出題失敗。')
+    return data as GeneratedItems
+  }
+
+  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, key: QuestionKey, quizSettings?: CustomQuizSettings) {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
     setBusy(true)
     try {
       const supabase = requireSupabase()
-      const { data: prepared, error: prepareError } = await supabase.functions.invoke('presenter-action', {
-        body: {
-          action: 'prepare_screenshot_upload',
-          sessionId,
-          presenterToken,
-          fileName: file.name,
-        },
-      })
-      if (prepareError) throw new Error(await edgeFunctionErrorMessage(prepareError, '無法準備截圖上傳。'))
-      if (!prepared?.screenshotId || !prepared?.storagePath || !prepared?.uploadToken) {
-        throw new Error(prepared?.message || '無法準備截圖上傳。')
-      }
-
-      const { error: uploadError } = await supabase.storage
-        .from('interact-screenshots')
-        .uploadToSignedUrl(prepared.storagePath, prepared.uploadToken, file, {
-          contentType: file.type || 'image/png',
-          upsert: false,
-        })
-      if (uploadError) throw uploadError
+      // Reuses the upload the AI already read, when there was one.
+      const prepared = await prepareScreenshot(file)
 
       const { data, error } = await supabase.functions.invoke('presenter-action', {
         body: type === 'custom_quiz' ? {
@@ -832,6 +856,8 @@ export function PresenterPage() {
           allowMultiple,
           prepareSeconds: timing.prepareSeconds,
           answerSeconds: timing.answerSeconds,
+          choices: key.choices,
+          correctValues: key.correctValues,
           promptText,
         },
       })
@@ -983,13 +1009,13 @@ export function PresenterPage() {
     cropCapture(rect)
   }
 
-  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, quizSettings?: CustomQuizSettings) {
+  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, key: QuestionKey, quizSettings?: CustomQuizSettings) {
     if (!captureFile) return
 
     setAnalysisError('')
     setEditorOpen(false)
     try {
-      await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText, timing, quizSettings)
+      await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText, timing, key, quizSettings)
       setCaptureFile(null)
       setCapturePreviewUrl(null)
     } catch (error) {
@@ -1049,6 +1075,20 @@ export function PresenterPage() {
     })
     if (error) throw new Error(await edgeFunctionErrorMessage(error, '無法開始新的一輪。'))
     if (!data?.question) throw new Error(data?.message || '無法開始新的一輪。')
+  }
+
+  // Set after the fact as often as up front: the presenter can dispatch an
+  // ordering question cold, let the class argue, then say what the answer was.
+  // Every answer already in is re-marked, so the students see their result.
+  async function setOrderingAnswer(values: string[]) {
+    if (!question || !['ordering', 'matching'].includes(question.type)) return
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
+    const data = await callPresenter({
+      action: 'set_ordering_key', sessionId, presenterToken, questionId: question.id, correctValues: values,
+    }, '設定答案失敗。')
+    setOrderingKey((data.correctValues || []) as string[])
+    await loadAll()
   }
 
   async function setCorrectAnswer(answer: string) {
@@ -1465,6 +1505,23 @@ export function PresenterPage() {
     return () => { cancelled = true }
   }, [question?.screenshot_id])
 
+  useEffect(() => {
+    const questionId = question?.id
+    if (!questionId || !['ordering', 'matching'].includes(question?.type || '')) {
+      setOrderingKey([])
+      return
+    }
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) return
+    let cancelled = false
+    void requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'get_ordering_key', sessionId, presenterToken, questionId },
+    }).then(({ data }) => {
+      if (!cancelled) setOrderingKey((data?.correctValues || []) as string[])
+    })
+    return () => { cancelled = true }
+  }, [question?.id, question?.type, sessionId])
+
   async function startFileCollect(promptText: string) {
     const presenterToken = requirePresenterToken()
     setBusy(true)
@@ -1707,6 +1764,8 @@ export function PresenterPage() {
           onDrawUnanswered={drawUnanswered}
           onNextRound={nextRound}
           onSetCorrectAnswer={setCorrectAnswer}
+          orderingKey={orderingKey}
+          onSetOrderingKey={setOrderingAnswer}
         />}
         {session.exit_ticket_prompt && session.exit_ticket_category && (
           <ExitTicketResult
@@ -1761,6 +1820,7 @@ export function PresenterPage() {
         previewUrl={capturePreviewUrl}
         onCancel={cancelQuestionEditor}
         onCreate={createScreenshotQuestion}
+        onGenerate={generateQuestionItems}
       />
       {fileTransferOpen && (
         <FileTransferModal

@@ -14,17 +14,24 @@ type Props = {
   open: boolean
   previewUrl: string | null
   onCancel: () => void
+  // Reads the screenshot and proposes the items; nothing is dispatched by it.
+  onGenerate: (kind: 'ordering' | 'matching', direction: string) => Promise<GeneratedItems>
   onCreate: (
     type: QuestionType,
     options: string[],
     allowMultiple: boolean,
     promptText: string,
     timing: QuestionTiming,
+    key: QuestionKey,
     quizSettings?: CustomQuizSettings,
   ) => void
 }
 
 export type QuestionTiming = { prepareSeconds: number | null; answerSeconds: number | null }
+export type GeneratedItems = { title: string; items?: string[]; pairs?: Array<{ left: string; right: string }> }
+// What a dispatched ordering or matching question carries beyond its options:
+// the selectable side, and the answer that must not travel on the question row.
+export type QuestionKey = { choices: string[]; correctValues: string[] }
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'send_screen', label: '派送畫面' },
@@ -33,13 +40,15 @@ const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'poll', label: '投票題' },
   { type: 'multiple_choice', label: '選擇題' },
   { type: 'true_false', label: '是非題' },
+  { type: 'ordering', label: '排序題' },
+  { type: 'matching', label: '配對題' },
   { type: 'file_upload', label: '上傳作答' },
   { type: 'short_answer', label: '問答題' },
   { type: 'oral_response', label: '口語表達' },
   { type: 'pronunciation', label: '朗讀發音' },
 ]
 
-export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: Props) {
+export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, onGenerate }: Props) {
   const [type, setType] = useState<QuestionType>('multiple_choice')
   const [options, setOptions] = useState(['A', 'B', 'C', 'D'])
   const [allowMultiple, setAllowMultiple] = useState(false)
@@ -50,6 +59,13 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
   const [prepareSeconds, setPrepareSeconds] = useState<number | null>(null)
   const [answerSeconds, setAnswerSeconds] = useState<number | null>(null)
   const [maxPins, setMaxPins] = useState(1)
+  const [items, setItems] = useState<string[]>([])
+  const [pairs, setPairs] = useState<Array<{ left: string; right: string }>>([])
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState('')
+  // An ordering question does not have to have a right answer: sometimes the
+  // point is what the class thinks the order is.
+  const [orderingHasAnswer, setOrderingHasAnswer] = useState(true)
 
   useEffect(() => {
     if (!open) return
@@ -63,6 +79,10 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
     setPrepareSeconds(null)
     setAnswerSeconds(null)
     setMaxPins(1)
+    setItems([])
+    setPairs([])
+    setGenerateError('')
+    setOrderingHasAnswer(true)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -71,6 +91,57 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
     if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'hotspot'].includes(type)) return []
     return options.map((option) => option.trim()).filter(Boolean)
   }, [options, type])
+
+  // Shuffled so the class is not handed the answer in reading order; the key
+  // keeps the order the presenter approved.
+  function shuffled<T>(list: T[]) {
+    const copy = [...list]
+    for (let index = copy.length - 1; index > 0; index -= 1) {
+      const target = Math.floor(Math.random() * (index + 1))
+      ;[copy[index], copy[target]] = [copy[target], copy[index]]
+    }
+    return copy
+  }
+
+  function questionKey(): QuestionKey {
+    if (type === 'ordering') {
+      return { choices: [], correctValues: orderingHasAnswer ? items : [] }
+    }
+    if (type === 'matching') {
+      return { choices: shuffled(pairs.map((pair) => pair.right)), correctValues: pairs.map((pair) => pair.right) }
+    }
+    return { choices: [], correctValues: [] }
+  }
+
+  async function generate() {
+    if (type !== 'ordering' && type !== 'matching') return
+    setGenerating(true)
+    setGenerateError('')
+    try {
+      const generated = await onGenerate(type, promptText.trim())
+      if (type === 'ordering') {
+        setItems(generated.items || [])
+        if (!generated.items?.length) setGenerateError('AI 在這張截圖裡找不到有順序的內容，換一張或在題目欄說明要排什麼。')
+      } else {
+        setPairs(generated.pairs || [])
+        if (!generated.pairs?.length) setGenerateError('AI 在這張截圖裡找不到可以配對的內容，換一張或在題目欄說明要配什麼。')
+      }
+    } catch (caught) {
+      setGenerateError(caught instanceof Error ? caught.message : 'AI 出題失敗。')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  function moveItem(index: number, delta: number) {
+    setItems((current) => {
+      const target = index + delta
+      if (target < 0 || target >= current.length) return current
+      const next = [...current]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
+  }
 
   if (!open) return null
 
@@ -83,13 +154,16 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
           if (type === 'custom_quiz') {
             const direction = quizDirection.trim()
             if (!direction) return
-            onCreate(type, [], false, direction, { prepareSeconds: null, answerSeconds: null }, quizSettingsFrom(quizCount, quizType, direction))
+            onCreate(type, [], false, direction, { prepareSeconds: null, answerSeconds: null }, { choices: [], correctValues: [] }, quizSettingsFrom(quizCount, quizType, direction))
             return
           }
-          onCreate(type, finalOptions, editableOptions && allowMultiple, type === 'send_screen' ? '' : promptText.trim(), {
+          const dispatchOptions = type === 'ordering' ? shuffled(items)
+            : type === 'matching' ? pairs.map((pair) => pair.left)
+            : finalOptions
+          onCreate(type, dispatchOptions, editableOptions && allowMultiple, type === 'send_screen' ? '' : promptText.trim(), {
             prepareSeconds: canPrepare(type) ? prepareSeconds : null,
             answerSeconds: canBeTimed(type) ? answerSeconds : null,
-          })
+          }, questionKey())
         }}
       >
         <h2>截圖派題</h2>
@@ -144,6 +218,63 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {(type === 'ordering' || type === 'matching') && (
+          <div className="generated-items">
+            <div className="generated-items-heading">
+              <button className="ghost-button" disabled={generating} type="button" onClick={() => void generate()}>
+                <Sparkles size={16} />
+                {generating ? 'AI 讀取截圖中...' : (items.length || pairs.length) ? '重新產生' : 'AI 產生題目'}
+              </button>
+              {type === 'ordering' && items.length > 0 && (
+                <label className="multi-select-setting">
+                  <input
+                    checked={orderingHasAnswer}
+                    type="checkbox"
+                    onChange={(event) => setOrderingHasAnswer(event.target.checked)}
+                  />
+                  <span>有標準答案</span>
+                </label>
+              )}
+            </div>
+            {generateError && <p className="error">{generateError}</p>}
+            {type === 'ordering' && items.length > 0 && (
+              <>
+                <p className="muted question-type-hint">
+                  {orderingHasAnswer
+                    ? '下面就是正確順序，用箭頭調整。學生看到的會是打散的。'
+                    : '沒有標準答案，學生排完之後你會看到全班把每個項目排在第幾位的比率。'}
+                </p>
+                <ol className="generated-item-list">
+                  {items.map((item, index) => (
+                    <li key={`${index}-${item}`}>
+                      <span>{item}</span>
+                      <span className="generated-item-actions">
+                        <button className="ghost-button icon-button" disabled={!index} type="button" onClick={() => moveItem(index, -1)}>↑</button>
+                        <button className="ghost-button icon-button" disabled={index === items.length - 1} type="button" onClick={() => moveItem(index, 1)}>↓</button>
+                        <button className="ghost-button icon-button" type="button" onClick={() => setItems((current) => current.filter((_, at) => at !== index))}><Trash2 size={15} /></button>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+            {type === 'matching' && pairs.length > 0 && (
+              <>
+                <p className="muted question-type-hint">左欄是題目，右欄是答案。學生看到的右欄會打散。</p>
+                <ul className="generated-pair-list">
+                  {pairs.map((pair, index) => (
+                    <li key={`${index}-${pair.left}`}>
+                      <span>{pair.left}</span>
+                      <span className="generated-pair-arrow">→</span>
+                      <span>{pair.right}</span>
+                      <button className="ghost-button icon-button" type="button" onClick={() => setPairs((current) => current.filter((_, at) => at !== index))}><Trash2 size={15} /></button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         )}
         {type === 'hotspot' && (
@@ -213,7 +344,12 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
           <button className="ghost-button" type="button" onClick={onCancel}>
             <X size={17} />取消
           </button>
-          <button disabled={type === 'custom_quiz' && !quizDirection.trim()} type="submit">
+          <button
+            disabled={(type === 'custom_quiz' && !quizDirection.trim())
+              || (type === 'ordering' && items.length < 2)
+              || (type === 'matching' && pairs.length < 2)}
+            type="submit"
+          >
             {type === 'custom_quiz' ? <Sparkles size={17} /> : <Send size={17} />}
             {type === 'custom_quiz' ? 'AI 出題並派送' : '派送'}
           </button>

@@ -1,13 +1,17 @@
 import { callAiJson, corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { generateCustomQuiz } from '../_shared/custom-quiz.ts'
+import { generateMatchingPairs, generateOrderingItems } from '../_shared/question-items.ts'
 import { analyzeFileResponse, isAnalyzableFile } from '../_shared/file-analysis.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/owner.ts'
 
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload', 'hotspot'])
-const timedTypes = new Set(['poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response'])
+const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload', 'hotspot', 'ordering', 'matching'])
+const timedTypes = new Set([
+  'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response',
+  'hotspot', 'ordering', 'matching',
+])
 const spokenTypes = new Set(['pronunciation', 'oral_response'])
 
 // Three outcomes, and the difference carries weight: null is "untimed",
@@ -850,6 +854,18 @@ Deno.serve(async (req) => {
       // How many points one student may drop. Only a hotspot reads it, so every
       // other type stores null rather than a number nothing will ever honour.
       const maxPins = type === 'hotspot' ? Math.min(10, Math.max(1, Number(input.maxPins) || 1)) : null
+      // Matching keeps its selectable side apart from its prompts: both are
+      // visible, only the pairing between them is secret.
+      const choices = type === 'matching' ? normalizedOptions(input.choices) : []
+      // The sequence, or the right-hand item for each prompt in order. Empty
+      // for an ordering question the presenter dispatched without an answer.
+      const correctValues = ['ordering', 'matching'].includes(type) ? normalizedOptions(input.correctValues) : []
+      if (type === 'matching' && (choices.length !== options.length || correctValues.length !== options.length)) {
+        return jsonResponse({ message: '配對題的題目、選項與答案數量不一致。' }, 400)
+      }
+      if (type === 'ordering' && correctValues.length && correctValues.length !== options.length) {
+        return jsonResponse({ message: '排序題的答案與項目數量不一致。' }, 400)
+      }
       if (prepareSeconds === undefined || answerSeconds === undefined) {
         return jsonResponse({ message: '時間設定不正確。' }, 400)
       }
@@ -864,6 +880,8 @@ Deno.serve(async (req) => {
         oral_response: '口語表達',
         file_upload: '上傳作答',
         hotspot: '圖上點選',
+        ordering: '排序題',
+        matching: '配對題',
       }
       let translations = {}
       try {
@@ -914,10 +932,20 @@ Deno.serve(async (req) => {
           prepare_seconds: prepareSeconds,
           answer_seconds: answerSeconds,
           max_pins: maxPins,
+          choices,
         })
         .select('*')
         .single()
       if (questionError) throw questionError
+
+      // The answer goes somewhere students cannot read. `questions` is world-
+      // readable, so an ordering or matching key stored on it would be visible
+      // to anyone who opened devtools before answering.
+      if (correctValues.length) {
+        const { error: keyError } = await supabase.from('question_keys')
+          .insert({ question_id: question.id, session_id: sessionId, correct_values: correctValues })
+        if (keyError) throw keyError
+      }
 
       const { error: sessionError } = await supabase
         .from('sessions')
@@ -976,6 +1004,26 @@ Deno.serve(async (req) => {
     // Asking the same question again after the class has argued about it. The
     // first round's answers stay where they are — the comparison between the
     // two is the whole reason to do it.
+    // Read the screenshot and propose the items. Nothing is dispatched here —
+    // the presenter sees what the model came up with and decides.
+    if (action === 'generate_question_items') {
+      const storagePath = typeof input.storagePath === 'string' ? input.storagePath : ''
+      if (!storagePath.startsWith(`sessions/${sessionId}/screenshots/`)) {
+        return jsonResponse({ message: '截圖路徑不正確。' }, 400)
+      }
+      const kind = input.kind === 'matching' ? 'matching' : 'ordering'
+      const direction = typeof input.direction === 'string' ? input.direction.trim().slice(0, 500) : ''
+      const { data: publicData } = supabase.storage.from('interact-screenshots').getPublicUrl(storagePath)
+      try {
+        const generated = kind === 'matching'
+          ? await generateMatchingPairs({ sourceUrl: publicData.publicUrl, direction })
+          : await generateOrderingItems({ sourceUrl: publicData.publicUrl, direction })
+        return jsonResponse(generated)
+      } catch (generateError) {
+        return jsonResponse({ message: errorDetail(generateError, 'AI 出題失敗。').slice(0, 500) }, 502)
+      }
+    }
+
     if (action === 'next_round') {
       const questionId = input.questionId
       if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
@@ -1046,6 +1094,89 @@ Deno.serve(async (req) => {
         .order('submitted_at')
       if (error) throw error
       return jsonResponse({ responses: responses || [] })
+    }
+
+    // The counterpart to grade_question for the two types whose key lives off
+    // the world-readable questions table. A presenter can dispatch an ordering
+    // question with no answer, watch the class argue, and set one afterwards;
+    // every answer already in is re-marked against it.
+    // question_keys is denied to anon so the class cannot read the answer out of
+    // devtools before giving it, which also means the presenter's own page has to
+    // ask for it here rather than selecting it.
+    if (action === 'get_ordering_key') {
+      const questionId = input.questionId
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const { data, error } = await supabase.from('question_keys')
+        .select('correct_values').eq('question_id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (error) throw error
+      return jsonResponse({ correctValues: data?.correct_values || [] })
+    }
+
+    if (action === 'set_ordering_key') {
+      const questionId = input.questionId
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const { data: question, error: questionError } = await supabase
+        .from('questions')
+        .select('id, type, options, choices')
+        .eq('id', questionId)
+        .eq('session_id', sessionId)
+        .maybeSingle()
+      if (questionError) throw questionError
+      if (!question || !['ordering', 'matching'].includes(question.type)) {
+        return jsonResponse({ message: '這一題沒有可以設定的順序。' }, 404)
+      }
+
+      const options = normalizedOptions(question.options)
+      // Not normalizedOptions, which dedupes: a repeated item is the mistake
+      // being looked for here, and silently collapsing it would report it as a
+      // count that does not match instead of as the repeat it is.
+      const values = (Array.isArray(input.correctValues) ? input.correctValues : [])
+        .filter((value: unknown): value is string => typeof value === 'string')
+        .map((value) => value.trim().slice(0, 500))
+        .filter(Boolean)
+        .slice(0, 20)
+      // Clearing it turns a marked question back into an opinion poll, which is
+      // the escape hatch for a key set by mistake.
+      if (values.length) {
+        if (values.length !== options.length) {
+          return jsonResponse({ message: '答案數量與題目不符。' }, 400)
+        }
+        const allowed = new Set(question.type === 'matching' ? normalizedOptions(question.choices) : options)
+        if (values.some((value) => !allowed.has(value))) {
+          return jsonResponse({ message: '答案含有不存在的選項。' }, 400)
+        }
+        // An ordering answer is a permutation, so a repeated item means the
+        // presenter left one out and no student could ever match it.
+        if (question.type === 'ordering' && new Set(values).size !== values.length) {
+          return jsonResponse({ message: '排序答案不可以重複。' }, 400)
+        }
+      }
+
+      if (values.length) {
+        const { error: keyError } = await supabase.from('question_keys')
+          .upsert({ question_id: questionId, session_id: sessionId, correct_values: values },
+            { onConflict: 'question_id' })
+        if (keyError) throw keyError
+      } else {
+        const { error: keyError } = await supabase.from('question_keys').delete().eq('question_id', questionId)
+        if (keyError) throw keyError
+      }
+
+      const { data: answers, error: answerError } = await supabase
+        .from('answers')
+        .select('id, answer_values')
+        .eq('question_id', questionId)
+        .eq('session_id', sessionId)
+      if (answerError) throw answerError
+      for (const answer of answers || []) {
+        const given = Array.isArray(answer.answer_values) ? answer.answer_values : []
+        const isCorrect = values.length
+          ? given.length === values.length && values.every((value, index) => value === given[index])
+          : null
+        const { error } = await supabase.from('answers').update({ is_correct: isCorrect }).eq('id', answer.id)
+        if (error) throw error
+      }
+      return jsonResponse({ correctValues: values, marked: answers?.length || 0 })
     }
 
     if (action === 'grade_question') {

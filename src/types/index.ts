@@ -153,6 +153,9 @@ export type Question = {
   answer_seconds: number | null
   // How many points one student may drop on a hotspot image; null elsewhere.
   max_pins: number | null
+  // Matching only: the right-hand column the class picks from, shuffled.
+  // Ordering keeps its items in options, so it needs nothing here.
+  choices: string[]
   // Bumped by 再做一次; answers carry the round they were given in.
   answer_round: number
   started_at: string | null
