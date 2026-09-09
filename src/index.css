@@ -1371,7 +1371,11 @@ h2 {
 }
 
 .modal-backdrop {
-  align-items: center;
+  /* Not center: a centred flex child taller than its scrolling parent has its
+     top pushed above the scroll origin, where nothing can reach it — the dialog
+     opens with its first rows already cut off. The modal auto-margins itself
+     instead, which centres it while it fits and gives way once it does not. */
+  align-items: flex-start;
   background: rgb(24 34 58 / 62%);
   display: flex;
   inset: 0;
@@ -1391,6 +1395,7 @@ h2 {
   box-shadow: 0 24px 72px rgb(24 34 58 / 25%);
   display: grid;
   gap: 14px;
+  margin: auto;
   max-width: 520px;
   padding: 20px;
   width: 100%;

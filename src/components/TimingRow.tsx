@@ -8,12 +8,16 @@ type Props = {
   offLabel: string
   presets: Array<number | null>
   value: number | null
+  // What a preset number means. It defaults to seconds because that is what
+  // most of these rows are, but 圖上點選 counts taps — and a row that silently
+  // renders "3 秒" for "3 個" is worse than no row at all.
+  formatValue?: (value: number) => string
   onChange: (value: number | null) => void
 }
 
 // Chips rather than a number input: this gets set mid-class, and a row of taps
 // beats typing into a spinner while thirty students wait.
-export function TimingRow({ label, offLabel, presets, value, onChange }: Props) {
+export function TimingRow({ label, offLabel, presets, value, formatValue = formatSeconds, onChange }: Props) {
   return (
     <div className="timing-row">
       <span className="timing-row-label">{label}</span>
@@ -26,7 +30,7 @@ export function TimingRow({ label, offLabel, presets, value, onChange }: Props) 
             type="button"
             onClick={() => onChange(preset)}
           >
-            {preset === null ? offLabel : formatSeconds(preset)}
+            {preset === null ? offLabel : formatValue(preset)}
           </button>
         ))}
       </div>

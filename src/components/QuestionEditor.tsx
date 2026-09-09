@@ -256,6 +256,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
         {type === 'hotspot' && (
           <div className="question-timing">
             <TimingRow
+              formatValue={(value) => `${value} 個`}
               label="每人可點"
               offLabel="1 個"
               presets={[1, 2, 3, 5]}
@@ -263,7 +264,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               onChange={(value) => setMaxPins(value ?? 1)}
             />
             <p className="muted question-type-hint">
-              學生會看到整張截圖，點哪裡都算。教師端會把全班的點疊在原圖上，看得出他們錯在哪裡，而不只是錯了多少。
+              學生會看到整張截圖，點哪裡都算，最多點上面選的次數；點自己的標記可以取消重點。教師端會把全班的點疊在原圖上，看得出他們錯在哪裡，而不只是錯了多少。
             </p>
           </div>
         )}

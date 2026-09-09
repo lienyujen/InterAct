@@ -117,7 +117,7 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
           <HotspotImage
             alt={participantText(locale, 'imageAlt')}
             imageUrl={imageUrl}
-            pins={(answer ? parsePins(answer.answer_values) : pins).map((pin) => ({ ...pin, label: '●', own: true }))}
+            pins={(answer ? parsePins(answer.answer_values) : pins).map((pin, index) => ({ ...pin, label: String(index + 1), own: true }))}
             onPlace={!answer && acceptingAnswers
               ? (point) => setPins((current) => (
                 // Past the limit the oldest goes, so a student can keep
@@ -133,7 +133,13 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
           />
           {!answer && acceptingAnswers && (
             <div className="participant-hotspot-actions">
-              <span className="muted">{pins.length} / {question.max_pins || 1}</span>
+              {/* What is left, not what is used: the student is deciding whether
+                  to spend another tap, and 剩 1 次 answers that where 2 / 3 does not. */}
+              <span className="muted">
+                {pins.length < (question.max_pins || 1)
+                  ? participantText(locale, 'pinsLeft').replace('{n}', String((question.max_pins || 1) - pins.length))
+                  : participantText(locale, 'pinsUsed')}
+              </span>
               <button disabled={!pins.length} type="button" onClick={() => onSubmit(serialisePins(pins))}>
                 <Send size={18} />{participantText(locale, 'submitAnswer')}
               </button>
