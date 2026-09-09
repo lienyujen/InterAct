@@ -5110,3 +5110,81 @@ h2 {
   font-size: 0.8rem;
   margin: 4px 0 0;
 }
+
+/* 排序題 / 配對題 的派題區: what the AI proposed, before it is dispatched. The
+   teacher reads it, reorders it, throws out what does not belong, and only then
+   sends it — so it has to be legible as a list, not as a row of controls. */
+.generated-items {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.generated-items-heading {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.generated-item-list,
+.generated-pair-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.generated-item-list {
+  /* Numbered, because for an ordering question the number is the answer. */
+  counter-reset: generated-item;
+  list-style: none;
+}
+
+.generated-item-list li,
+.generated-pair-list li {
+  align-items: center;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md);
+  display: flex;
+  font-size: 0.88rem;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.generated-item-list li::before {
+  counter-increment: generated-item;
+  content: counter(generated-item);
+  color: var(--muted);
+  flex: 0 0 20px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.generated-item-list li > span:first-of-type,
+.generated-pair-list li > span:first-of-type {
+  flex: 1 1 auto;
+}
+
+.generated-item-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+}
+
+/* A grid rather than flex, so every arrow lands in the same column and the
+   pairs read down the page as pairs. */
+.generated-pair-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+}
+
+.generated-pair-arrow {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
