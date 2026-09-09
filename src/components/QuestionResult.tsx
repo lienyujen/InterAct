@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
+import { HotspotImage } from './HotspotImage'
+import { parsePins, pinLabel } from '../lib/hotspot'
 import { QuestionStopControl } from './QuestionStopControl'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
@@ -25,6 +27,8 @@ type Props = {
   onAnalyzeFile: (responseId: string) => void
   onStopQuestion: () => Promise<void>
   onResumeQuestion: () => Promise<void>
+  // The dispatched screenshot, which the class's taps are drawn back onto.
+  screenshotUrl: string | null
   onDrawUnanswered: (questionId: string) => void
   onSetCorrectAnswer: (answer: string) => void
 }
@@ -421,6 +425,29 @@ export function QuestionResult(props: Props) {
         </section>
         <AiAnalysisPanel {...props} />
       </>
+    )
+  }
+
+  if (question.type === 'hotspot') {
+    // Every tap the class made, back on the picture they were looking at. The
+    // reading a presenter wants is not how many were wrong but where they all
+    // went — eighteen pins in one place is the next thing to explain.
+    const pins = answers.flatMap((entry, index) => parsePins(entry.answer_values).map((point) => ({
+      ...point,
+      label: pinLabel(entry.participant_name, anonymousEnabled, index),
+    })))
+    return (
+      <section className="panel result-panel hotspot-results-panel">
+        <div className="panel-heading">
+          <h2>{question.title}</h2>
+          <QuestionStatusActions {...props} question={question} />
+        </div>
+        {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
+        <p className="muted">已作答 {answers.length} 人 · 共 {pins.length} 個標記{question.max_pins && question.max_pins > 1 ? `（每人最多 ${question.max_pins} 個）` : ''}</p>
+        {props.screenshotUrl
+          ? <HotspotImage alt="學生點選結果" imageUrl={props.screenshotUrl} pins={pins} />
+          : <p className="muted">找不到這一題的截圖。</p>}
+      </section>
     )
   }
 

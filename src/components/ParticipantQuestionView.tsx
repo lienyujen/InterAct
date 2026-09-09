@@ -4,6 +4,8 @@ import { Send } from 'lucide-react'
 import { AudioRecorder } from './AudioRecorder'
 import { participantText } from '../lib/participantI18n'
 import { answerDeadline, formatSeconds, useSecondsLeft } from '../lib/questionTiming'
+import { HotspotImage } from './HotspotImage'
+import { parsePins, serialisePins } from '../lib/hotspot'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import type { Answer, AudioResponse, Question } from '../types'
 
@@ -13,18 +15,22 @@ type Props = {
   audioBusy: boolean
   audioResponse: AudioResponse | null
   onSubmit: (value: string | string[]) => void
+  // The dispatched screenshot, which a hotspot question is answered on.
+  imageUrl?: string | null
   onSubmitAudio: (file: File, durationMs: number) => Promise<void>
   locale?: ParticipantLocale
 }
 
-export function ParticipantQuestionView({ question, answer, audioBusy, audioResponse, onSubmit, onSubmitAudio, locale = 'zh-TW' }: Props) {
+export function ParticipantQuestionView({ question, answer, audioBusy, audioResponse, imageUrl, onSubmit, onSubmitAudio, locale = 'zh-TW' }: Props) {
   const [textAnswer, setTextAnswer] = useState('')
   const [selectedOptions, setSelectedOptions] = useState<string[]>([])
+  const [pins, setPins] = useState<Array<{ x: number; y: number }>>([])
   const secondsLeft = useSecondsLeft(question ? answerDeadline(question) : null)
 
   useEffect(() => {
     setTextAnswer('')
     setSelectedOptions([])
+    setPins([])
   }, [question?.id])
 
   // file_upload has its own panel further up the page, carrying the same prompt
@@ -73,7 +79,39 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
       {isAudioQuestion && (
         <AudioRecorder busy={audioBusy} locale={locale} question={question} response={audioResponse} onSubmit={onSubmitAudio} />
       )}
-      {answer && !isAudioQuestion && <p className="success">{participantText(locale, 'submittedAnswer')}{answer.answer_values?.map(displayAnswer).join(locale === 'en' ? ', ' : '、') || (answer.answer_value ? displayAnswer(answer.answer_value) : answer.answer_text)}</p>}
+      {answer && !isAudioQuestion && question.type !== 'hotspot' && <p className="success">{participantText(locale, 'submittedAnswer')}{answer.answer_values?.map(displayAnswer).join(locale === 'en' ? ', ' : '、') || (answer.answer_value ? displayAnswer(answer.answer_value) : answer.answer_text)}</p>}
+      {answer && question.type === 'hotspot' && (
+        <p className="success">{participantText(locale, 'answerSent')}</p>
+      )}
+      {question.type === 'hotspot' && imageUrl && (
+        <div className="participant-hotspot">
+          <HotspotImage
+            alt={participantText(locale, 'imageAlt')}
+            imageUrl={imageUrl}
+            pins={(answer ? parsePins(answer.answer_values) : pins).map((pin) => ({ ...pin, label: '●', own: true }))}
+            onPlace={!answer && acceptingAnswers
+              ? (point) => setPins((current) => (
+                // Past the limit the oldest goes, so a student can keep
+                // correcting themselves instead of hunting for a delete.
+                current.length >= (question.max_pins || 1)
+                  ? [...current.slice(1), point]
+                  : [...current, point]
+              ))
+              : undefined}
+            onRemove={!answer && acceptingAnswers
+              ? (index) => setPins((current) => current.filter((_, at) => at !== index))
+              : undefined}
+          />
+          {!answer && acceptingAnswers && (
+            <div className="participant-hotspot-actions">
+              <span className="muted">{pins.length} / {question.max_pins || 1}</span>
+              <button disabled={!pins.length} type="button" onClick={() => onSubmit(serialisePins(pins))}>
+                <Send size={18} />{participantText(locale, 'submitAnswer')}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {!answer && acceptingAnswers && question.type === 'short_answer' && (
         <form className="short-answer-form" onSubmit={submitShortAnswer}>
           <textarea
@@ -85,7 +123,7 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
           <button type="submit"><Send size={18} />{participantText(locale, 'submitAnswer')}</button>
         </form>
       )}
-      {!answer && !isAudioQuestion && acceptingAnswers && question.type !== 'short_answer' && question.allow_multiple && (
+      {!answer && !isAudioQuestion && acceptingAnswers && !['short_answer', 'hotspot'].includes(question.type) && question.allow_multiple && (
         <form
           className="multi-choice-form"
           onSubmit={(event) => {
@@ -115,7 +153,7 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
           <button disabled={!selectedOptions.length} type="submit"><Send size={18} />{participantText(locale, 'submitAnswer')}</button>
         </form>
       )}
-      {!answer && !isAudioQuestion && acceptingAnswers && question.type !== 'short_answer' && !question.allow_multiple && (
+      {!answer && !isAudioQuestion && acceptingAnswers && !['short_answer', 'hotspot'].includes(question.type) && !question.allow_multiple && (
         <div className="choice-list">
           {question.options.map((option, index) => (
             <button key={option} type="button" onClick={() => onSubmit(option)}>

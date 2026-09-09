@@ -26,6 +26,9 @@ const questionTypeLabels: Record<Question['type'], string> = {
   oral_response: '口語表達',
   custom_quiz: '自訂測驗',
   file_upload: '上傳作答',
+  hotspot: '圖上點選',
+  ordering: '排序題',
+  matching: '配對題',
 }
 
 async function fetchAllRows<T>(table: string, sessionId: string, orderColumn: string) {

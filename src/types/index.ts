@@ -71,7 +71,7 @@ export type Screenshot = {
   created_at: string
 }
 
-export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz' | 'file_upload'
+export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz' | 'file_upload' | 'hotspot' | 'ordering' | 'matching'
 export type QuizItemType = 'multiple_choice' | 'fill_blank' | 'short_answer'
 export type QuizRequestedType = 'random' | QuizItemType
 export type ExitTicketCategory = 'lesson_summary' | 'learning_assessment' | 'course_satisfaction' | 'student_question'
@@ -151,6 +151,10 @@ export type Question = {
   // Null means untimed; src/lib/questionTiming.ts decides which types carry which.
   prepare_seconds: number | null
   answer_seconds: number | null
+  // How many points one student may drop on a hotspot image; null elsewhere.
+  max_pins: number | null
+  // Bumped by 再做一次; answers carry the round they were given in.
+  answer_round: number
   started_at: string | null
   stopped_at: string | null
   created_at: string
@@ -166,6 +170,7 @@ export type Answer = {
   answer_values: string[] | null
   answer_text: string | null
   is_correct: boolean | null
+  round: number
   submitted_at: string
 }
 

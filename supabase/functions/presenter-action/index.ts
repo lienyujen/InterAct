@@ -6,7 +6,7 @@ import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/own
 
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload'])
+const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload', 'hotspot'])
 const timedTypes = new Set(['poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response'])
 const spokenTypes = new Set(['pronunciation', 'oral_response'])
 
@@ -847,6 +847,9 @@ Deno.serve(async (req) => {
       const allowMultiple = Boolean(input.allowMultiple) && ['poll', 'multiple_choice'].includes(type)
       const prepareSeconds = spokenTypes.has(type) ? timingSeconds(input.prepareSeconds, 300) : null
       const answerSeconds = timedTypes.has(type) ? timingSeconds(input.answerSeconds, 600) : null
+      // How many points one student may drop. Only a hotspot reads it, so every
+      // other type stores null rather than a number nothing will ever honour.
+      const maxPins = type === 'hotspot' ? Math.min(10, Math.max(1, Number(input.maxPins) || 1)) : null
       if (prepareSeconds === undefined || answerSeconds === undefined) {
         return jsonResponse({ message: '時間設定不正確。' }, 400)
       }
@@ -860,6 +863,7 @@ Deno.serve(async (req) => {
         pronunciation: '朗讀發音',
         oral_response: '口語表達',
         file_upload: '上傳作答',
+        hotspot: '圖上點選',
       }
       let translations = {}
       try {
@@ -909,6 +913,7 @@ Deno.serve(async (req) => {
           allow_multiple: allowMultiple,
           prepare_seconds: prepareSeconds,
           answer_seconds: answerSeconds,
+          max_pins: maxPins,
         })
         .select('*')
         .single()

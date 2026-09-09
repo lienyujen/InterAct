@@ -4783,3 +4783,72 @@ h2 {
 .participant-mark-waiting {
   margin-top: 12px;
 }
+
+/* 圖上點選: the picture is the answer sheet, so it fills the width and the pins
+   are positioned as percentages — the class answers on phones and the presenter
+   reads it on a projector, and a pixel means nothing across those two. */
+.hotspot-frame {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: block;
+  line-height: 0;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.hotspot-frame.is-answerable {
+  cursor: crosshair;
+}
+
+.hotspot-image {
+  display: block;
+  width: 100%;
+}
+
+.hotspot-pin {
+  align-items: center;
+  background: var(--primary, #5b5ce2);
+  border: 2px solid #fff;
+  border-radius: 50% 50% 50% 2px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
+  color: #fff;
+  /* Translucent so a cluster reads as a cluster. Eighteen students tapping the
+     same spot is the finding; opaque pins would show it as one. */
+  opacity: 0.82;
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 26px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  position: absolute;
+  /* The point of the teardrop sits on what was tapped, not the middle of it. */
+  transform: translate(-50%, -100%) rotate(-45deg);
+  width: 26px;
+}
+
+.hotspot-pin span {
+  transform: rotate(45deg);
+}
+
+.hotspot-pin.is-own {
+  background: var(--danger, #c62828);
+}
+
+.hotspot-frame.is-answerable .hotspot-pin {
+  cursor: pointer;
+}
+
+.participant-hotspot-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.hotspot-results-panel .hotspot-frame {
+  margin-top: 10px;
+}

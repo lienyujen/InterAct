@@ -79,7 +79,7 @@ create table if not exists public.questions (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade,
   screenshot_id uuid null references public.screenshots(id) on delete set null,
-  type text not null check (type in ('send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload')),
+  type text not null check (type in ('send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'hotspot', 'ordering', 'matching')),
   status text not null default 'active' check (status in ('draft', 'active', 'stopped', 'closed')),
   title text not null default '',
   prompt_text text null,
@@ -93,6 +93,11 @@ create table if not exists public.questions (
   -- has nothing to prepare; one combined field would lie about one of them.
   prepare_seconds integer null check (prepare_seconds is null or prepare_seconds between 5 and 300),
   answer_seconds integer null check (answer_seconds is null or answer_seconds between 5 and 600),
+  -- How many points one student may drop on a hotspot image. Null everywhere else.
+  max_pins integer null check (max_pins is null or max_pins between 1 and 10),
+  -- Bumped by 再做一次 so the class can answer the same question twice and the
+  -- two rounds can be compared. Answers carry the round they were given in.
+  answer_round integer not null default 1,
   stopped_at timestamptz null,
   translations jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
@@ -103,7 +108,33 @@ create table if not exists public.questions (
 -- column that is not there yet.
 alter table public.questions
   add column if not exists prepare_seconds integer null,
-  add column if not exists answer_seconds integer null;
+  add column if not exists answer_seconds integer null,
+  add column if not exists max_pins integer null,
+  add column if not exists answer_round integer not null default 1;
+
+-- The base table above only runs on a fresh database, so an existing one keeps
+-- whatever list of types it was created with. Replacing the constraint outright
+-- is how a new question type actually reaches a project already in use.
+alter table public.questions drop constraint if exists questions_type_check;
+alter table public.questions
+  add constraint questions_type_check check (type in (
+    'send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer',
+    'pronunciation', 'oral_response', 'custom_quiz', 'file_upload',
+    'hotspot', 'ordering', 'matching'
+  ));
+
+alter table public.answers
+  add column if not exists round integer not null default 1;
+
+-- One answer per student per question BECOMES one per round. Dropping the old
+-- constraint by its generated name is safe: it is what Postgres called the
+-- inline `unique (question_id, participant_id)` on this table.
+do $mig$ begin
+  alter table public.answers drop constraint if exists answers_question_id_participant_id_key;
+  alter table public.answers
+    add constraint answers_question_participant_round_key
+    unique (question_id, participant_id, round);
+exception when duplicate_table or duplicate_object then null; end $mig$;
 
 do $mig$ begin
   alter table public.questions
@@ -136,7 +167,8 @@ create table if not exists public.answers (
   answer_text text null,
   is_correct boolean null,
   submitted_at timestamptz not null default now(),
-  unique (question_id, participant_id)
+  round integer not null default 1,
+  unique (question_id, participant_id, round)
 );
 
 create table if not exists public.audio_responses (
@@ -188,6 +220,15 @@ create table if not exists public.file_responses (
   submitted_at timestamptz not null default now(),
   analyzed_at timestamptz null
 );
+create table if not exists public.question_keys (
+  question_id uuid primary key references public.questions(id) on delete cascade,
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  -- The correct sequence, or the correct right-hand item for each left-hand
+  -- one, in the order the left-hand items are stored on the question.
+  correct_values text[] not null default '{}'::text[],
+  created_at timestamptz not null default now()
+);
+
 create index if not exists file_responses_question_idx on public.file_responses (question_id, submitted_at);
 
 create table if not exists public.ai_summaries (
@@ -412,6 +453,7 @@ alter table public.quiz_item_keys enable row level security;
 alter table public.quiz_attempts enable row level security;
 alter table public.quiz_item_answers enable row level security;
 alter table public.shared_files enable row level security;
+alter table public.question_keys enable row level security;
 alter table public.file_responses enable row level security;
 
 drop policy if exists "mvp read sessions" on public.sessions;
@@ -494,6 +536,7 @@ with check (
       and questions.session_id = answers.session_id
       and questions.status = 'active'
       and questions.type <> 'custom_quiz'
+      and questions.answer_round = answers.round
       -- Three seconds of grace for the round trip on school wifi. Without it a
       -- student who taps at 29.8s is rejected at 30.2s, their answer vanishes,
       -- and the teacher sees a bug rather than a deadline. It is never shown:
@@ -563,9 +606,9 @@ grant select, insert on public.participants to anon, authenticated;
 grant select, insert on public.messages, public.answers, public.exit_tickets to anon, authenticated;
 
 revoke all on public.participant_session_keys, public.audio_responses, public.file_responses, public.quiz_item_keys,
-  public.quiz_attempts, public.quiz_item_answers from public, anon, authenticated;
+  public.quiz_attempts, public.quiz_item_answers, public.question_keys from public, anon, authenticated;
 grant all on public.participant_session_keys, public.audio_responses, public.shared_files, public.file_responses, public.quizzes, public.quiz_items,
-  public.quiz_item_keys, public.quiz_attempts, public.quiz_item_answers to service_role;
+  public.quiz_item_keys, public.quiz_attempts, public.quiz_item_answers, public.question_keys to service_role;
 
 do $$ begin
   if not exists (

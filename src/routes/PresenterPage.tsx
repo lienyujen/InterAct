@@ -98,6 +98,9 @@ export function PresenterPage() {
   const [fileResponses, setFileResponses] = useState<FileResponse[]>([])
   const [collectQuestion, setCollectQuestion] = useState<Question | null>(null)
   const [fileBusyId, setFileBusyId] = useState('')
+  // The presenter never needed the dispatched image back until 圖上點選, which
+  // draws the class's taps onto it.
+  const [questionScreenshotUrl, setQuestionScreenshotUrl] = useState<string | null>(null)
   // Read by the polling timer, which must not overwrite a row mid-marking.
   const markingRef = useRef(false)
   const [gradeProgress, setGradeProgress] = useState<{ done: number; total: number } | null>(null)
@@ -1437,6 +1440,18 @@ export function PresenterPage() {
     return () => window.clearInterval(timer)
   }, [question?.id, question?.status, question?.type, refreshFileResponses])
 
+  useEffect(() => {
+    const screenshotId = question?.screenshot_id
+    if (!screenshotId) {
+      setQuestionScreenshotUrl(null)
+      return
+    }
+    let cancelled = false
+    void requireSupabase().from('screenshots').select('public_url').eq('id', screenshotId).maybeSingle()
+      .then(({ data }) => { if (!cancelled) setQuestionScreenshotUrl(data?.public_url || null) })
+    return () => { cancelled = true }
+  }, [question?.screenshot_id])
+
   async function startFileCollect(promptText: string) {
     const presenterToken = requirePresenterToken()
     setBusy(true)
@@ -1669,6 +1684,7 @@ export function PresenterPage() {
           isCurrentQuestion={question?.id === session.current_question_id}
           onlineCount={onlineParticipants.length}
           question={question}
+          screenshotUrl={questionScreenshotUrl}
           onAnalyze={analyzeQuestion}
           onStopQuestion={stopQuestion}
           onResumeQuestion={resumeQuestion}

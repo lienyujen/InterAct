@@ -28,9 +28,11 @@ export type QuestionTiming = { prepareSeconds: number | null; answerSeconds: num
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'send_screen', label: '派送畫面' },
+  { type: 'hotspot', label: '圖上點選' },
   { type: 'custom_quiz', label: '自訂測驗' },
   { type: 'poll', label: '投票題' },
   { type: 'multiple_choice', label: '選擇題' },
+  { type: 'true_false', label: '是非題' },
   { type: 'file_upload', label: '上傳作答' },
   { type: 'short_answer', label: '問答題' },
   { type: 'oral_response', label: '口語表達' },
@@ -47,6 +49,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
   const [quizDirection, setQuizDirection] = useState('')
   const [prepareSeconds, setPrepareSeconds] = useState<number | null>(null)
   const [answerSeconds, setAnswerSeconds] = useState<number | null>(null)
+  const [maxPins, setMaxPins] = useState(1)
 
   useEffect(() => {
     if (!open) return
@@ -59,11 +62,13 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
     setQuizDirection('')
     setPrepareSeconds(null)
     setAnswerSeconds(null)
+    setMaxPins(1)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
   const finalOptions = useMemo(() => {
-    if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload'].includes(type)) return []
+    if (type === 'true_false') return ['是', '否']
+    if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'hotspot'].includes(type)) return []
     return options.map((option) => option.trim()).filter(Boolean)
   }, [options, type])
 
@@ -139,6 +144,20 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate }: 
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {type === 'hotspot' && (
+          <div className="question-timing">
+            <TimingRow
+              label="每人可點"
+              offLabel="1 個"
+              presets={[1, 2, 3, 5]}
+              value={maxPins}
+              onChange={(value) => setMaxPins(value ?? 1)}
+            />
+            <p className="muted question-type-hint">
+              學生會看到整張截圖，點哪裡都算。教師端會把全班的點疊在原圖上，看得出他們錯在哪裡，而不只是錯了多少。
+            </p>
           </div>
         )}
         {type === 'file_upload' && (
