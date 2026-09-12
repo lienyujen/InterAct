@@ -775,17 +775,24 @@ function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[]
 
   return (
     <>
-      <h3 className="ordering-subheading">全班的排序（依權重）</h3>
+      <h3 className="ordering-subheading">全班排出來的順序</h3>
       <ol className="ordering-ranked" ref={listRef}>
         {ranked.map((entry, index) => (
           <li data-rank-key={entry.item} key={entry.item}>
             {isImageValue(entry.item)
-              ? <img alt={`第 ${index + 1} 名的區塊`} className="ordering-ranked-image" src={entry.item} />
+              ? <img alt={`第 ${index + 1} 個區塊`} className="ordering-ranked-image" src={entry.item} />
               : <span className="ordering-ranked-item">{entry.item}</span>}
-            <span className="ordering-ranked-weight">
-              <b>{entry.mean.toFixed(1)}</b>
-              <span className="muted">平均名次 · 同意度 {entry.agreement}%</span>
-            </span>
+            {/* How solid this placing is, in words a teacher can read out. The
+                average rank decided the order but is not worth saying aloud, and
+                with one answer in, every item is trivially unanimous. */}
+            {answers.length > 1 && (
+              <span
+                className={`ordering-agreement is-${entry.agreement === 100 ? 'firm' : entry.agreement >= 60 ? 'most' : 'split'}`}
+                title={`${entry.places.length} 人中有 ${Math.round(entry.agreement * entry.places.length / 100)} 人排在第 ${index + 1}`}
+              >
+                {entry.agreement === 100 ? '全班一致' : entry.agreement >= 60 ? '多數這樣排' : '意見分歧'}
+              </span>
+            )}
           </li>
         ))}
       </ol>

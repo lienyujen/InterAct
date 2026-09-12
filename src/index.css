@@ -5142,13 +5142,6 @@ h2 {
   font-size: 0.9rem;
 }
 
-.ordering-ranked-weight {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 6px;
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
 /* The key editor pairs by tapping, so each prompt owns a row of its choices
    rather than a dropdown. Wraps, because six answers do not fit on one line. */
 /* 圖上點選放大檢視. The picture is the whole result, so the enlarged view is the
@@ -5540,4 +5533,28 @@ h2 {
   max-height: 72px;
   min-width: 0;
   object-fit: contain;
+}
+/* Said in words rather than as a percentage: what a teacher would point at and
+   read out, with the exact count on hover for anyone who wants it. */
+.ordering-agreement {
+  border-radius: 999px;
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.ordering-agreement.is-firm {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.ordering-agreement.is-most {
+  background: var(--surface-subtle);
+  color: var(--muted);
+}
+
+.ordering-agreement.is-split {
+  background: var(--danger-soft);
+  color: var(--danger-dark);
 }

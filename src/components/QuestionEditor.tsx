@@ -37,6 +37,9 @@ export type DispatchRequest = {
   // 排序題 only, and only when the presenter asked for the screenshot to be cut
   // up: how many pieces to ask the AI for. Null means an ordinary written one.
   sliceCount: number | null
+  // Whether a sliced ordering is marked against the original order. Off by
+  // default: most of the time the point is what the class makes of the pieces.
+  sliceHasAnswer: boolean
   // 排序題 only: rebuild one sentence rather than rank separate items.
   sentenceMode: boolean
   // 排序題 / 配對題 only: also show the class the capture. Off by default — for a
@@ -178,6 +181,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               key: { choices: [], correctValues: [] },
               maxPins: null,
               sliceCount: null,
+              sliceHasAnswer: false,
               sentenceMode: false,
               shareScreenshot: false,
               quizSettings: quizSettingsFrom(quizCount, quizType, direction),
@@ -197,6 +201,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             key: questionKey(),
             maxPins: type === 'hotspot' ? maxPins : null,
             sliceCount: type === 'ordering' && sliceImage ? sliceCount : null,
+            sliceHasAnswer: orderingHasAnswer,
             sentenceMode: type === 'ordering' && !sliceImage && sentenceMode,
             shareScreenshot,
           })
@@ -324,12 +329,20 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               <input
                 checked={sliceImage}
                 type="checkbox"
-                onChange={(event) => setSliceImage(event.target.checked)}
+                onChange={(event) => { setSliceImage(event.target.checked); setOrderingHasAnswer(!event.target.checked) }}
               />
               <span>用截圖分割出題</span>
             </label>
             {sliceImage ? (
               <>
+                <label className="multi-select-setting">
+                  <input
+                    checked={orderingHasAnswer}
+                    type="checkbox"
+                    onChange={(event) => setOrderingHasAnswer(event.target.checked)}
+                  />
+                  <span>有標準答案</span>
+                </label>
                 <TimingRow
                   formatValue={(value) => `${value} 塊`}
                   label="切成"
@@ -339,8 +352,10 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                   onChange={(value) => setSliceCount(value ?? 4)}
                 />
                 <p className="muted question-type-hint">
-                  派送時 AI 會把截圖切成上面的塊數、打散給學生拖曳排回原順序，正確順序就是原圖的順序。
-                  截圖裡若本來就有編號，切開後編號會跟著過去，等於送分。
+                  {orderingHasAnswer
+                    ? '派送時 AI 會把截圖切成上面的塊數、打散給學生排，正確順序就是原圖的順序，會自動批改。'
+                    : '派送時 AI 會把截圖切成上面的塊數、打散給學生排。沒有標準答案，你會看到全班排出來的順序。'}
+                  {orderingHasAnswer && ' 截圖裡若本來就有編號，切開後編號會跟著過去，等於送分。'}
                 </p>
               </>
             ) : (

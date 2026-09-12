@@ -909,7 +909,7 @@ export function PresenterPage() {
       if (type === 'ordering' && request.sliceCount) {
         const tiles = await buildSlicedOptions(file, promptText, request.sliceCount)
         dispatchOptions = shuffle(tiles)
-        dispatchKey = { choices: [], correctValues: tiles }
+        dispatchKey = { choices: [], correctValues: request.sliceHasAnswer ? tiles : [] }
       }
 
       const { data, error } = await supabase.functions.invoke('presenter-action', {
