@@ -857,6 +857,9 @@ Deno.serve(async (req) => {
       // Matching keeps its selectable side apart from its prompts: both are
       // visible, only the pairing between them is secret.
       const choices = type === 'matching' ? normalizedOptions(input.choices) : []
+      // Only 排序題 asks this, and only the presenter can answer it: four short
+      // opinions and four words of a sentence are indistinguishable from here.
+      const sentenceMode = type === 'ordering' && Boolean(input.sentenceMode)
       // The sequence, or the right-hand item for each prompt in order. Empty
       // for an ordering question the presenter dispatched without an answer.
       const correctValues = ['ordering', 'matching'].includes(type) ? normalizedOptions(input.correctValues) : []
@@ -941,6 +944,7 @@ Deno.serve(async (req) => {
           answer_seconds: answerSeconds,
           max_pins: maxPins,
           choices,
+          sentence_mode: sentenceMode,
         })
         .select('*')
         .single()

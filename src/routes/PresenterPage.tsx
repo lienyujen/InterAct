@@ -880,7 +880,7 @@ export function PresenterPage() {
   }
 
   async function uploadQuestionScreenshot(file: File, request: DispatchRequest) {
-    const { type, allowMultiple, promptText, timing, key, maxPins, quizSettings } = request
+    const { type, allowMultiple, promptText, timing, key, maxPins, sentenceMode, quizSettings } = request
     const options = request.options
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
@@ -934,6 +934,7 @@ export function PresenterPage() {
           prepareSeconds: timing.prepareSeconds,
           answerSeconds: timing.answerSeconds,
           maxPins,
+          sentenceMode,
           choices: dispatchKey.choices,
           correctValues: dispatchKey.correctValues,
           promptText,

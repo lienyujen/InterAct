@@ -11,7 +11,7 @@ import { HotspotImage } from './HotspotImage'
 import { parsePins, pinLabel } from '../lib/hotspot'
 import { QuestionStopControl } from './QuestionStopControl'
 import { SortableList } from './SortableList'
-import { isSentenceOrdering, joinSequence } from '../lib/ordering'
+import { joinSequence } from '../lib/ordering'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
 type Props = {
@@ -633,12 +633,12 @@ function MatchingKeyEditor({ prompts, choices, current, busy, onSubmit }: {
 // Where a marked ordering question went wrong. Not a list of every sequence the
 // class produced — with six items there are 720 of them — but the ones more than
 // one student arrived at, which is where a shared misunderstanding shows.
-function OrderingMistakes({ answers, correctValues }: { answers: Answer[]; correctValues: string[] }) {
+function OrderingMistakes({ answers, correctValues, sentenceMode }: { answers: Answer[]; correctValues: string[]; sentenceMode: boolean }) {
   const wrong = new Map<string, number>()
   for (const entry of answers) {
     const given = entry.answer_values || []
     if (given.length === correctValues.length && correctValues.every((value, index) => value === given[index])) continue
-    const key = joinSequence(given)
+    const key = joinSequence(given, sentenceMode)
     if (key) wrong.set(key, (wrong.get(key) || 0) + 1)
   }
   const shared = [...wrong.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
@@ -687,8 +687,8 @@ function useRankAnimation(listRef: RefObject<HTMLOListElement | null>, order: st
 
 // A sequence read back across the line instead of down a list, so a sentence
 // looks like the sentence it is meant to become.
-function SequenceReadout({ values }: { values: string[] }) {
-  if (isSentenceOrdering(values)) {
+function SequenceReadout({ values, sentenceMode }: { values: string[]; sentenceMode: boolean }) {
+  if (sentenceMode) {
     return <ul className="sentence-readout">{values.map((value) => <li key={value}>{value}</li>)}</ul>
   }
   return <ol className="ordering-consensus is-key">{values.map((value) => <li key={value}>{value}</li>)}</ol>
@@ -697,10 +697,11 @@ function SequenceReadout({ values }: { values: string[] }) {
 // What each student actually sent, which is the thing a teacher reads out loud
 // when going over the answer. Marked questions carry a verdict; an open one just
 // shows what they arranged.
-function OrderingSubmissions({ answers, anonymousEnabled, marked }: {
+function OrderingSubmissions({ answers, anonymousEnabled, marked, sentenceMode }: {
   answers: Answer[]
   anonymousEnabled: boolean
   marked: boolean
+  sentenceMode: boolean
 }) {
   if (!answers.length) return null
   return (
@@ -719,7 +720,7 @@ function OrderingSubmissions({ answers, anonymousEnabled, marked }: {
                   </span>
                 )}
               </div>
-              <SequenceReadout values={values} />
+              <SequenceReadout sentenceMode={sentenceMode} values={values} />
             </li>
           )
         })}
@@ -969,9 +970,9 @@ export function QuestionResult(props: Props) {
               <div className="bar-track"><div className="bar-fill" style={{ width: `${rate}%` }} /></div>
               <h3 className="ordering-subheading">{question.type === 'ordering' ? '正確順序' : '正確配對'}</h3>
               {question.type === 'ordering'
-                ? <SequenceReadout values={key} />
+                ? <SequenceReadout sentenceMode={question.sentence_mode} values={key} />
                 : <MatchingBreakdown answers={roundAnswers} correctValues={key} prompts={question.options} />}
-              {question.type === 'ordering' && <OrderingMistakes answers={roundAnswers} correctValues={key} />}
+              {question.type === 'ordering' && <OrderingMistakes answers={roundAnswers} correctValues={key} sentenceMode={question.sentence_mode} />}
             </>
           )}
           {/* Without a key there is nothing to be right about, so the panel shows
@@ -984,7 +985,7 @@ export function QuestionResult(props: Props) {
             ? <OrderingKeyEditor busy={props.busy} current={key} items={question.options} onSubmit={props.onSetOrderingKey} />
             : <MatchingKeyEditor busy={props.busy} choices={question.choices} current={key} prompts={question.options} onSubmit={props.onSetOrderingKey} />}
           {question.type === 'ordering' && (
-            <OrderingSubmissions answers={roundAnswers} anonymousEnabled={anonymousEnabled} marked={marked} />
+            <OrderingSubmissions answers={roundAnswers} anonymousEnabled={anonymousEnabled} marked={marked} sentenceMode={question.sentence_mode} />
           )}
         </section>
         <RoundComparison answers={answers} correctAnswers={[]} question={question} />

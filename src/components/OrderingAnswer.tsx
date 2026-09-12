@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
 import { SentenceOrder } from './SentenceOrder'
 import { SortableList } from './SortableList'
-import { isSentenceOrdering } from '../lib/ordering'
+
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 
 type Props = {
   items: string[]
+  // Set on the question by the presenter; see lib/ordering.ts.
+  sentenceMode: boolean
   locale: ParticipantLocale
   busy: boolean
   onSubmit: (ordered: string[]) => void
@@ -16,7 +18,7 @@ type Props = {
 // Everything starts on the list in the order it was dispatched, and the student
 // drags it into the order they want. Nothing to place and nothing to count: the
 // list as it stands is always a complete answer.
-export function OrderingAnswer({ items, locale, busy, onSubmit }: Props) {
+export function OrderingAnswer({ items, sentenceMode, locale, busy, onSubmit }: Props) {
   const [order, setOrder] = useState<string[]>(items)
   // Keyed on the contents, not the array. The presenter page hands down a fresh
   // question object every time realtime fires, so depending on the array itself
@@ -24,9 +26,9 @@ export function OrderingAnswer({ items, locale, busy, onSubmit }: Props) {
   const signature = JSON.stringify(items)
   useEffect(() => { setOrder(items) }, [signature])
 
-  // A scrambled sentence gets the sentence layout: the pieces in a bank above and
+  // A rebuilt sentence gets the sentence layout: the pieces in a bank above and
   // the line being built below, reading across the way it will finally read.
-  if (isSentenceOrdering(items)) {
+  if (sentenceMode) {
     return (
       <div className="ordering-answer">
         <p className="muted">{participantText(locale, 'dragToSentence')}</p>

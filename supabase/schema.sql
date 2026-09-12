@@ -99,6 +99,10 @@ create table if not exists public.questions (
   -- this holds what they are matched against, shuffled. Both are visible; only
   -- the pairing between them is secret, and that lives in question_keys.
   choices text[] not null default '{}'::text[],
+  -- 排序題 only: the pieces are one sentence cut up, not a list of things to
+  -- rank. Length cannot tell the two apart — four short opinions look exactly
+  -- like four words — so the presenter says which it is when they dispatch.
+  sentence_mode boolean not null default false,
   -- Bumped by 再做一次 so the class can answer the same question twice and the
   -- two rounds can be compared. Answers carry the round they were given in.
   answer_round integer not null default 1,
@@ -115,6 +119,7 @@ alter table public.questions
   add column if not exists answer_seconds integer null,
   add column if not exists max_pins integer null,
   add column if not exists choices text[] not null default '{}'::text[],
+  add column if not exists sentence_mode boolean not null default false,
   add column if not exists answer_round integer not null default 1;
 
 -- The base table above only runs on a fresh database, so an existing one keeps

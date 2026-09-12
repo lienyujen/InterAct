@@ -92,6 +92,7 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
         <OrderingAnswer
           busy={orderedBusy}
           items={question.options}
+          sentenceMode={question.sentence_mode}
           locale={locale}
           onSubmit={(ordered) => void onSubmitOrdered(ordered)}
         />

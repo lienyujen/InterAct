@@ -37,6 +37,8 @@ export type DispatchRequest = {
   // 排序題 only, and only when the presenter asked for the screenshot to be cut
   // up: how many pieces to ask the AI for. Null means an ordinary written one.
   sliceCount: number | null
+  // 排序題 only: rebuild one sentence rather than rank separate items.
+  sentenceMode: boolean
   maxPins: number | null
   quizSettings?: CustomQuizSettings
 }
@@ -70,6 +72,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
   // Cutting the screenshot up instead of writing the items out.
   const [sliceImage, setSliceImage] = useState(false)
   const [sliceCount, setSliceCount] = useState(4)
+  const [sentenceMode, setSentenceMode] = useState(false)
   const [items, setItems] = useState<string[]>([])
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
@@ -94,6 +97,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     setOrderingHasAnswer(true)
     setSliceImage(false)
     setSliceCount(4)
+    setSentenceMode(false)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -169,6 +173,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               key: { choices: [], correctValues: [] },
               maxPins: null,
               sliceCount: null,
+              sentenceMode: false,
               quizSettings: quizSettingsFrom(quizCount, quizType, direction),
             })
             return
@@ -186,6 +191,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             key: questionKey(),
             maxPins: type === 'hotspot' ? maxPins : null,
             sliceCount: type === 'ordering' && sliceImage ? sliceCount : null,
+            sentenceMode: type === 'ordering' && !sliceImage && sentenceMode,
           })
         }}
       >
@@ -335,6 +341,16 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                     onChange={(event) => setOrderingHasAnswer(event.target.checked)}
                   />
                   <span>有標準答案</span>
+                </label>
+              )}
+              {items.length > 0 && (
+                <label className="multi-select-setting" title="勾選後學生會看到橫式的詞塊與句子區，適合重組句子；不勾就是一般的項目排序">
+                  <input
+                    checked={sentenceMode}
+                    type="checkbox"
+                    onChange={(event) => setSentenceMode(event.target.checked)}
+                  />
+                  <span>重組句子</span>
                 </label>
               )}
             </div>

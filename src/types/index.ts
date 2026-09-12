@@ -156,6 +156,8 @@ export type Question = {
   // Matching only: the right-hand column the class picks from, shuffled.
   // Ordering keeps its items in options, so it needs nothing here.
   choices: string[]
+  // 排序題 only: the pieces are one sentence cut up rather than a list to rank.
+  sentence_mode: boolean
   // Bumped by 再做一次; answers carry the round they were given in.
   answer_round: number
   started_at: string | null
