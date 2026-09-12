@@ -80,6 +80,21 @@ function extractGeminiText(response: Record<string, unknown>) {
   return candidate?.content?.parts?.map((part) => part.text || '').join('') || ''
 }
 
+// The model almost always writes the correct choice first, so a class that
+// learns to tap the top option scores full marks without reading anything.
+// Shuffling the options fixes that; accepted_answers holds the option text
+// rather than its position, so the key survives the move. The English options
+// have to travel the same permutation, since a student reading the translation
+// is answering by index into the same list.
+function shuffledOrder(length: number) {
+  const order = Array.from({ length }, (_, index) => index)
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1))
+    ;[order[index], order[target]] = [order[target], order[index]]
+  }
+  return order
+}
+
 function cleanStrings(value: unknown, limit = 10) {
   if (!Array.isArray(value)) return []
   return [...new Set(value.map((item) => typeof item === 'string' ? item.trim() : '').filter(Boolean))].slice(0, limit)
@@ -232,17 +247,21 @@ export async function generateCustomQuiz(input: {
     const translation = (item.translation_en || {}) as Record<string, unknown>
     const translatedPrompt = typeof translation.prompt_text === 'string' ? translation.prompt_text.trim().slice(0, 2000) : ''
     const translatedOptions = cleanStrings(translation.options, 6)
+    const aligned = translatedOptions.length === options.length
+    const order = type === 'multiple_choice' ? shuffledOrder(options.length) : []
+    const shownOptions = order.map((at) => options[at])
+    const shownTranslated = aligned ? order.map((at) => translatedOptions[at]) : translatedOptions
     return {
       id: crypto.randomUUID(),
       position: index + 1,
       type,
       prompt_text: promptText,
-      options: type === 'multiple_choice' ? options : [],
+      options: type === 'multiple_choice' ? shownOptions : [],
       points: basePoints + (index < remainder ? 1 : 0),
       translations: {
         en: {
           prompt_text: translatedPrompt || promptText,
-          options: type === 'multiple_choice' && translatedOptions.length === options.length ? translatedOptions : options,
+          options: type === 'multiple_choice' && aligned ? shownTranslated : shownOptions,
         },
       },
       accepted_answers: acceptedAnswers,
