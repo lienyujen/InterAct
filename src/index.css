@@ -4941,77 +4941,11 @@ h2 {
 /* 排序題 / 配對題: answered by tapping and by picking from a select, never by
    dragging. A drag is the natural gesture on a desktop and the one gesture a
    phone gets consistently wrong, and this is answered on phones. */
-.ordering-list,
-.matching-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-}
-
-.ordering-option {
-  align-items: center;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  color: inherit;
-  cursor: pointer;
-  display: flex;
-  font-size: 0.95rem;
-  gap: 10px;
-  justify-content: flex-start;
-  padding: 10px 12px;
-  text-align: left;
-  width: 100%;
-}
-
-.ordering-option:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.ordering-option.is-placed {
-  background: color-mix(in srgb, var(--primary, #5b5ce2) 12%, var(--surface));
-  border-color: var(--primary, #5b5ce2);
-}
-
 /* Always the width of a two-digit number, so placing an item does not shunt its
    text sideways. */
-.ordering-rank {
-  align-items: center;
-  background: var(--surface-subtle);
-  border-radius: 50%;
-  color: var(--muted);
-  display: flex;
-  flex: 0 0 26px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  height: 26px;
-  justify-content: center;
-}
-
-.ordering-option.is-placed .ordering-rank {
-  background: var(--primary, #5b5ce2);
-  color: #fff;
-}
-
-.matching-list li {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-}
-
 .matching-prompt {
   flex: 1 1 auto;
   font-size: 0.95rem;
-}
-
-.matching-list select {
-  flex: 0 1 45%;
-  max-width: 45%;
 }
 
 .ordering-actions {
@@ -5217,51 +5151,6 @@ h2 {
 }
 /* The key editor pairs by tapping, so each prompt owns a row of its choices
    rather than a dropdown. Wraps, because six answers do not fit on one line. */
-.matching-key-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-}
-
-.matching-key-list li {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.matching-key-list .matching-prompt {
-  font-weight: 600;
-}
-
-.matching-choice-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.matching-choice {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: inherit;
-  cursor: pointer;
-  font-size: 0.82rem;
-  padding: 5px 12px;
-}
-
-.matching-choice.is-picked {
-  background: var(--primary, #5b5ce2);
-  border-color: var(--primary, #5b5ce2);
-  color: #fff;
-}
-
-.matching-choice:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
 /* 圖上點選放大檢視. The picture is the whole result, so the enlarged view is the
    picture and nothing else — it fills the window and the pins scale with it. */
 .hotspot-heading-actions {
@@ -5378,4 +5267,81 @@ h2 {
 
 .upload-summary-row p {
   margin: 0;
+}
+/* 拖曳排序 (SortableJS). One list serves 排序題 and 配對題 alike: ordering drags
+   the items themselves, matching keeps the prompts still on the left and drags
+   the answers beside them. */
+.sortable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.sortable-row {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: grab;
+  display: flex;
+  font-size: 0.92rem;
+  gap: 10px;
+  padding: 11px 12px;
+  /* Otherwise a drag on touch scrolls the panel instead of moving the row. */
+  touch-action: none;
+  user-select: none;
+}
+
+.sortable-list.is-disabled .sortable-row {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.sortable-rank {
+  align-items: center;
+  background: var(--primary, #5b5ce2);
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  flex: 0 0 24px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  height: 24px;
+  justify-content: center;
+}
+
+/* Matching only: the prompt this row is answering, which never moves. */
+.sortable-label {
+  flex: 1 1 45%;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.sortable-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sortable-grip {
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+/* The gap the row came from, while it is in the air. */
+.sortable-ghost {
+  background: var(--surface-subtle);
+  opacity: 0.5;
+}
+
+.sortable-chosen {
+  border-color: var(--primary, #5b5ce2);
+}
+
+.sortable-drag {
+  box-shadow: 0 10px 26px rgb(24 34 58 / 28%);
+  cursor: grabbing;
+  opacity: 1;
 }

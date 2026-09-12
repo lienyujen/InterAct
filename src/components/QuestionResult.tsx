@@ -9,6 +9,7 @@ import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questio
 import { HotspotImage } from './HotspotImage'
 import { parsePins, pinLabel } from '../lib/hotspot'
 import { QuestionStopControl } from './QuestionStopControl'
+import { SortableList } from './SortableList'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
 type Props = {
@@ -513,18 +514,19 @@ function RoundComparison({ answers, question, correctAnswers }: {
 // Setting the key by clicking the items in order rather than typing position
 // numbers into boxes: clicking cannot produce "two items in slot 3", which is
 // the mistake a numbered form invites and which would mark the whole class wrong.
+// The same drag the class gets. A teacher setting the answer is doing exactly
+// what the students did, so it should not be a different control.
 function OrderingKeyEditor({ items, current, busy, onSubmit }: {
   items: string[]
   current: string[]
   busy: boolean
   onSubmit: (values: string[]) => Promise<void>
 }) {
-  const [order, setOrder] = useState<string[]>(current)
+  const [order, setOrder] = useState<string[]>(current.length ? current : items)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(!current.length)
 
-  const complete = order.length === items.length
   const unchanged = order.length === current.length && order.every((value, index) => value === current[index])
 
   async function save(values: string[]) {
@@ -543,7 +545,7 @@ function OrderingKeyEditor({ items, current, busy, onSubmit }: {
   if (!open) {
     return (
       <div className="ordering-key-set">
-        <button className="ghost-button" disabled={busy} type="button" onClick={() => { setOrder(current); setOpen(true) }}>
+        <button className="ghost-button" disabled={busy} type="button" onClick={() => { setOrder(current.length ? current : items); setOpen(true) }}>
           修改正確順序
         </button>
       </div>
@@ -552,35 +554,15 @@ function OrderingKeyEditor({ items, current, busy, onSubmit }: {
 
   return (
     <div className="ordering-key-editor">
-      <p className="muted">依正確順序點選項目，點第二次可以取消。</p>
-      <ul className="ordering-list">
-        {items.map((item) => {
-          const position = order.indexOf(item)
-          return (
-            <li key={item}>
-              <button
-                className={`ordering-option${position >= 0 ? ' is-placed' : ''}`}
-                disabled={busy || saving}
-                type="button"
-                onClick={() => setOrder((now) => now.includes(item)
-                  ? now.filter((value) => value !== item)
-                  : [...now, item])}
-              >
-                <span className="ordering-rank">{position >= 0 ? position + 1 : ''}</span>
-                <span>{item}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+      <p className="muted">拖曳項目排出正確順序。</p>
+      <SortableList disabled={busy || saving} values={order} onReorder={setOrder} />
       <div className="ordering-actions">
-        <span className="muted">{order.length} / {items.length}</span>
-        <button disabled={busy || saving || !complete || unchanged} type="button" onClick={() => void save(order)}>
+        <button disabled={busy || saving || unchanged} type="button" onClick={() => void save(order)}>
           <CheckCircle2 size={16} />送出答案
         </button>
         {current.length > 0 && (
           // Back to an open question. A key set by mistake otherwise leaves the
-          // whole class marked wrong with no way out but re-dispatching.
+          // whole class marked wrong with no way out.
           <button className="ghost-button" disabled={busy || saving} type="button" onClick={() => void save([])}>
             改為無標準答案
           </button>
@@ -601,68 +583,35 @@ function MatchingKeyEditor({ prompts, choices, current, busy, onSubmit }: {
   busy: boolean
   onSubmit: (values: string[]) => Promise<void>
 }) {
-  const [picked, setPicked] = useState<string[]>(() => prompts.map((_, index) => current[index] || ''))
+  const [order, setOrder] = useState<string[]>(current.length ? current : choices)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(!current.length)
-  const complete = picked.every(Boolean)
-  const unchanged = picked.every((value, index) => value === (current[index] || ''))
 
-  // The same swap the student widget does: a key with one choice used twice is
-  // one no answer can match, so it is not a state the form should be able to reach.
-  function choose(index: number, value: string) {
-    setPicked((now) => {
-      const held = value ? now.indexOf(value) : -1
-      return now.map((entry, at) => at === index ? value : at === held ? now[index] : entry)
-    })
-  }
+  const unchanged = order.every((value, index) => value === (current[index] || ''))
 
-  // Folded away once it is set, the same as the ordering editor: a panel the
-  // presenter is reading results from should not open on a form.
   if (!open) {
     return (
       <div className="ordering-key-set">
-        <button className="ghost-button" disabled={busy} type="button" onClick={() => setOpen(true)}>修改正確配對</button>
+        <button className="ghost-button" disabled={busy} type="button" onClick={() => { setOrder(current.length ? current : choices); setOpen(true) }}>
+          修改正確配對
+        </button>
       </div>
     )
   }
 
   return (
     <div className="ordering-key-editor">
-      <p className="muted">點選每一個題目的正確配對。</p>
-      {/* Buttons rather than a select. A native dropdown is an OS-level window in
-          the desktop app, and anything that touches focus while it is open closes
-          it — including a student answering, which reloads this panel underneath.
-          Buttons are ordinary DOM and nothing can dismiss them. */}
-      <ul className="matching-key-list">
-        {prompts.map((prompt, index) => (
-          <li key={prompt}>
-            <span className="matching-prompt">{prompt}</span>
-            <span className="matching-choice-row">
-              {choices.map((choice) => (
-                <button
-                  className={`matching-choice${picked[index] === choice ? ' is-picked' : ''}`}
-                  disabled={busy || saving}
-                  key={choice}
-                  type="button"
-                  onClick={() => choose(index, choice)}
-                >
-                  {choice}
-                </button>
-              ))}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <p className="muted">拖曳右邊的答案，對齊左邊的題目。</p>
+      <SortableList disabled={busy || saving} labels={prompts} values={order} onReorder={setOrder} />
       <div className="ordering-actions">
-        <span className="muted">{picked.filter(Boolean).length} / {prompts.length}</span>
         <button
-          disabled={busy || saving || !complete || unchanged}
+          disabled={busy || saving || unchanged}
           type="button"
           onClick={() => {
             setSaving(true)
             setError('')
-            onSubmit(picked)
+            onSubmit(order)
               .then(() => setOpen(false))
               .catch((caught) => setError(caught instanceof Error ? caught.message : '設定答案失敗。'))
               .finally(() => setSaving(false))
