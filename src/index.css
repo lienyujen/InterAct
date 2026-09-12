@@ -5529,3 +5529,15 @@ h2 {
   object-fit: contain;
   width: 100%;
 }
+/* A tile in the weighted ranking. It has to share the row with the weight, so
+   it is capped shorter than a tile shown on its own. */
+.ordering-ranked-image {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: block;
+  flex: 1 1 auto;
+  max-height: 72px;
+  min-width: 0;
+  object-fit: contain;
+}

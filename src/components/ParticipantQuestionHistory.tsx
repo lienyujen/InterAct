@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, History, Mic2 } from 'lucide-react'
 import type { ParticipantLocale } from '../lib/participantI18n'
+import { isImageValue } from '../lib/sliceImage'
 import type { Answer, AudioResponse, ParticipantQuizData, Question, Screenshot } from '../types'
 
 type Props = {
@@ -23,7 +24,14 @@ function answerText(question: Question, answer: Answer, locale: ParticipantLocal
     const index = question.options.indexOf(value)
     return index >= 0 ? translatedOptions[index] : value
   }
-  if (answer.answer_values?.length) return answer.answer_values.map(display).join(locale === 'en' ? ', ' : '、')
+  if (answer.answer_values?.length) {
+    // Tiles cut out of a screenshot have no text to read back; the student saw
+    // the pieces, and a list of storage paths tells them nothing.
+    if (answer.answer_values.some(isImageValue)) {
+      return locale === 'en' ? `${answer.answer_values.length} pieces, in the order you set` : `${answer.answer_values.length} 塊，依你排的順序`
+    }
+    return answer.answer_values.map(display).join(locale === 'en' ? ', ' : '、')
+  }
   if (answer.answer_value) return display(answer.answer_value)
   return answer.answer_text || ''
 }

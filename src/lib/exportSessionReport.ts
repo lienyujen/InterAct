@@ -2,6 +2,15 @@ import ExcelJS from 'exceljs'
 import type { QuestionAnalysis, SessionAnalysis, SessionMetrics, SessionReportData } from '../types'
 import { badgeText, buzzerWinsFrom, participationRows } from './participation'
 
+// A sliced 排序題 answers with image URLs. A spreadsheet column of storage paths
+// is unreadable and enormous; the count and the fact it was ordered is the part
+// a teacher can act on.
+function sequenceText(values: string[] | null | undefined) {
+  if (!values?.length) return ''
+  if (values.some((value) => /^https?:/.test(value))) return `${values.length} 個圖塊（依學生排序）`
+  return values.join('、')
+}
+
 const COLORS = {
   primary: '1463FF',
   header: '172033',
@@ -348,7 +357,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       questionNumber: questionNumber.get(answer.question_id) || '',
       questionType: question ? questionTypeLabels[question.type] : '',
       participantName: answer.participant_name,
-      answerValue: answer.answer_values?.length ? answer.answer_values.join('、') : answer.answer_value || '',
+      answerValue: sequenceText(answer.answer_values) || answer.answer_value || '',
       answerText: answer.answer_text || '',
       correctness: answer.is_correct === null ? '未判定' : answer.is_correct ? '正確' : '錯誤',
       submittedAt: formatDate(answer.submitted_at),
@@ -364,7 +373,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       questionNumber: `${questionNumber.get(attempt.question_id) || ''}-${item.position}`,
       questionType: `自訂測驗／${quizItemTypeLabels[item.type]}`,
       participantName: attempt.participant_name,
-      answerValue: answer.answer_values?.join('、') || '',
+      answerValue: sequenceText(answer.answer_values),
       answerText: answer.answer_text || '',
       correctness: score === null ? '評分中' : score >= itemPoints ? '正確／滿分' : score > 0 ? '部分得分' : '錯誤／零分',
       score: score === null ? '' : `${score}/${itemPoints}`,

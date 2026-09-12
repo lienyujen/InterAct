@@ -775,9 +775,11 @@ function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[]
     <>
       <h3 className="ordering-subheading">全班的排序（依權重）</h3>
       <ol className="ordering-ranked" ref={listRef}>
-        {ranked.map((entry) => (
+        {ranked.map((entry, index) => (
           <li data-rank-key={entry.item} key={entry.item}>
-            <span className="ordering-ranked-item">{entry.item}</span>
+            {isImageValue(entry.item)
+              ? <img alt={`第 ${index + 1} 名的區塊`} className="ordering-ranked-image" src={entry.item} />
+              : <span className="ordering-ranked-item">{entry.item}</span>}
             <span className="ordering-ranked-weight">
               <b>{entry.mean.toFixed(1)}</b>
               <span className="muted">平均名次 · 同意度 {entry.agreement}%</span>
