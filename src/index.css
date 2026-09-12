@@ -4845,6 +4845,16 @@ h2 {
   background: var(--danger, #c62828);
 }
 
+/* The global button:active rule sets transform: translateY(1px), and it beats
+   .hotspot-pin on specificity — so pressing a pin REPLACED the transform that
+   positions it. The pin slid out from under the finger (animated, because
+   transform is transitioned), the release landed on the picture instead, and no
+   click ever reached the handler: the mark could not be taken back. Press
+   feedback has to compose with the positioning, not replace it. */
+.hotspot-pin:active {
+  transform: translate(-50%, -100%) rotate(-45deg) scale(0.9);
+}
+
 .hotspot-frame.is-answerable .hotspot-pin {
   cursor: pointer;
 }
