@@ -233,48 +233,6 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             ))}
           </div>
         )}
-        {type === 'ordering' && (
-          <div className="generated-items">
-            <div className="generated-items-heading">
-              <button className="ghost-button" disabled={generating} type="button" onClick={() => void generate()}>
-                <Sparkles size={16} />
-                {generating ? 'AI 讀取截圖中...' : items.length ? '重新產生' : 'AI 產生題目'}
-              </button>
-              {items.length > 0 && (
-                <label className="multi-select-setting">
-                  <input
-                    checked={orderingHasAnswer}
-                    type="checkbox"
-                    onChange={(event) => setOrderingHasAnswer(event.target.checked)}
-                  />
-                  <span>有標準答案</span>
-                </label>
-              )}
-            </div>
-            {generateError && <p className="error">{generateError}</p>}
-            {items.length > 0 && (
-              <>
-                <p className="muted question-type-hint">
-                  {orderingHasAnswer
-                    ? '下面就是正確順序，用箭頭調整。學生看到的會是打散的。'
-                    : '沒有標準答案，學生排完之後你會看到全班把每個項目排在第幾位的比率。'}
-                </p>
-                <ol className="generated-item-list">
-                  {items.map((item, index) => (
-                    <li key={`${index}-${item}`}>
-                      <span>{item}</span>
-                      <span className="generated-item-actions">
-                        <button className="ghost-button icon-button" disabled={!index} type="button" onClick={() => moveItem(index, -1)}>↑</button>
-                        <button className="ghost-button icon-button" disabled={index === items.length - 1} type="button" onClick={() => moveItem(index, 1)}>↓</button>
-                        <button className="ghost-button icon-button" type="button" onClick={() => setItems((current) => current.filter((_, at) => at !== index))}><Trash2 size={15} /></button>
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </>
-            )}
-          </div>
-        )}
         {type === 'hotspot' && (
           <div className="question-timing">
             <TimingRow
@@ -318,10 +276,56 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                     // Matching is generated on dispatch with nothing shown first, so this
                     // is the only steer the presenter gets — say so.
                     ? '例如：找出 5 個難的中文詞和英文詞做成配對題'
-                    : '未輸入則以AI判讀題目'}
+                    : type === 'ordering'
+                      // It sits above 產生題目 because the generator reads it:
+                      // write the steer first, then press the button.
+                      ? '例如：把實驗步驟依先後排序（留空則由 AI 判讀）'
+                      : '未輸入則以AI判讀題目'}
               onChange={(event) => setPromptText(event.target.value)}
             />
           </label>
+        )}
+        {type === 'ordering' && (
+          <div className="generated-items">
+            <div className="generated-items-heading">
+              <button className="ghost-button" disabled={generating} type="button" onClick={() => void generate()}>
+                <Sparkles size={16} />
+                {generating ? 'AI 讀取截圖中...' : items.length ? '重新產生' : 'AI 產生題目'}
+              </button>
+              {items.length > 0 && (
+                <label className="multi-select-setting">
+                  <input
+                    checked={orderingHasAnswer}
+                    type="checkbox"
+                    onChange={(event) => setOrderingHasAnswer(event.target.checked)}
+                  />
+                  <span>有標準答案</span>
+                </label>
+              )}
+            </div>
+            {generateError && <p className="error">{generateError}</p>}
+            {items.length > 0 && (
+              <>
+                <p className="muted question-type-hint">
+                  {orderingHasAnswer
+                    ? '下面就是正確順序，用箭頭調整。學生看到的會是打散的。'
+                    : '沒有標準答案，學生排完之後你會看到全班把每個項目排在第幾位的比率。'}
+                </p>
+                <ol className="generated-item-list">
+                  {items.map((item, index) => (
+                    <li key={`${index}-${item}`}>
+                      <span>{item}</span>
+                      <span className="generated-item-actions">
+                        <button className="ghost-button icon-button" disabled={!index} type="button" onClick={() => moveItem(index, -1)}>↑</button>
+                        <button className="ghost-button icon-button" disabled={index === items.length - 1} type="button" onClick={() => moveItem(index, 1)}>↓</button>
+                        <button className="ghost-button icon-button" type="button" onClick={() => setItems((current) => current.filter((_, at) => at !== index))}><Trash2 size={15} /></button>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+          </div>
         )}
         {canBeTimed(type) && (
           <div className="question-timing">
