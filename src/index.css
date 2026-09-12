@@ -665,10 +665,17 @@ h2 {
   justify-content: space-between;
 }
 
+.qr-panel .panel-heading {
+  gap: 8px;
+}
+
 .qr-panel .panel-heading h2 {
   align-items: center;
   display: flex;
-  gap: 7px;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .desktop-shell .qr-panel .panel-heading {
@@ -689,17 +696,19 @@ h2 {
   white-space: nowrap;
 }
 
-/* Held well off the corner. The card is rounded at 16px and the buttons sat 8px
-   in, so a hover background cleared the curve by under a pixel — fine at 100%
-   scaling, out of the corner at 125% where that margin rounds away. Widened
-   again afterwards on the report that it still broke out at 125%. */
+/* The collapsed window is 194px wide (CONTROL_COLLAPSED in electron/main.cjs),
+   leaving the heading 166px — and the icon, 加入場次 and two 32px buttons want
+   180. Nothing in the row was allowed to shrink, so it overflowed to the right
+   and the buttons spilled out of the card. Letting the title give way keeps them
+   inside; the small inset then holds them clear of the 16px corner. */
 .qr-window-actions {
   -webkit-app-region: no-drag;
   align-items: center;
   display: flex;
+  flex: 0 0 auto;
   gap: 2px;
-  margin-right: 9px;
-  margin-top: 3px;
+  margin-right: 2px;
+  margin-top: 2px;
 }
 
 .qr-window-actions button {
@@ -712,7 +721,7 @@ h2 {
   justify-content: center;
   min-height: 30px;
   padding: 0;
-  width: 32px;
+  width: 28px;
 }
 
 .qr-window-actions button:hover {
@@ -3766,10 +3775,14 @@ h2 {
     min-width: 48px;
   }
 
+  /* A touch display enlarges these, and the collapsed window is only 194px wide:
+     at 36px the icon, the title and two buttons together want more room than the
+     heading has, the row overflows, and the buttons slide out past the card. 32
+     is still a fair target and leaves the row eight pixels to spare. */
   .desktop-shell .qr-window-actions button {
-    min-height: 36px;
-    min-width: 36px;
-    width: 36px;
+    min-height: 32px;
+    min-width: 32px;
+    width: 32px;
   }
 
   .analysis-content summary {
