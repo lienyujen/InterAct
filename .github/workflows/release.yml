@@ -89,6 +89,18 @@ jobs:
       - name: Package
         run: pnpm exec electron-builder ${{ matrix.package }} --publish never
 
+      # identity: '-' is easy to set and easy to have silently ignored, and the
+      # difference only shows up as an app that will not open on an Apple Silicon
+      # Mac. Read the signature back off the built app instead of assuming it.
+      - name: Verify the app is signed
+        if: matrix.os == 'macos-latest'
+        run: |
+          app=release/mac-universal/InterAct.app
+          codesign --display --verbose=2 "$app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          echo "Architectures:"
+          lipo -archs "$app/Contents/MacOS/InterAct"
+
       - name: Upload build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

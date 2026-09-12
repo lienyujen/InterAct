@@ -62,11 +62,13 @@ module.exports = {
         arch: ['universal'],
       },
     ],
-    // There is no Apple Developer ID to sign with. Explicitly null makes
-    // electron-builder ad-hoc sign instead of skipping signing altogether, which
-    // matters on Apple Silicon: an entirely unsigned arm64 binary will not launch
-    // at all, whereas an ad-hoc signed one launches once Gatekeeper is cleared.
-    identity: null,
+    // There is no Apple Developer ID to sign with, but "no signature at all" is
+    // not an option on Apple Silicon: the kernel refuses to run an arm64 binary
+    // that carries none, and no amount of clearing quarantine helps. '-' is the
+    // ad-hoc identity — worth nothing as an assurance of who built this, but it
+    // is what makes the app launchable once Gatekeeper has been cleared once.
+    // Note that identity: null means something else entirely: skip signing.
+    identity: '-',
     // Hardened runtime only means anything alongside notarization, and enabling it
     // unsigned costs the entitlements without buying the trust.
     hardenedRuntime: false,
