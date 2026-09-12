@@ -34,6 +34,9 @@ export type DispatchRequest = {
   timing: QuestionTiming
   key: QuestionKey
   // How many points one student may drop on a 圖上點選 image; null elsewhere.
+  // 排序題 only, and only when the presenter asked for the screenshot to be cut
+  // up: how many pieces to ask the AI for. Null means an ordinary written one.
+  sliceCount: number | null
   maxPins: number | null
   quizSettings?: CustomQuizSettings
 }
@@ -64,6 +67,9 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
   const [prepareSeconds, setPrepareSeconds] = useState<number | null>(null)
   const [answerSeconds, setAnswerSeconds] = useState<number | null>(null)
   const [maxPins, setMaxPins] = useState(1)
+  // Cutting the screenshot up instead of writing the items out.
+  const [sliceImage, setSliceImage] = useState(false)
+  const [sliceCount, setSliceCount] = useState(4)
   const [items, setItems] = useState<string[]>([])
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
@@ -86,6 +92,8 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     setItems([])
     setGenerateError('')
     setOrderingHasAnswer(true)
+    setSliceImage(false)
+    setSliceCount(4)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -160,6 +168,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               timing: { prepareSeconds: null, answerSeconds: null },
               key: { choices: [], correctValues: [] },
               maxPins: null,
+              sliceCount: null,
               quizSettings: quizSettingsFrom(quizCount, quizType, direction),
             })
             return
@@ -176,6 +185,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             },
             key: questionKey(),
             maxPins: type === 'hotspot' ? maxPins : null,
+            sliceCount: type === 'ordering' && sliceImage ? sliceCount : null,
           })
         }}
       >
@@ -287,6 +297,31 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
         )}
         {type === 'ordering' && (
           <div className="generated-items">
+            <label className="multi-select-setting">
+              <input
+                checked={sliceImage}
+                type="checkbox"
+                onChange={(event) => setSliceImage(event.target.checked)}
+              />
+              <span>用截圖分割出題</span>
+            </label>
+            {sliceImage ? (
+              <>
+                <TimingRow
+                  formatValue={(value) => `${value} 塊`}
+                  label="切成"
+                  offLabel="4 塊"
+                  presets={[3, 4, 5, 6]}
+                  value={sliceCount}
+                  onChange={(value) => setSliceCount(value ?? 4)}
+                />
+                <p className="muted question-type-hint">
+                  派送時 AI 會把截圖切成上面的塊數、打散給學生拖曳排回原順序，正確順序就是原圖的順序。
+                  截圖裡若本來就有編號，切開後編號會跟著過去，等於送分。
+                </p>
+              </>
+            ) : (
+            <>
             <div className="generated-items-heading">
               <button className="ghost-button" disabled={generating} type="button" onClick={() => void generate()}>
                 <Sparkles size={16} />
@@ -325,6 +360,8 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                 </ol>
               </>
             )}
+            </>
+            )}
           </div>
         )}
         {canBeTimed(type) && (
@@ -353,7 +390,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
           </button>
           <button
             disabled={(type === 'custom_quiz' && !quizDirection.trim())
-              || (type === 'ordering' && items.length < 2)
+              || (type === 'ordering' && !sliceImage && items.length < 2)
               }
             type="submit"
           >

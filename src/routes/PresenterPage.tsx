@@ -20,6 +20,7 @@ import { TextDispatchModal } from '../components/TextDispatchModal'
 import { FileTransferModal } from '../components/FileTransferModal'
 import { finalizeLottery } from '../lib/lottery'
 import { getPresenterToken } from '../lib/presenterAuth'
+import { sliceRegions } from '../lib/sliceImage'
 import { endManagedSession } from '../lib/presenterSessions'
 import { isBuzzerPending } from '../lib/buzzer'
 import { buildJoinUrl } from '../lib/qrcode'
@@ -825,6 +826,48 @@ export function PresenterPage() {
     return copy
   }
 
+  // 圖片排序: the AI picks the blocks, the presenter's machine cuts them out of
+  // the capture it already holds, and the class reorders the pieces. Nothing is
+  // shown in between — the tiles in their correct order would give it away.
+  async function buildSlicedOptions(file: File, direction: string, count: number) {
+    const presenterToken = requirePresenterToken()
+    const prepared = await prepareScreenshot(file)
+    const generated = await callPresenter({
+      action: 'generate_question_items',
+      sessionId,
+      presenterToken,
+      kind: 'regions',
+      storagePath: prepared.storagePath,
+      direction,
+      count,
+    }, 'AI 分割圖片失敗。') as { regions?: Array<{ box: number[]; label: string }> }
+
+    const regions = generated.regions || []
+    if (regions.length < 2) {
+      throw new Error('AI 在這張截圖裡找不到可以排序的區塊，換一張或在題目欄說明要排什麼。')
+    }
+    const slices = await sliceRegions(file, regions)
+    if (slices.length < 2) throw new Error('切出來的區塊太小，換一張截圖再試。')
+
+    // Uploaded one at a time rather than all at once: this runs on classroom
+    // wifi, and a burst of parallel uploads is how they start failing.
+    const supabase = requireSupabase()
+    const urls: string[] = []
+    for (const slice of slices) {
+      const spot = await callPresenter({
+        action: 'prepare_screenshot_upload', sessionId, presenterToken, fileName: slice.name,
+      }, '無法準備圖片上傳。')
+      const { error } = await supabase.storage.from('interact-screenshots')
+        .uploadToSignedUrl(spot.storagePath as string, spot.uploadToken as string, slice, {
+          contentType: 'image/png', upsert: false,
+        })
+      if (error) throw error
+      const { data } = supabase.storage.from('interact-screenshots').getPublicUrl(spot.storagePath as string)
+      urls.push(data.publicUrl)
+    }
+    return urls
+  }
+
   async function generateQuestionItems(kind: 'ordering' | 'matching', direction: string): Promise<GeneratedItems> {
     if (!captureFile) throw new Error('找不到截圖，請重新截圖。')
     const presenterToken = requirePresenterToken()
@@ -859,6 +902,14 @@ export function PresenterPage() {
         dispatchOptions = pairs.map((pair) => pair.left)
         const answers = pairs.map((pair) => pair.right)
         dispatchKey = { choices: shuffle(answers), correctValues: answers }
+      }
+
+      // 排序題 with 圖片分割 ticked: the options are tiles cut from the capture,
+      // shuffled for the class, and the answer is the order the AI read them in.
+      if (type === 'ordering' && request.sliceCount) {
+        const tiles = await buildSlicedOptions(file, promptText, request.sliceCount)
+        dispatchOptions = shuffle(tiles)
+        dispatchKey = { choices: [], correctValues: tiles }
       }
 
       const { data, error } = await supabase.functions.invoke('presenter-action', {

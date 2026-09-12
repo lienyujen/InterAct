@@ -11,6 +11,7 @@ import { HotspotImage } from './HotspotImage'
 import { parsePins, pinLabel } from '../lib/hotspot'
 import { QuestionStopControl } from './QuestionStopControl'
 import { SortableList } from './SortableList'
+import { isSentenceOrdering, joinSequence } from '../lib/ordering'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
 
 type Props = {
@@ -637,7 +638,7 @@ function OrderingMistakes({ answers, correctValues }: { answers: Answer[]; corre
   for (const entry of answers) {
     const given = entry.answer_values || []
     if (given.length === correctValues.length && correctValues.every((value, index) => value === given[index])) continue
-    const key = given.join(' → ')
+    const key = joinSequence(given)
     if (key) wrong.set(key, (wrong.get(key) || 0) + 1)
   }
   const shared = [...wrong.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
@@ -682,6 +683,49 @@ function useRankAnimation(listRef: RefObject<HTMLOListElement | null>, order: st
     }
     previous.current = next
   }, [listRef, order])
+}
+
+// A sequence read back across the line instead of down a list, so a sentence
+// looks like the sentence it is meant to become.
+function SequenceReadout({ values }: { values: string[] }) {
+  if (isSentenceOrdering(values)) {
+    return <ul className="sentence-readout">{values.map((value) => <li key={value}>{value}</li>)}</ul>
+  }
+  return <ol className="ordering-consensus is-key">{values.map((value) => <li key={value}>{value}</li>)}</ol>
+}
+
+// What each student actually sent, which is the thing a teacher reads out loud
+// when going over the answer. Marked questions carry a verdict; an open one just
+// shows what they arranged.
+function OrderingSubmissions({ answers, anonymousEnabled, marked }: {
+  answers: Answer[]
+  anonymousEnabled: boolean
+  marked: boolean
+}) {
+  if (!answers.length) return null
+  return (
+    <>
+      <h3 className="ordering-subheading">學生的作答</h3>
+      <ul className="ordering-submissions">
+        {answers.map((entry, index) => {
+          const values = entry.answer_values || []
+          return (
+            <li key={entry.id}>
+              <div className="ordering-submission-head">
+                <strong>{anonymousEnabled ? `匿名作答 ${index + 1}` : entry.participant_name}</strong>
+                {marked && (
+                  <span className={entry.is_correct ? 'file-verdict is-correct' : 'file-verdict is-wrong'}>
+                    {entry.is_correct ? '答對' : '答錯'}
+                  </span>
+                )}
+              </div>
+              <SequenceReadout values={values} />
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
 }
 
 function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[] }) {
@@ -925,7 +969,7 @@ export function QuestionResult(props: Props) {
               <div className="bar-track"><div className="bar-fill" style={{ width: `${rate}%` }} /></div>
               <h3 className="ordering-subheading">{question.type === 'ordering' ? '正確順序' : '正確配對'}</h3>
               {question.type === 'ordering'
-                ? <ol className="ordering-consensus is-key">{key.map((item) => <li key={item}>{item}</li>)}</ol>
+                ? <SequenceReadout values={key} />
                 : <MatchingBreakdown answers={roundAnswers} correctValues={key} prompts={question.options} />}
               {question.type === 'ordering' && <OrderingMistakes answers={roundAnswers} correctValues={key} />}
             </>
@@ -939,6 +983,9 @@ export function QuestionResult(props: Props) {
           {question.type === 'ordering'
             ? <OrderingKeyEditor busy={props.busy} current={key} items={question.options} onSubmit={props.onSetOrderingKey} />
             : <MatchingKeyEditor busy={props.busy} choices={question.choices} current={key} prompts={question.options} onSubmit={props.onSetOrderingKey} />}
+          {question.type === 'ordering' && (
+            <OrderingSubmissions answers={roundAnswers} anonymousEnabled={anonymousEnabled} marked={marked} />
+          )}
         </section>
         <RoundComparison answers={answers} correctAnswers={[]} question={question} />
       </>

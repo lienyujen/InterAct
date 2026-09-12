@@ -5345,3 +5345,112 @@ h2 {
   cursor: grabbing;
   opacity: 1;
 }
+/* A tile cut out of the screenshot. It keeps its own proportions and is capped
+   in height so six of them still fit on a phone without endless scrolling. */
+.sortable-image {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: block;
+  flex: 1 1 auto;
+  max-height: 110px;
+  min-width: 0;
+  object-fit: contain;
+  width: 100%;
+}
+/* 打亂的句子: laid out the way the sentence will read rather than as a stack.
+   The bank holds what is left, the line below holds the sentence so far. */
+.sentence-order {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sentence-bank,
+.sentence-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  min-height: 54px;
+  padding: 10px;
+}
+
+.sentence-bank {
+  background: var(--surface-subtle);
+  border-radius: var(--radius-lg);
+}
+
+/* Dashed, so an empty line reads as somewhere to put things rather than as a
+   box that failed to load. */
+.sentence-line {
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: var(--radius-lg);
+}
+
+.sentence-line.is-empty::before,
+.sentence-bank.is-empty::before {
+  color: var(--muted);
+  content: attr(data-hint);
+  font-size: 0.82rem;
+}
+
+.sentence-word {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: grab;
+  font-size: 0.95rem;
+  padding: 7px 14px;
+  touch-action: none;
+  user-select: none;
+}
+
+.sentence-word.is-placed {
+  background: color-mix(in srgb, var(--primary, #5b5ce2) 12%, var(--surface));
+  border-color: var(--primary, #5b5ce2);
+}
+
+/* The same pieces, read back rather than dragged: a submitted sentence, or the
+   class order on the presenter side. */
+.sentence-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.sentence-readout li {
+  background: var(--surface-subtle);
+  border-radius: 999px;
+  font-size: 0.84rem;
+  padding: 4px 10px;
+}
+.ordering-submissions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.ordering-submission-head {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.file-verdict.is-correct {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.file-verdict.is-wrong {
+  background: var(--danger-soft);
+  color: var(--danger-dark);
+}

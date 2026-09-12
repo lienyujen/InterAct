@@ -888,9 +888,12 @@ Deno.serve(async (req) => {
         ordering: '排序題',
         matching: '配對題',
       }
+      // Image tiles have no words to translate, and handing a list of URLs to the
+      // translator wastes a call to get the same URLs back.
+      const translatable = options.some((option) => option.startsWith('http')) ? [] : options
       let translations = {}
       try {
-        translations = await translateQuestion(titles[type], promptText, options)
+        translations = await translateQuestion(titles[type], promptText, translatable)
       } catch (translationError) {
         console.error('question translation failed', translationError instanceof Error ? translationError.message : translationError)
       }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
+import { SentenceOrder } from './SentenceOrder'
 import { SortableList } from './SortableList'
+import { isSentenceOrdering } from '../lib/ordering'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 
@@ -21,6 +23,23 @@ export function OrderingAnswer({ items, locale, busy, onSubmit }: Props) {
   // would throw away a half-finished drag each time another student answered.
   const signature = JSON.stringify(items)
   useEffect(() => { setOrder(items) }, [signature])
+
+  // A scrambled sentence gets the sentence layout: the pieces in a bank above and
+  // the line being built below, reading across the way it will finally read.
+  if (isSentenceOrdering(items)) {
+    return (
+      <div className="ordering-answer">
+        <p className="muted">{participantText(locale, 'dragToSentence')}</p>
+        <SentenceOrder disabled={busy} words={items} onChange={setOrder} />
+        <div className="ordering-actions">
+          <span className="muted">{order.length} / {items.length}</span>
+          <button disabled={busy || order.length !== items.length} type="button" onClick={() => onSubmit(order)}>
+            <Send size={18} />{participantText(locale, 'submitAnswer')}
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="ordering-answer">

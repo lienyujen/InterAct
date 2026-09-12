@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import Sortable from 'sortablejs'
 import { GripVertical } from 'lucide-react'
+import { isImageValue } from '../lib/sliceImage'
 
 type Props = {
   // The rows, in their current order. Row i carries values[i].
@@ -63,7 +64,9 @@ export function SortableList({ values, labels, disabled, onReorder }: Props) {
         <li className="sortable-row" key={value}>
           <span className="sortable-rank">{index + 1}</span>
           {labels && <span className="sortable-label">{labels[index]}</span>}
-          <span className="sortable-value">{value}</span>
+          {isImageValue(value)
+            ? <img alt={`第 ${index + 1} 塊`} className="sortable-image" src={value} />
+            : <span className="sortable-value">{value}</span>}
           {!disabled && <GripVertical className="sortable-grip" size={18} />}
         </li>
       ))}
