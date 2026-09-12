@@ -1036,6 +1036,19 @@ export function PresenterPage() {
     cropCapture(rect)
   }
 
+  // Where every dispatch ends up. Sending something to the class is always
+  // followed by watching the class answer it, so the dialog that sent it closes
+  // and the panel that shows the answers opens. Without this the screen you land
+  // on depends on which button you happened to press: 截圖派題 collapses to the
+  // QR window, because taking the screenshot hid the controls and nothing brought
+  // them back, while the others simply leave their own dialog covering the view.
+  function returnToClassView() {
+    setEditorOpen(false)
+    setFileTransferOpen(false)
+    setTextDispatchOpen(false)
+    setControlsOpen(true)
+  }
+
   async function createScreenshotQuestion(request: DispatchRequest) {
     if (!captureFile) return
 
@@ -1043,6 +1056,7 @@ export function PresenterPage() {
     setEditorOpen(false)
     try {
       await uploadQuestionScreenshot(captureFile, request)
+      returnToClassView()
       setCaptureFile(null)
       setCapturePreviewUrl(null)
     } catch (error) {
@@ -1292,6 +1306,7 @@ export function PresenterPage() {
       setLotteryEvent(null)
       setBuzzerEvent(nextEvent)
       await window.interactDesktop?.showLottery(nextEvent)
+      returnToClassView()
     } catch (error) {
       setAnalysisError(error instanceof Error ? error.message : '搶答啟動失敗。')
     } finally {
@@ -1310,6 +1325,7 @@ export function PresenterPage() {
     if (!data?.event) throw new Error(data?.message || '搶答沒有成功開始。')
     const nextEvent = data.event as BuzzerSessionEvent
     setBuzzerEvent(nextEvent)
+    returnToClassView()
     await window.interactDesktop?.showLottery(nextEvent)
   }
 
@@ -1376,6 +1392,7 @@ export function PresenterPage() {
     if (!data?.event) throw new Error(data?.message || '抽籤沒有回傳結果。')
     const nextEvent = data.event as LotterySessionEvent
     setLotteryEvent(nextEvent)
+    returnToClassView()
     await window.interactDesktop?.showLottery(nextEvent)
   }
 
@@ -1445,6 +1462,7 @@ export function PresenterPage() {
         requestedCount: settings.requestedCount,
         requestedType: settings.requestedType,
       }, 'AI 出題失敗。')
+      returnToClassView()
     } finally {
       setBusy(false)
     }
@@ -1557,10 +1575,7 @@ export function PresenterPage() {
         action: 'create_file_request', sessionId, presenterToken, promptText,
       }, '無法派送檔案上傳。')
       setCollectQuestion(data.question as Question)
-      // Out of the way once it is sent. The request becomes the current question,
-      // so the main screen is already showing the uploads as they land — leaving
-      // the dialog up hides the thing the teacher is now waiting to watch.
-      setFileTransferOpen(false)
+      returnToClassView()
       setFileResponses([])
       await loadAll()
     } finally {
@@ -1622,7 +1637,7 @@ export function PresenterPage() {
       })
       if (error) throw new Error(await edgeFunctionErrorMessage(error, '文字派送失敗。'))
       if (!data?.content) throw new Error(data?.message || '文字派送失敗。')
-      setTextDispatchOpen(false)
+      returnToClassView()
     } catch (error) {
       const message = error instanceof Error ? error.message : '文字派送失敗。'
       logDiagnostic('shared_content_failed', { sessionId, message })
