@@ -15,6 +15,8 @@ InterAct 是提供教師、講師、訓練師與演講者使用的即時課堂�
 - Excel 完整報表匯出
 - 免部署學員端：加入連結自帶專案資訊，掃碼即用
 
+每一項功能在課堂上解決什麼問題、哪些步驟用了 AI，請見 [`docs/InterAct-教學功能手冊.md`](docs/InterAct-教學功能手冊.md)。
+
 ## 技術架構
 
 - React、TypeScript、Vite：學員端網站
