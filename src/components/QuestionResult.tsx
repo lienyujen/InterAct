@@ -775,7 +775,7 @@ function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[]
 
   return (
     <>
-      <h3 className="ordering-subheading">全班排出來的順序</h3>
+      <h3 className="ordering-subheading">平均排序結果</h3>
       <ol className="ordering-ranked" ref={listRef}>
         {ranked.map((entry, index) => (
           <li data-rank-key={entry.item} key={entry.item}>

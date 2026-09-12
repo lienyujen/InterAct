@@ -354,7 +354,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                 <p className="muted question-type-hint">
                   {orderingHasAnswer
                     ? '派送時 AI 會把截圖切成上面的塊數、打散給學生排，正確順序就是原圖的順序，會自動批改。'
-                    : '派送時 AI 會把截圖切成上面的塊數、打散給學生排。沒有標準答案，你會看到全班排出來的順序。'}
+                    : '派送時 AI 會把截圖切成上面的塊數、打散給學生排。沒有標準答案，你會看到全班的平均排序結果。'}
                   {orderingHasAnswer && ' 截圖裡若本來就有編號，切開後編號會跟著過去，等於送分。'}
                 </p>
               </>
