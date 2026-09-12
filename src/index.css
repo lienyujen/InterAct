@@ -689,11 +689,17 @@ h2 {
   white-space: nowrap;
 }
 
+/* Held off the corner. The card is rounded at 16px and the buttons sat 8px in,
+   so a hover background cleared the curve by under a pixel — invisible at 100%
+   scaling and poking out of the corner at 125%, where that margin rounds away.
+   The inset gives it room no display scale can eat. */
 .qr-window-actions {
   -webkit-app-region: no-drag;
   align-items: center;
   display: flex;
   gap: 2px;
+  margin-right: 5px;
+  margin-top: 3px;
 }
 
 .qr-window-actions button {
