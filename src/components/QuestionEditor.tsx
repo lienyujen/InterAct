@@ -376,13 +376,13 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                 </label>
               )}
               {items.length > 0 && (
-                <label className="multi-select-setting" title="勾選後學生會看到橫式的詞塊與句子區，適合重組句子；不勾就是一般的項目排序">
+                <label className="multi-select-setting" title="勾選後學生會看到橫式的詞塊與句子區，適合語句排序；不勾就是一般的項目排序">
                   <input
                     checked={sentenceMode}
                     type="checkbox"
                     onChange={(event) => setSentenceMode(event.target.checked)}
                   />
-                  <span>重組句子</span>
+                  <span>語句排序</span>
                 </label>
               )}
             </div>
