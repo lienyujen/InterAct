@@ -10,7 +10,7 @@ import { QRCodePanel } from '../components/QRCodePanel'
 import { ExitTicketResult } from '../components/ExitTicketResult'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { QuestionEditor } from '../components/QuestionEditor'
-import type { GeneratedItems, QuestionKey, QuestionTiming } from '../components/QuestionEditor'
+import type { DispatchRequest, GeneratedItems } from '../components/QuestionEditor'
 import type { CustomQuizSettings } from '../lib/customQuiz'
 import { QuestionHistory } from '../components/QuestionHistory'
 import { QuestionResult } from '../components/QuestionResult'
@@ -31,7 +31,7 @@ import { createCaptionTextNormalizer } from '../lib/traditionalChinese'
 import { SOURCE_CAPTION_LANGUAGE, resolvedCaptionLanguage } from '../lib/captionLanguages'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useSessionPresence } from '../lib/useSessionPresence'
-import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, FileResponse, SharedFile, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, QuestionType, Session, SessionEvent } from '../types'
+import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, FileResponse, SharedFile, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, Session, SessionEvent } from '../types'
 import { useParams } from 'react-router-dom'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -836,7 +836,9 @@ export function PresenterPage() {
     return data as GeneratedItems
   }
 
-  async function uploadQuestionScreenshot(file: File, type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, key: QuestionKey, quizSettings?: CustomQuizSettings) {
+  async function uploadQuestionScreenshot(file: File, request: DispatchRequest) {
+    const { type, allowMultiple, promptText, timing, key, maxPins, quizSettings } = request
+    const options = request.options
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
     setBusy(true)
@@ -880,6 +882,7 @@ export function PresenterPage() {
           allowMultiple,
           prepareSeconds: timing.prepareSeconds,
           answerSeconds: timing.answerSeconds,
+          maxPins,
           choices: dispatchKey.choices,
           correctValues: dispatchKey.correctValues,
           promptText,
@@ -1033,13 +1036,13 @@ export function PresenterPage() {
     cropCapture(rect)
   }
 
-  async function createScreenshotQuestion(type: QuestionType, options: string[], allowMultiple: boolean, promptText: string, timing: QuestionTiming, key: QuestionKey, quizSettings?: CustomQuizSettings) {
+  async function createScreenshotQuestion(request: DispatchRequest) {
     if (!captureFile) return
 
     setAnalysisError('')
     setEditorOpen(false)
     try {
-      await uploadQuestionScreenshot(captureFile, type, options, allowMultiple, promptText, timing, key, quizSettings)
+      await uploadQuestionScreenshot(captureFile, request)
       setCaptureFile(null)
       setCapturePreviewUrl(null)
     } catch (error) {

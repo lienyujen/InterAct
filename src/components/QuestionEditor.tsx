@@ -16,15 +16,7 @@ type Props = {
   onCancel: () => void
   // Reads the screenshot and proposes the items; nothing is dispatched by it.
   onGenerate: (direction: string) => Promise<GeneratedItems>
-  onCreate: (
-    type: QuestionType,
-    options: string[],
-    allowMultiple: boolean,
-    promptText: string,
-    timing: QuestionTiming,
-    key: QuestionKey,
-    quizSettings?: CustomQuizSettings,
-  ) => void
+  onCreate: (request: DispatchRequest) => void
 }
 
 export type QuestionTiming = { prepareSeconds: number | null; answerSeconds: number | null }
@@ -32,6 +24,19 @@ export type GeneratedItems = { title: string; items?: string[]; pairs?: Array<{ 
 // What a dispatched ordering or matching question carries beyond its options:
 // the selectable side, and the answer that must not travel on the question row.
 export type QuestionKey = { choices: string[]; correctValues: string[] }
+
+// Everything the dialog decided, in one piece.
+export type DispatchRequest = {
+  type: QuestionType
+  options: string[]
+  allowMultiple: boolean
+  promptText: string
+  timing: QuestionTiming
+  key: QuestionKey
+  // How many points one student may drop on a 圖上點選 image; null elsewhere.
+  maxPins: number | null
+  quizSettings?: CustomQuizSettings
+}
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'send_screen', label: '派送畫面' },
@@ -147,14 +152,31 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
           if (type === 'custom_quiz') {
             const direction = quizDirection.trim()
             if (!direction) return
-            onCreate(type, [], false, direction, { prepareSeconds: null, answerSeconds: null }, { choices: [], correctValues: [] }, quizSettingsFrom(quizCount, quizType, direction))
+            onCreate({
+              type,
+              options: [],
+              allowMultiple: false,
+              promptText: direction,
+              timing: { prepareSeconds: null, answerSeconds: null },
+              key: { choices: [], correctValues: [] },
+              maxPins: null,
+              quizSettings: quizSettingsFrom(quizCount, quizType, direction),
+            })
             return
           }
           const dispatchOptions = type === 'ordering' ? shuffled(items) : finalOptions
-          onCreate(type, dispatchOptions, editableOptions && allowMultiple, type === 'send_screen' ? '' : promptText.trim(), {
-            prepareSeconds: canPrepare(type) ? prepareSeconds : null,
-            answerSeconds: canBeTimed(type) ? answerSeconds : null,
-          }, questionKey())
+          onCreate({
+            type,
+            options: dispatchOptions,
+            allowMultiple: editableOptions && allowMultiple,
+            promptText: type === 'send_screen' ? '' : promptText.trim(),
+            timing: {
+              prepareSeconds: canPrepare(type) ? prepareSeconds : null,
+              answerSeconds: canBeTimed(type) ? answerSeconds : null,
+            },
+            key: questionKey(),
+            maxPins: type === 'hotspot' ? maxPins : null,
+          })
         }}
       >
         <h2>截圖派題</h2>
@@ -256,16 +278,13 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
         {type === 'hotspot' && (
           <div className="question-timing">
             <TimingRow
-              formatValue={(value) => `${value} 個`}
+              formatValue={(value) => `${value} 次`}
               label="每人可點"
-              offLabel="1 個"
+              offLabel="1 次"
               presets={[1, 2, 3, 5]}
               value={maxPins}
               onChange={(value) => setMaxPins(value ?? 1)}
             />
-            <p className="muted question-type-hint">
-              學生會看到整張截圖，點哪裡都算，最多點上面選的次數；點自己的標記可以取消重點。教師端會把全班的點疊在原圖上，看得出他們錯在哪裡，而不只是錯了多少。
-            </p>
           </div>
         )}
         {type === 'file_upload' && (
