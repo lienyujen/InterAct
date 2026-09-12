@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Send } from 'lucide-react'
+import { MatchingBoard } from './MatchingBoard'
 import { SentenceOrder } from './SentenceOrder'
 import { SortableList } from './SortableList'
 
@@ -69,16 +70,16 @@ type MatchingProps = {
 // down until each one lines up with the prompt beside it. One list to learn, and
 // no dragging between columns, which is the fiddly part on a phone.
 export function MatchingAnswer({ prompts, choices, locale, busy, onSubmit }: MatchingProps) {
-  const [order, setOrder] = useState<string[]>(choices)
-  const signature = JSON.stringify(choices)
-  useEffect(() => { setOrder(choices) }, [signature])
+  const [picked, setPicked] = useState<string[]>([])
+  const complete = picked.length === prompts.length && picked.every(Boolean)
 
   return (
     <div className="matching-answer">
       <p className="muted">{participantText(locale, 'dragToMatch')}</p>
-      <SortableList disabled={busy} labels={prompts} values={order} onReorder={setOrder} />
+      <MatchingBoard choices={choices} disabled={busy} prompts={prompts} onChange={setPicked} />
       <div className="ordering-actions">
-        <button disabled={busy} type="button" onClick={() => onSubmit(order)}>
+        <span className="muted">{picked.filter(Boolean).length} / {prompts.length}</span>
+        <button disabled={busy || !complete} type="button" onClick={() => onSubmit(picked)}>
           <Send size={18} />{participantText(locale, 'submitAnswer')}
         </button>
       </div>

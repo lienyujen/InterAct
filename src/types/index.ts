@@ -158,6 +158,8 @@ export type Question = {
   choices: string[]
   // 排序題 only: the pieces are one sentence cut up rather than a list to rank.
   sentence_mode: boolean
+  // Whether the class is shown the capture this question was made from.
+  share_screenshot: boolean
   // Bumped by 再做一次; answers carry the round they were given in.
   answer_round: number
   started_at: string | null

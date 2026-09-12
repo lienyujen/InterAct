@@ -860,6 +860,11 @@ Deno.serve(async (req) => {
       // Only 排序題 asks this, and only the presenter can answer it: four short
       // opinions and four words of a sentence are indistinguishable from here.
       const sentenceMode = type === 'ordering' && Boolean(input.sentenceMode)
+      // Every other type is about the picture, so it keeps showing it; these two
+      // are about the pieces, and for a sliced ordering the original gives it away.
+      const shareScreenshot = ['ordering', 'matching'].includes(type)
+        ? Boolean(input.shareScreenshot)
+        : true
       // The sequence, or the right-hand item for each prompt in order. Empty
       // for an ordering question the presenter dispatched without an answer.
       const correctValues = ['ordering', 'matching'].includes(type) ? normalizedOptions(input.correctValues) : []
@@ -945,6 +950,7 @@ Deno.serve(async (req) => {
           max_pins: maxPins,
           choices,
           sentence_mode: sentenceMode,
+          share_screenshot: shareScreenshot,
         })
         .select('*')
         .single()

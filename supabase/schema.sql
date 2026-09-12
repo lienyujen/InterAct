@@ -103,6 +103,10 @@ create table if not exists public.questions (
   -- rank. Length cannot tell the two apart — four short opinions look exactly
   -- like four words — so the presenter says which it is when they dispatch.
   sentence_mode boolean not null default false,
+  -- Whether the class sees the capture the question was made from. True for the
+  -- types that are *about* the picture; 排序題 and 配對題 ask for it explicitly,
+  -- because for a sliced ordering the uncut original is the answer key.
+  share_screenshot boolean not null default true,
   -- Bumped by 再做一次 so the class can answer the same question twice and the
   -- two rounds can be compared. Answers carry the round they were given in.
   answer_round integer not null default 1,
@@ -120,6 +124,7 @@ alter table public.questions
   add column if not exists max_pins integer null,
   add column if not exists choices text[] not null default '{}'::text[],
   add column if not exists sentence_mode boolean not null default false,
+  add column if not exists share_screenshot boolean not null default true,
   add column if not exists answer_round integer not null default 1;
 
 -- The base table above only runs on a fresh database, so an existing one keeps

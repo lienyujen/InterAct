@@ -39,6 +39,9 @@ export type DispatchRequest = {
   sliceCount: number | null
   // 排序題 only: rebuild one sentence rather than rank separate items.
   sentenceMode: boolean
+  // 排序題 / 配對題 only: also show the class the capture. Off by default — for a
+  // sliced ordering the uncut original is the answer.
+  shareScreenshot: boolean
   maxPins: number | null
   quizSettings?: CustomQuizSettings
 }
@@ -73,6 +76,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
   const [sliceImage, setSliceImage] = useState(false)
   const [sliceCount, setSliceCount] = useState(4)
   const [sentenceMode, setSentenceMode] = useState(false)
+  const [shareScreenshot, setShareScreenshot] = useState(false)
   const [items, setItems] = useState<string[]>([])
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState('')
@@ -98,6 +102,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     setSliceImage(false)
     setSliceCount(4)
     setSentenceMode(false)
+    setShareScreenshot(false)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -174,6 +179,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               maxPins: null,
               sliceCount: null,
               sentenceMode: false,
+              shareScreenshot: false,
               quizSettings: quizSettingsFrom(quizCount, quizType, direction),
             })
             return
@@ -192,6 +198,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             maxPins: type === 'hotspot' ? maxPins : null,
             sliceCount: type === 'ordering' && sliceImage ? sliceCount : null,
             sentenceMode: type === 'ordering' && !sliceImage && sentenceMode,
+            shareScreenshot,
           })
         }}
       >
@@ -248,6 +255,16 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               </div>
             ))}
           </div>
+        )}
+        {(type === 'ordering' || type === 'matching') && (
+          <label className="multi-select-setting" title="預設不送。排序題若是切圖出的題，原圖就是答案">
+            <input
+              checked={shareScreenshot}
+              type="checkbox"
+              onChange={(event) => setShareScreenshot(event.target.checked)}
+            />
+            <span>同時把截圖給學生看</span>
+          </label>
         )}
         {type === 'hotspot' && (
           <div className="question-timing">

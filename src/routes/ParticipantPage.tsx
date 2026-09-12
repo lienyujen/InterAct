@@ -660,7 +660,7 @@ export function ParticipantPage() {
         </div>
       )}
       <SharedContentPanel contents={sharedContents} locale={locale} />
-      {screenshot && question?.type !== 'file_upload' && question?.type !== 'hotspot' && (
+      {screenshot && question?.share_screenshot && question?.type !== 'file_upload' && question?.type !== 'hotspot' && (
         <img alt={participantText(locale, 'imageAlt')} className="participant-image" src={screenshot.public_url} />
       )}
       {question?.type === 'custom_quiz' ? (quizData ? (

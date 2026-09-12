@@ -9,7 +9,9 @@ import type { ZipEntry } from '../lib/zip'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
 import { HotspotImage } from './HotspotImage'
 import { parsePins, pinLabel } from '../lib/hotspot'
+import { isImageValue } from '../lib/sliceImage'
 import { QuestionStopControl } from './QuestionStopControl'
+import { MatchingBoard } from './MatchingBoard'
 import { SortableList } from './SortableList'
 import { joinSequence } from '../lib/ordering'
 import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
@@ -585,35 +587,34 @@ function MatchingKeyEditor({ prompts, choices, current, busy, onSubmit }: {
   busy: boolean
   onSubmit: (values: string[]) => Promise<void>
 }) {
-  const [order, setOrder] = useState<string[]>(current.length ? current : choices)
+  const [picked, setPicked] = useState<string[]>(current)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(!current.length)
-
-  const unchanged = order.every((value, index) => value === (current[index] || ''))
+  const complete = picked.length === prompts.length && picked.every(Boolean)
+  const unchanged = picked.every((value, index) => value === (current[index] || ''))
 
   if (!open) {
     return (
       <div className="ordering-key-set">
-        <button className="ghost-button" disabled={busy} type="button" onClick={() => { setOrder(current.length ? current : choices); setOpen(true) }}>
-          修改正確配對
-        </button>
+        <button className="ghost-button" disabled={busy} type="button" onClick={() => setOpen(true)}>修改正確配對</button>
       </div>
     )
   }
 
   return (
     <div className="ordering-key-editor">
-      <p className="muted">拖曳右邊的答案，對齊左邊的題目。</p>
-      <SortableList disabled={busy || saving} labels={prompts} values={order} onReorder={setOrder} />
+      <p className="muted">把答案拖到它對應的題目上。</p>
+      <MatchingBoard choices={choices} disabled={busy || saving} prompts={prompts} onChange={setPicked} />
       <div className="ordering-actions">
+        <span className="muted">{picked.filter(Boolean).length} / {prompts.length}</span>
         <button
-          disabled={busy || saving || unchanged}
+          disabled={busy || saving || !complete || unchanged}
           type="button"
           onClick={() => {
             setSaving(true)
             setError('')
-            onSubmit(order)
+            onSubmit(picked)
               .then(() => setOpen(false))
               .catch((caught) => setError(caught instanceof Error ? caught.message : '設定答案失敗。'))
               .finally(() => setSaving(false))
@@ -642,6 +643,8 @@ function OrderingMistakes({ answers, correctValues, sentenceMode }: { answers: A
     if (key) wrong.set(key, (wrong.get(key) || 0) + 1)
   }
   const shared = [...wrong.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
+  // Image tiles have no readable one-line form, and every answer is listed below.
+  if (correctValues.some(isImageValue)) return null
   if (!shared.length) return null
   return (
     <>
@@ -688,6 +691,17 @@ function useRankAnimation(listRef: RefObject<HTMLOListElement | null>, order: st
 // A sequence read back across the line instead of down a list, so a sentence
 // looks like the sentence it is meant to become.
 function SequenceReadout({ values, sentenceMode }: { values: string[]; sentenceMode: boolean }) {
+  // Tiles cut out of a screenshot: the presenter needs to see the pieces, not
+  // the storage paths they happen to live at.
+  if (values.some(isImageValue)) {
+    return (
+      <ol className="ordering-tiles">
+        {values.map((value, index) => (
+          <li key={value}><img alt={`第 ${index + 1} 塊`} src={value} /></li>
+        ))}
+      </ol>
+    )
+  }
   if (sentenceMode) {
     return <ul className="sentence-readout">{values.map((value) => <li key={value}>{value}</li>)}</ul>
   }
