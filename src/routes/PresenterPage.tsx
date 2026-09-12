@@ -1053,10 +1053,14 @@ export function PresenterPage() {
     if (!captureFile) return
 
     setAnalysisError('')
-    setEditorOpen(false)
+    // Before the upload, not after. Closing the dialog on its own left nothing open
+    // and controlsOpen still false from the screen capture, so the window collapsed
+    // to the QR code for as long as the upload took and then expanded again — a
+    // round trip through a window nobody asked to see. Opening the class view in
+    // the same tick means it never collapses.
+    returnToClassView()
     try {
       await uploadQuestionScreenshot(captureFile, request)
-      returnToClassView()
       setCaptureFile(null)
       setCapturePreviewUrl(null)
     } catch (error) {
@@ -1066,7 +1070,10 @@ export function PresenterPage() {
   }
 
   function cancelQuestionEditor() {
-    setEditorOpen(false)
+    // Also the class view: taking a screenshot collapsed the window, so closing
+    // the dialog without dispatching would otherwise drop the presenter onto the
+    // QR code rather than back where they started.
+    returnToClassView()
     setCaptureFile(null)
     setCapturePreviewUrl(null)
   }
