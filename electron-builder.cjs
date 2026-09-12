@@ -48,6 +48,39 @@ module.exports = {
       },
     ],
   },
+  mac: {
+    // electron-builder renders the .icns from this; build/icon.ico is Windows-only
+    // and build/icon.png is 1254px square, well past the 512px minimum.
+    icon: 'build/icon.png',
+    category: 'public.app-category.education',
+    target: [
+      {
+        // One download for both Apple Silicon and Intel. Two architecture-specific
+        // files would be smaller, but the audience is teachers, and "which one is
+        // my Mac?" is a question the download page should not have to answer.
+        target: 'dmg',
+        arch: ['universal'],
+      },
+    ],
+    // There is no Apple Developer ID to sign with. Explicitly null makes
+    // electron-builder ad-hoc sign instead of skipping signing altogether, which
+    // matters on Apple Silicon: an entirely unsigned arm64 binary will not launch
+    // at all, whereas an ad-hoc signed one launches once Gatekeeper is cleared.
+    identity: null,
+    // Hardened runtime only means anything alongside notarization, and enabling it
+    // unsigned costs the entitlements without buying the trust.
+    hardenedRuntime: false,
+    extendInfo: {
+      // macOS denies these outright when the usage string is absent, and the
+      // failure surfaces to the renderer as an ordinary permission error, so the
+      // feature looks broken rather than unapproved.
+      NSMicrophoneUsageDescription: 'InterAct 使用麥克風提供即時字幕與同步口譯。',
+      NSScreenCaptureUsageDescription: 'InterAct 需要錄製螢幕，才能把畫面上的內容擷取成題目派送給學員。',
+    },
+  },
+  dmg: {
+    title: productName,
+  },
   nsis: {
     allowElevation: false,
     installerIcon: 'build/icon.ico',

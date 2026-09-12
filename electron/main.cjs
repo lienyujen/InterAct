@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell } = require('electron')
+const { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell, systemPreferences } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -55,6 +55,33 @@ const OVERLAY_RELATIVE_LEVEL = 2
 const WORD_CLOUD_RELATIVE_LEVEL = 4
 const QUIZ_REVIEW_RELATIVE_LEVEL = 5
 const ROSTER_RELATIVE_LEVEL = 5
+
+// setAppDetails is Windows-only. On macOS the method does not exist at all, so
+// calling it takes down window creation before anything is shown. What it sets —
+// the taskbar identity, so a pinned InterAct relaunches the real executable
+// instead of the temp copy a portable build runs from — has no counterpart on a
+// platform where the app is a bundle in /Applications.
+function applyTaskbarIdentity(win) {
+  if (process.platform !== 'win32') return
+  win.setAppDetails({
+    appId: APP_USER_MODEL_ID,
+    appIconPath: APP_RELAUNCH_ICON_PATH,
+    appIconIndex: 0,
+    relaunchCommand: `"${APP_EXECUTABLE_PATH}"`,
+    relaunchDisplayName: 'InterAct',
+  })
+}
+
+// macOS puts desktopCapturer behind Screen Recording, and a denied app does not
+// get an error — it gets black frames, which reads as InterAct being broken
+// rather than as a permission being missing. Say what to do, and say that it
+// takes a restart, because the grant does not reach the running process.
+function ensureScreenCaptureAccess() {
+  if (process.platform !== 'darwin') return
+  if (systemPreferences.getMediaAccessStatus('screen') === 'granted') return
+  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
+  throw new Error('macOS 尚未允許 InterAct 錄製螢幕。請在「系統設定 → 隱私權與安全性 → 螢幕錄製」中開啟 InterAct，然後重新啟動 InterAct。')
+}
 
 app.setAppUserModelId(APP_USER_MODEL_ID)
 
@@ -134,13 +161,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => mainWindow?.show())
 
-  mainWindow.setAppDetails({
-    appId: APP_USER_MODEL_ID,
-    appIconPath: APP_RELAUNCH_ICON_PATH,
-    appIconIndex: 0,
-    relaunchCommand: `"${APP_EXECUTABLE_PATH}"`,
-    relaunchDisplayName: 'InterAct',
-  })
+  applyTaskbarIdentity(mainWindow)
   configureWebContents(mainWindow)
 
   loadAppRoute(mainWindow, '/presenter/new')
@@ -322,13 +343,7 @@ function createReportWindow(sessionId, generate = false) {
     },
   })
 
-  reportWindow.setAppDetails({
-    appId: APP_USER_MODEL_ID,
-    appIconPath: APP_RELAUNCH_ICON_PATH,
-    appIconIndex: 0,
-    relaunchCommand: `"${APP_EXECUTABLE_PATH}"`,
-    relaunchDisplayName: 'InterAct',
-  })
+  applyTaskbarIdentity(reportWindow)
   configureWebContents(reportWindow)
 
   loadAppRoute(reportWindow, `/session-report/${sessionId}${generate ? '?generate=1' : ''}`)
@@ -400,13 +415,7 @@ function createRosterWindow(sessionId) {
     },
   })
 
-  rosterWindow.setAppDetails({
-    appId: APP_USER_MODEL_ID,
-    appIconPath: APP_RELAUNCH_ICON_PATH,
-    appIconIndex: 0,
-    relaunchCommand: `"${APP_EXECUTABLE_PATH}"`,
-    relaunchDisplayName: 'InterAct',
-  })
+  applyTaskbarIdentity(rosterWindow)
   configureWebContents(rosterWindow)
   rosterWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, ROSTER_RELATIVE_LEVEL)
 
@@ -454,13 +463,7 @@ function createWordCloudWindow(sessionId) {
     },
   })
 
-  wordCloudWindow.setAppDetails({
-    appId: APP_USER_MODEL_ID,
-    appIconPath: APP_RELAUNCH_ICON_PATH,
-    appIconIndex: 0,
-    relaunchCommand: `"${APP_EXECUTABLE_PATH}"`,
-    relaunchDisplayName: 'InterAct',
-  })
+  applyTaskbarIdentity(wordCloudWindow)
   configureWebContents(wordCloudWindow)
   wordCloudWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, WORD_CLOUD_RELATIVE_LEVEL)
 
@@ -524,13 +527,7 @@ function createQuestionDetailWindow(route, title) {
     },
   })
   quizReviewWindow = nextQuizReviewWindow
-  nextQuizReviewWindow.setAppDetails({
-    appId: APP_USER_MODEL_ID,
-    appIconPath: APP_RELAUNCH_ICON_PATH,
-    appIconIndex: 0,
-    relaunchCommand: `"${APP_EXECUTABLE_PATH}"`,
-    relaunchDisplayName: 'InterAct',
-  })
+  applyTaskbarIdentity(nextQuizReviewWindow)
   configureWebContents(nextQuizReviewWindow)
   nextQuizReviewWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, QUIZ_REVIEW_RELATIVE_LEVEL)
   loadAppRoute(nextQuizReviewWindow, route)
@@ -585,6 +582,7 @@ function setControlBounds(expanded, snapToTopRight = false, settingsOpen = false
 }
 
 async function listCaptureSources(targetDisplay = screen.getPrimaryDisplay(), types = ['screen', 'window']) {
+  ensureScreenCaptureAccess()
   const captureWidth = Math.round(targetDisplay.size.width * targetDisplay.scaleFactor)
   const captureHeight = Math.round(targetDisplay.size.height * targetDisplay.scaleFactor)
   const sources = await desktopCapturer.getSources({

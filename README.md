@@ -2,7 +2,7 @@
 
 InterAct stands for Intelligent Teaching, Engagement, Response and Classroom Technology.
 
-InterAct 是提供教師、講師、訓練師與演講者使用的即時課堂互動系統。講師在 Windows 端建立場次，學員掃描 QR Code 後即可用手機瀏覽器加入，不需要安裝 App。
+InterAct 是提供教師、講師、訓練師與演講者使用的即時課堂互動系統。講師在 Windows 或 macOS 上建立場次，學員掃描 QR Code 後即可用手機瀏覽器加入，不需要安裝 App。
 
 ## 主要功能
 
@@ -56,11 +56,16 @@ InterAct 是提供教師、講師、訓練師與演講者使用的即時課堂�
 
 ## 快速開始（不需要開發環境）
 
-1. 從 [Releases](https://github.com/lienyujen/InterAct/releases) 下載 `InterAct.zip`，解壓後執行裡面的 `InterAct.exe`。
+1. 從 [Releases](https://github.com/lienyujen/InterAct/releases) 下載講師端：
+   - **Windows 10/11（64 位元）**：`InterAct.zip`，解壓後執行裡面的 `InterAct.exe`，免安裝。
+   - **macOS**：`InterAct.dmg`，拖進「應用程式」即可（Apple Silicon 與 Intel 通用）。
 2. 在 [Supabase](https://supabase.com/dashboard) 免費建立一個專案。
 3. 開啟 InterAct，出現設定畫面時填入專案識別碼與 publishable key。
 4. 展開「還沒建立後端？讓 InterAct 幫你部署」，貼上一組
    [Supabase 存取權杖](https://supabase.com/dashboard/account/tokens)與 Gemini API key，按下自動部署。
+
+macOS 首次開啟要多做兩件事，之後不必再做：安裝檔未經 Apple 簽章，請到「系統設定 → 隱私權與安全性」按「強制打開」；
+並在「隱私權與安全性 → 螢幕錄製」開啟 InterAct 後**重新啟動 InterAct**，截圖派題才會有畫面。
 
 InterAct 會替你建立資料表、部署 Edge Functions 並設定金鑰，不需要安裝 Node 或 Supabase CLI。
 建議使用 fine-grained token 並只勾選該專案的 Edge Functions 寫入與資料庫權限；權杖只在部署當下使用，不會被儲存。
@@ -82,7 +87,7 @@ pnpm build
 pnpm desktop:package
 ```
 
-`pnpm desktop:package` 會在 `release/` 產生 Windows x64 版本。新手可使用自動化腳本，完成後會把 `InterAct.exe` 複製到專案根目錄：
+`pnpm desktop:package` 會在 `release/` 產生 Windows x64 版本；在 Mac 上執行 `pnpm desktop:package:mac` 會產生 Apple Silicon 與 Intel 通用的 `InterAct.dmg`（macOS 版只能在 macOS 上打包）。新手可使用自動化腳本，完成後會把 `InterAct.exe` 複製到專案根目錄：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\skills\interact-self-deploy\scripts\package-windows.ps1 -SupabaseUrl https://YOUR_PROJECT_REF.supabase.co -PublishableKey sb_publishable_YOUR_VALUE -PublicAppUrl https://YOUR_GITHUB_USER.github.io/InterAct
@@ -96,7 +101,7 @@ powershell -ExecutionPolicy Bypass -File .\skills\interact-self-deploy\scripts\p
 2. Google AI Studio：Gemini API key，只存於 Supabase secret。
 3. Reurl.cc：短網址 API key，只存於 Supabase secret（選用）。
 4. OpenAI：即時字幕與同步口譯用，只存於 Supabase secret（選用，依音訊時長計費）。
-5. Windows：把自己的公開設定打包進 `InterAct.exe`。
+5. Windows 或 macOS：把自己的公開設定打包進 `InterAct.exe` 或 `InterAct.dmg`。
 
 **學員端網頁不需要自行部署。** 加入連結會帶著你的 Supabase 專案識別碼，共用的學員端會據此連到你的專案，課堂資料不會混在一起。
 

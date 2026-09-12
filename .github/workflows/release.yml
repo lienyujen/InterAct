@@ -1,4 +1,4 @@
-name: Release Windows build
+name: Release desktop builds
 
 on:
   push:
@@ -6,21 +6,45 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to publish (must already exist)'
-        required: true
+      ref:
+        description: 'Tag or branch to build (default: this ref)'
+        required: false
+      publish:
+        description: 'Attach the builds to the release for that tag'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: windows-latest
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Neither artifact is worth publishing on its own, but a platform failure
+      # should still leave the other one inspectable rather than cancelled.
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows
+            os: windows-latest
+            # Zip only. The single-file portable build re-extracts its whole
+            # payload to a temp folder on every launch, so it starts slowly and
+            # was never the one to recommend; shipping both only invited people
+            # to pick the worse one.
+            package: --win zip --x64
+            artifact: InterAct.zip
+          - label: macOS
+            os: macos-latest
+            # Universal, so one download covers Apple Silicon and Intel.
+            package: --mac dmg --universal
+            artifact: InterAct.dmg
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -62,23 +86,49 @@ jobs:
           fi
           echo "No Supabase project embedded."
 
-      - name: Package Windows app
-        # Zip only. The single-file portable build re-extracts its whole payload
-        # to a temp folder on every launch, so it starts slowly and was never the
-        # one to recommend; shipping both only invited people to pick the worse one.
-        run: pnpm exec electron-builder --win zip --x64 --publish never
+      - name: Package
+        run: pnpm exec electron-builder ${{ matrix.package }} --publish never
 
-      - name: Publish release
+      - name: Upload build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.label }}
+          path: release/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: build
+    # Pushing a tag publishes, as before. A manual run defaults to building only,
+    # so an unsigned macOS build can be downloaded and actually opened on a Mac
+    # before it goes onto the public release page.
+    if: github.event_name == 'push' || inputs.publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download builds
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: builds
+          merge-multiple: true
+
+      - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag || github.ref_name }}
-        shell: bash
+          REPO: ${{ github.repository }}
+          TAG: ${{ inputs.ref || github.ref_name }}
         run: |
           notes=$(cat <<'MD'
           ## 下載
 
-          下載 `InterAct.zip`，解壓縮後執行資料夾裡的 `InterAct.exe` 即可，免安裝。
+          | 系統 | 檔案 |
+          |---|---|
+          | Windows 10/11 （64 位元） | `InterAct.zip` |
+          | macOS （Apple Silicon 與 Intel 通用） | `InterAct.dmg` |
+
+          **Windows：** 解壓縮後執行資料夾裡的 `InterAct.exe` 即可，免安裝。
           建議解壓到固定位置（例如桌面或文件夾），之後直接從那裡開啟。
+
+          **macOS：** 開啟 `InterAct.dmg`，把 InterAct 拖進「應用程式」。
 
           ## 首次使用
 
@@ -88,16 +138,38 @@ jobs:
           尚未建立 Supabase 專案，請參考
           [部署教學](https://github.com/lienyujen/InterAct/blob/main/docs/InterAct-%E5%BE%9E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%88%87%E6%89%93%E5%8C%85%E6%95%99%E5%AD%B8.md)。
 
+          ## macOS 首次開啟
+
+          兩件事只需要做一次：
+
+          1. **允許開啟。** 安裝檔未經 Apple 簽章，首次開啟會出現「無法打開，因為無法驗證開發者」。
+             請到「系統設定 → 隱私權與安全性」，在下方找到 InterAct 並按「強制打開」。
+             若顯示「已損毀」，請開啟「終端機」執行 `xattr -cr /Applications/InterAct.app` 後再開一次。
+          2. **允許螢幕錄製。** InterAct 的題目都是從螢幕擷取而來，macOS 必須先授權。
+             到「系統設定 → 隱私權與安全性 → 螢幕錄製」開啟 InterAct，**然後重新啟動 InterAct**（這一步不能省略）。
+             使用即時字幕與同步口譯時，也會另外詢問麥克風權限。
+
           ## 注意
 
-          執行檔未經程式碼簽章，Windows SmartScreen 可能顯示「不明發行者」，
+          Windows 的執行檔同樣未經程式碼簽章，SmartScreen 可能顯示「不明發行者」，
           請點「其他資訊 → 仍要執行」。部分公司電腦的資安政策可能直接封鎖。
 
           個人與教育用途免費；補習班、企業內訓與收費課程屬商業用途，
           請見 [授權說明](https://github.com/lienyujen/InterAct#授權)。
           MD
           )
-          gh release create "$TAG" \
-            --title "InterAct $TAG" \
-            --notes "$notes" \
-            release/InterAct.zip
+          # workflow_dispatch is normally pointed at a tag that was already
+          # released, so adding a platform to an existing release has to work as
+          # well as creating a new one.
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$REPO" --title "InterAct $TAG" --notes "$notes"
+            gh release upload "$TAG" --repo "$REPO" --clobber \
+              builds/InterAct.zip \
+              builds/InterAct.dmg
+          else
+            gh release create "$TAG" --repo "$REPO" \
+              --title "InterAct $TAG" \
+              --notes "$notes" \
+              builds/InterAct.zip \
+              builds/InterAct.dmg
+          fi
