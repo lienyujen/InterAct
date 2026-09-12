@@ -103,3 +103,44 @@ export async function generateMatchingPairs(input: { sourceUrl: string; directio
     .filter((pair) => pair.left && pair.right)
   return { title: String(output.title || '配對題').slice(0, 100), pairs: pairs.slice(0, 6) }
 }
+
+const regionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string' },
+    regions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          // Gemini's own convention: [ymin, xmin, ymax, xmax], each 0-1000.
+          box_2d: { type: 'array', items: { type: 'integer' } },
+          label: { type: 'string' },
+        },
+        required: ['box_2d', 'label'],
+      },
+    },
+  },
+  required: ['title', 'regions'],
+}
+
+const regionPrompt = '你是 InterAct 的課堂出題助理。請看這張截圖，找出畫面裡「本來就有先後或邏輯順序」的區塊 —— 例如段落、步驟方塊、流程圖的節點、表格的列。用 box_2d 框出每一個區塊，格式是 [ymin, xmin, ymax, xmax]，每個值是 0 到 1000 的整數（相對於整張圖）。**regions 必須依照正確順序排列**，第一個就是順序上的第一塊。每個框要完整包住那一塊的內容、不要切到半個字，也不要框到空白或不相干的區域；框與框之間不要重疊。label 用繁體中文簡短描述那一塊是什麼（給老師看的，不會給學生）。若畫面裡找不到有順序關係的區塊，regions 回傳空陣列，不要勉強編造。presenter_direction 若有內容，優先照它指定的角度挑選區塊。'
+
+export async function generateImageRegions(input: { sourceUrl: string; direction: string; count: number }) {
+  const output = await ask(input.sourceUrl, input.direction, regionPrompt, regionSchema) as {
+    title?: string
+    regions?: Array<{ box_2d?: number[]; label?: string }>
+  }
+  const regions = (output.regions || [])
+    .map((region) => ({
+      box: (region.box_2d || []).map((value) => Math.min(1000, Math.max(0, Math.round(Number(value) || 0)))),
+      label: String(region.label || '').trim().slice(0, 120),
+    }))
+    // A box that is empty or inverted would slice to nothing; drop it rather
+    // than hand the class a blank tile.
+    .filter((region) => region.box.length === 4 && region.box[2] > region.box[0] && region.box[3] > region.box[1])
+    .slice(0, Math.min(10, Math.max(2, input.count || 5)))
+  return { title: String(output.title || '排出正確順序').slice(0, 100), regions }
+}

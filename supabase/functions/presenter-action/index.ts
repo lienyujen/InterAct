@@ -1,6 +1,6 @@
 import { callAiJson, corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { generateCustomQuiz } from '../_shared/custom-quiz.ts'
-import { generateMatchingPairs, generateOrderingItems } from '../_shared/question-items.ts'
+import { generateImageRegions, generateMatchingPairs, generateOrderingItems } from '../_shared/question-items.ts'
 import { analyzeFileResponse, isAnalyzableFile } from '../_shared/file-analysis.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/owner.ts'
@@ -1016,13 +1016,19 @@ Deno.serve(async (req) => {
       if (!storagePath.startsWith(`sessions/${sessionId}/screenshots/`)) {
         return jsonResponse({ message: '截圖路徑不正確。' }, 400)
       }
-      const kind = input.kind === 'matching' ? 'matching' : 'ordering'
+      const kind = input.kind === 'matching' ? 'matching' : input.kind === 'regions' ? 'regions' : 'ordering'
       const direction = typeof input.direction === 'string' ? input.direction.trim().slice(0, 500) : ''
       const { data: publicData } = supabase.storage.from('interact-screenshots').getPublicUrl(storagePath)
       try {
         const generated = kind === 'matching'
           ? await generateMatchingPairs({ sourceUrl: publicData.publicUrl, direction })
-          : await generateOrderingItems({ sourceUrl: publicData.publicUrl, direction })
+          : kind === 'regions'
+            ? await generateImageRegions({
+              sourceUrl: publicData.publicUrl,
+              direction,
+              count: Number(input.count) || 5,
+            })
+            : await generateOrderingItems({ sourceUrl: publicData.publicUrl, direction })
         return jsonResponse(generated)
       } catch (generateError) {
         return jsonResponse({ message: errorDetail(generateError, 'AI 出題失敗。').slice(0, 500) }, 502)

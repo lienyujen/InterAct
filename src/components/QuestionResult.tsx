@@ -1,5 +1,6 @@
 import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Maximize2, Shuffle, Sparkles, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
@@ -656,6 +657,33 @@ function OrderingMistakes({ answers, correctValues }: { answers: Answer[]; corre
 // The unmarked case the presenter asked for: every item against every position,
 // so a class that agrees on the first two steps and splits on the rest reads as
 // exactly that.
+// Slide rows to their new places instead of teleporting. The class's order
+// changes every time an answer lands, and a list that silently rearranges
+// between glances reads as a glitch — seeing a row travel is what makes it read
+// as the class moving it. Measure where rows were, let React lay them out, then
+// animate from the old position to the new one.
+function useRankAnimation(listRef: RefObject<HTMLOListElement | null>, order: string) {
+  const previous = useRef(new Map<string, number>())
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (!list) return
+    const next = new Map<string, number>()
+    for (const row of [...list.children] as HTMLElement[]) {
+      const key = row.dataset.rankKey
+      if (!key) continue
+      const top = row.offsetTop
+      next.set(key, top)
+      const before = previous.current.get(key)
+      if (before === undefined || before === top) continue
+      row.animate(
+        [{ transform: `translateY(${before - top}px)` }, { transform: 'translateY(0)' }],
+        { duration: 320, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+      )
+    }
+    previous.current = next
+  }, [listRef, order])
+}
+
 function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[] }) {
   // The class's answer, worked out by weight rather than shown as a table for
   // the presenter to work out themselves: each item is scored by the average
@@ -681,12 +709,15 @@ function OrderingSpread({ items, answers }: { items: string[]; answers: Answer[]
       }
     })
 
+  const listRef = useRef<HTMLOListElement>(null)
+  useRankAnimation(listRef, ranked.map((entry) => entry.item).join())
+
   return (
     <>
       <h3 className="ordering-subheading">全班的排序（依權重）</h3>
-      <ol className="ordering-ranked">
+      <ol className="ordering-ranked" ref={listRef}>
         {ranked.map((entry) => (
-          <li key={entry.item}>
+          <li data-rank-key={entry.item} key={entry.item}>
             <span className="ordering-ranked-item">{entry.item}</span>
             <span className="ordering-ranked-weight">
               <b>{entry.mean.toFixed(1)}</b>
