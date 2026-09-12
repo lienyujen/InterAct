@@ -4720,12 +4720,15 @@ h2 {
   gap: 8px;
 }
 
+/* Square, because there is no label beside the icon any more. */
 .question-stop-button {
+  align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  font-size: 0.82rem;
-  padding: 5px 12px;
+  display: inline-flex;
+  justify-content: center;
+  padding: 7px;
 }
 
 .question-stop-button:hover {
@@ -5334,4 +5337,16 @@ h2 {
 
 .hotspot-review-window .hotspot-review-stage .hotspot-image {
   max-height: 82vh;
+}
+/* 已上傳 N 人 on one side, 下載全部 on the other. */
+.upload-summary-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.upload-summary-row p {
+  margin: 0;
 }

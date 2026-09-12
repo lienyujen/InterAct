@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { correctnessStats, countByAnswer } from '../lib/stats'
 import { downloadHref } from '../lib/fileLinks'
+import { createZip, safeFileName, uniqueName } from '../lib/zip'
+import type { ZipEntry } from '../lib/zip'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
 import { HotspotImage } from './HotspotImage'
 import { parsePins, pinLabel } from '../lib/hotspot'
@@ -268,7 +270,51 @@ function UploadResults({
     return [...groups.values()].map((files) => [...files].sort((left, right) => rank(left) - rank(right)))
   }, [fileResponses])
 
+  const [zipping, setZipping] = useState(false)
+  const [zipDone, setZipDone] = useState(0)
+  const [zipError, setZipError] = useState('')
+
+  // One archive rather than a click per student. A class of thirty hands back
+  // thirty-odd files and saving them one at a time is most of a break.
+  async function downloadAll() {
+    const wanted = submissions.flatMap((files, index) => files
+      .filter((file) => file.file_url)
+      .map((file) => ({ file, owner: anonymousEnabled ? `匿名作答 ${index + 1}` : file.participant_name })))
+    if (!wanted.length) return
+    setZipping(true)
+    setZipDone(0)
+    setZipError('')
+    try {
+      const taken = new Set<string>()
+      const entries: ZipEntry[] = []
+      // Sequentially, not Promise.all: thirty parallel fetches of photographs
+      // is how a classroom wifi connection starts dropping them.
+      for (const { file, owner } of wanted) {
+        const response = await fetch(file.file_url as string)
+        if (!response.ok) throw new Error(`${file.name}（${response.status}）`)
+        const data = new Uint8Array(await response.arrayBuffer())
+        entries.push({ name: uniqueName(taken, safeFileName(`${owner}-${file.name}`)), data })
+        setZipDone((done) => done + 1)
+      }
+      const stamp = new Date().toISOString().slice(0, 10)
+      const url = URL.createObjectURL(createZip(entries))
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${safeFileName(question.prompt_text || question.title)}-${stamp}.zip`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      // Revoked late: Chromium reads the blob after the click returns.
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (caught) {
+      setZipError(caught instanceof Error ? `下載失敗：${caught.message}` : '下載失敗。')
+    } finally {
+      setZipping(false)
+    }
+  }
+
   const marked = submissions.filter((files) => files[0].analysis_status === 'success').length
+  const totalFiles = submissions.reduce((sum, files) => sum + files.filter((file) => file.file_url).length, 0)
 
   if (!submissions.length) {
     return (
@@ -280,7 +326,14 @@ function UploadResults({
 
   return (
     <>
-      <p className="muted">已上傳 {submissions.length} 人 · 已批改 {marked} 人</p>
+      <div className="upload-summary-row">
+        <p className="muted">已上傳 {submissions.length} 人 · 已批改 {marked} 人</p>
+        <button className="ghost-button" disabled={zipping} type="button" onClick={() => void downloadAll()}>
+          {zipping ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}
+          {zipping ? `打包中 ${zipDone} / ${totalFiles}` : `下載全部（${totalFiles} 個檔案）`}
+        </button>
+      </div>
+      {zipError && <p className="error">{zipError}</p>}
       <ul className="file-list upload-answer-list">
         {submissions.map((files, index) => {
           const lead = files[0]

@@ -120,11 +120,11 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
             pins={(answer ? parsePins(answer.answer_values) : pins).map((pin, index) => ({ ...pin, label: String(index + 1), own: true }))}
             onPlace={!answer && acceptingAnswers
               ? (point) => setPins((current) => (
-                // Past the limit the oldest goes, so a student can keep
-                // correcting themselves instead of hunting for a delete.
-                current.length >= (question.max_pins || 1)
-                  ? [...current.slice(1), point]
-                  : [...current, point]
+                // Full is full. Silently dropping the oldest to make room reads as
+                // "my first mark jumped to where I tapped", because a pin sits above
+                // the spot it marks — so a student aiming at their own mark hits the
+                // picture instead, and loses one they meant to keep.
+                current.length >= (question.max_pins || 1) ? current : [...current, point]
               ))
               : undefined}
             onRemove={!answer && acceptingAnswers
