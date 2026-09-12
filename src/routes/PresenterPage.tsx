@@ -1557,6 +1557,10 @@ export function PresenterPage() {
         action: 'create_file_request', sessionId, presenterToken, promptText,
       }, '無法派送檔案上傳。')
       setCollectQuestion(data.question as Question)
+      // Out of the way once it is sent. The request becomes the current question,
+      // so the main screen is already showing the uploads as they land — leaving
+      // the dialog up hides the thing the teacher is now waiting to watch.
+      setFileTransferOpen(false)
       setFileResponses([])
       await loadAll()
     } finally {
