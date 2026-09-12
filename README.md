@@ -130,7 +130,7 @@ VITE_PUBLIC_APP_URL=https://你的帳號.github.io/你的repo
 
 ### 取得商業授權
 
-商業使用者請依自身規模自由樂捐：
+前三項商業使用者請依自身規模自由樂捐：
 
 **https://www.paypal.com/paypalme/lienyujen**
 
@@ -138,6 +138,6 @@ VITE_PUBLIC_APP_URL=https://你的帳號.github.io/你的repo
 
 **付款後請留存收據**，該收據即為你的商業使用授權證明。金額由你依使用規模自行斟酌，沒有固定價目。
 
-有其他授權需求或疑問，歡迎直接與作者聯繫。
+除前三項純教學用途外，有其他授權需求或疑問，請直接與作者聯繫。
 
-散布修改版本時，請一併保留 `LICENSE` 檔案與其中的 `Required Notice:` 版權標示。
+散布修改版本時，務必一併保留 `LICENSE` 檔案與其中的 `Required Notice:` 版權標示。
