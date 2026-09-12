@@ -104,7 +104,7 @@ export function PresenterPage() {
   const [questionScreenshotUrl, setQuestionScreenshotUrl] = useState<string | null>(null)
   // The ordering or matching answer. Kept here rather than read off the question
   // because it lives in a table the browser has no read grant on.
-  const [orderingKey, setOrderingKey] = useState<string[]>([])
+  const [orderingKey, setOrderingKey] = useState<string[] | null>(null)
   const preparedShotRef = useRef<{ screenshotId: string; storagePath: string; file: File } | null>(null)
   // Read by the polling timer, which must not overwrite a row mid-marking.
   const markingRef = useRef(false)
@@ -1612,6 +1612,7 @@ export function PresenterPage() {
 
   useEffect(() => {
     const questionId = question?.id
+    setOrderingKey(null)
     if (!questionId || !['ordering', 'matching'].includes(question?.type || '')) {
       setOrderingKey([])
       return

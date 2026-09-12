@@ -42,7 +42,9 @@ type Props = {
   onSetCorrectAnswer: (answer: string) => void
   // The ordering or matching key, empty when the question was dispatched without
   // one. It never reaches the student, so the presenter reads it from here.
-  orderingKey: string[]
+  // null while it is still being fetched. The panel must not read an empty key
+  // as "this question has no answer" before the answer has had a chance to load.
+  orderingKey: string[] | null
   onSetOrderingKey: (values: string[]) => Promise<void>
 }
 
@@ -529,7 +531,7 @@ function OrderingKeyEditor({ items, current, busy, onSubmit }: {
   const [order, setOrder] = useState<string[]>(current.length ? current : items)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [open, setOpen] = useState(!current.length)
+  const [open, setOpen] = useState(false)
 
   const unchanged = order.length === current.length && order.every((value, index) => value === current[index])
 
@@ -550,7 +552,7 @@ function OrderingKeyEditor({ items, current, busy, onSubmit }: {
     return (
       <div className="ordering-key-set">
         <button className="ghost-button" disabled={busy} type="button" onClick={() => { setOrder(current.length ? current : items); setOpen(true) }}>
-          修改正確順序
+          {current.length ? '修改正確順序' : '改為有標準答案'}
         </button>
       </div>
     )
@@ -590,14 +592,14 @@ function MatchingKeyEditor({ prompts, choices, current, busy, onSubmit }: {
   const [picked, setPicked] = useState<string[]>(current)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [open, setOpen] = useState(!current.length)
+  const [open, setOpen] = useState(false)
   const complete = picked.length === prompts.length && picked.every(Boolean)
   const unchanged = picked.every((value, index) => value === (current[index] || ''))
 
   if (!open) {
     return (
       <div className="ordering-key-set">
-        <button className="ghost-button" disabled={busy} type="button" onClick={() => setOpen(true)}>修改正確配對</button>
+        <button className="ghost-button" disabled={busy} type="button" onClick={() => setOpen(true)}>{current.length ? '修改正確配對' : '設定正確配對'}</button>
       </div>
     )
   }
@@ -965,7 +967,8 @@ export function QuestionResult(props: Props) {
 
   if (question.type === 'ordering' || question.type === 'matching') {
     const roundAnswers = answers.filter((entry) => entry.round === question.answer_round)
-    const key = props.orderingKey
+    const key = props.orderingKey || []
+    const keyKnown = props.orderingKey !== null
     const marked = key.length > 0
     const correct = roundAnswers.filter((entry) => entry.is_correct === true).length
     const rate = roundAnswers.length ? Math.round((correct / roundAnswers.length) * 100) : 0
@@ -979,9 +982,12 @@ export function QuestionResult(props: Props) {
           {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
           <p className="muted">
             已作答 {roundAnswers.length} 人{question.answer_round > 1 ? `（第 ${question.answer_round} 輪）` : ''}
-            {marked ? ` · 答對 ${correct} 人（${rate}%）` : ' · 這一題沒有標準答案'}
+            {/* Silent until the answer has loaded: saying 沒有標準答案 to a question
+                that has one, for as long as the fetch takes, is worse than saying
+                nothing for a moment. */}
+            {!keyKnown ? '' : marked ? ` · 答對 ${correct} 人（${rate}%）` : ' · 這一題沒有標準答案'}
           </p>
-          {marked && (
+          {keyKnown && marked && (
             <>
               <div className="bar-track"><div className="bar-fill" style={{ width: `${rate}%` }} /></div>
               <h3 className="ordering-subheading">{question.type === 'ordering' ? '正確順序' : '正確配對'}</h3>
@@ -993,13 +999,15 @@ export function QuestionResult(props: Props) {
           )}
           {/* Without a key there is nothing to be right about, so the panel shows
               what the class thought instead of how many missed it. */}
-          {!marked && question.type === 'ordering' && <OrderingSpread answers={roundAnswers} items={question.options} />}
-          {!marked && question.type === 'matching' && (
+          {keyKnown && !marked && question.type === 'ordering' && <OrderingSpread answers={roundAnswers} items={question.options} />}
+          {keyKnown && !marked && question.type === 'matching' && (
             <MatchingBreakdown answers={roundAnswers} correctValues={[]} prompts={question.options} />
           )}
-          {question.type === 'ordering'
+          {/* The presenter chose 沒有標準答案 when they dispatched this, so the
+              panel does not hand them a 送出答案 form contradicting that. */}
+          {keyKnown && (question.type === 'ordering'
             ? <OrderingKeyEditor busy={props.busy} current={key} items={question.options} onSubmit={props.onSetOrderingKey} />
-            : <MatchingKeyEditor busy={props.busy} choices={question.choices} current={key} prompts={question.options} onSubmit={props.onSetOrderingKey} />}
+            : <MatchingKeyEditor busy={props.busy} choices={question.choices} current={key} prompts={question.options} onSubmit={props.onSetOrderingKey} />)}
           {question.type === 'ordering' && (
             <OrderingSubmissions answers={roundAnswers} anonymousEnabled={anonymousEnabled} marked={marked} sentenceMode={question.sentence_mode} />
           )}
