@@ -100,6 +100,13 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           echo "Architectures:"
           lipo -archs "$app/Contents/MacOS/InterAct"
+          # Without these two strings macOS denies the microphone and the screen
+          # outright, and the app looks broken rather than unapproved. PlistBuddy
+          # exits non-zero on a missing key, so a dropped extendInfo fails here
+          # instead of on someone's Mac.
+          echo "Usage descriptions:"
+          /usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :NSScreenCaptureUsageDescription' "$app/Contents/Info.plist"
 
       - name: Upload build
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
