@@ -240,6 +240,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     { header: '學號', key: 'studentNo', width: 14 },
     { header: '系所 / 單位', key: 'unit', width: 20 },
     { header: '出席', key: 'attendance', width: 12 },
+    { header: '總分', key: 'total', width: 10 },
     { header: '參與分數', key: 'score', width: 12 },
     { header: '老師加分', key: 'bonus', width: 12 },
     { header: '獎章', key: 'badges', width: 26 },
@@ -259,13 +260,15 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
 
   function participantRow(participant: Participant, studentNo: string, unit: string, attendance: string) {
     const participation = participationByParticipant.get(participant.id)
+    const bonus = bonusByParticipant.get(participant.id) || 0
     return {
       name: participant.name,
       studentNo,
       unit,
       attendance,
+      total: (participation?.score ?? 0) + bonus,
       score: participation?.score ?? 0,
-      bonus: bonusByParticipant.get(participant.id) || 0,
+      bonus,
       badges: participation ? badgeText(participation.badges) : '',
       joinedAt: formatDate(participant.joined_at),
       lastSeenAt: formatDate(participant.last_seen_at),
@@ -301,6 +304,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
           studentNo: entry.studentNo,
           unit: entry.unit,
           attendance: '未到',
+          total: '',
           score: '',
           bonus: '',
           badges: '',

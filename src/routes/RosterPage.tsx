@@ -348,6 +348,10 @@ export function RosterPage() {
                     under: there is no participant to score, credit or remove. */}
                 {participation && (
                   <>
+                    {/* One number, because pressing + has to move the number the
+                        presenter is looking at. The split that matters — earned
+                        against awarded — is kept where it can be audited: its own
+                        columns in the exported report. */}
                     <span
                       className="roster-score"
                       title={[
@@ -356,15 +360,16 @@ export function RosterPage() {
                         `彈幕 ${participation.messageCount}`,
                         `搶答 ${participation.quickCount}`,
                         participation.uploadScore !== null ? `上傳作答 ${participation.uploadScore} 分` : '',
+                        row.points > 0 ? `老師加分 +${row.points}` : '',
                       ].filter(Boolean).join('．')}
                     >
-                      {participation.score}
+                      {participation.score + row.points}
                     </span>
                     {row.points > 0 && (
                       <button
                         className="roster-bonus"
                         disabled={busy}
-                        title="老師加的分。點一下可以取消最後一次加分"
+                        title={`其中 ${row.points} 分是老師加的。點一下取消最後一次加分`}
                         type="button"
                         onClick={() => void revoke(participation.participant.id)}
                       >
