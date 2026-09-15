@@ -511,11 +511,11 @@ with check (
   and char_length(device_id) between 1 and 200
 );
 -- Read like the rest of a session's data, which the roster window and the report
--- both load directly. Writing goes through presenter-action, which is the only
--- place holding the presenter token, so anon gets no write of any kind.
+-- both load directly. The matching grant is in the block near the end of this
+-- file, which revokes everything from anon first — a policy on its own grants
+-- nothing, and a table left out of that block is readable by nobody.
 drop policy if exists "mvp read participant points" on public.participant_points;
 create policy "mvp read participant points" on public.participant_points for select using (true);
-revoke insert, update, delete on public.participant_points from anon, authenticated;
 
 drop policy if exists "mvp read messages" on public.messages;
 create policy "mvp read messages" on public.messages for select using (true);
@@ -645,7 +645,7 @@ create policy "public read session events" on public.session_events for select t
 revoke all on all tables in schema public from anon, authenticated;
 grant select on public.sessions, public.screenshots, public.questions, public.ai_summaries,
   public.shared_contents, public.session_events, public.caption_segments,
-  public.quizzes, public.quiz_items, public.shared_files to anon, authenticated;
+  public.quizzes, public.quiz_items, public.shared_files, public.participant_points to anon, authenticated;
 grant select, insert on public.participants to anon, authenticated;
 grant select, insert on public.messages, public.answers, public.exit_tickets to anon, authenticated;
 
@@ -662,14 +662,22 @@ do $$ begin
     alter publication supabase_realtime add table public.sessions;
   end if;
 end $$;
-do $$ begin
+do $ begin
   if not exists (
     select 1 from pg_publication_tables
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'participants'
   ) then
     alter publication supabase_realtime add table public.participants;
   end if;
-end $$;
+end $;
+do $ begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'participant_points'
+  ) then
+    alter publication supabase_realtime add table public.participant_points;
+  end if;
+end $;
 do $$ begin
   if not exists (
     select 1 from pg_publication_tables

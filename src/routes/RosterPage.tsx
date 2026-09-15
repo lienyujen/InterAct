@@ -87,6 +87,14 @@ export function RosterPage() {
     setMessages((m.data || []) as Message[])
     setEvents((e.data || []) as SessionEvent[])
     setPoints((pt.data || []) as ParticipantPoint[])
+    // Say so rather than showing a zero. A missing grant on this table comes back
+    // as an error here and an empty array, so the + button appeared to do nothing
+    // while every tap was in fact being recorded — the failure looked like a
+    // broken button instead of a database that had not been brought up to date.
+    if (pt.error) {
+      setError('讀不到加分紀錄，可能是資料庫還沒更新。請到系統設定重跑一次自動部署。')
+      return
+    }
 
     // Quiz attempts and marked uploads only come back through the presenter
     // action — file_responses is private to the presenter — and the score
