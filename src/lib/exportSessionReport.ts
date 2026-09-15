@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
-import type { QuestionAnalysis, SessionAnalysis, SessionMetrics, SessionReportData } from '../types'
+import type { Participant, QuestionAnalysis, SessionAnalysis, SessionMetrics, SessionReportData } from '../types'
 import { badgeText, buzzerWinsFrom, participationRows } from './participation'
+import { matchRoster } from './classRoster'
 
 // A sliced 排序題 answers with image URLs. A spreadsheet column of storage paths
 // is unreadable and enormous; the count and the fact it was ordered is the part
@@ -236,7 +237,11 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
   const participants = workbook.addWorksheet('參與者')
   participants.columns = [
     { header: '姓名', key: 'name', width: 20 },
+    { header: '學號', key: 'studentNo', width: 14 },
+    { header: '系所 / 單位', key: 'unit', width: 20 },
+    { header: '出席', key: 'attendance', width: 12 },
     { header: '參與分數', key: 'score', width: 12 },
+    { header: '老師加分', key: 'bonus', width: 12 },
     { header: '獎章', key: 'badges', width: 26 },
     { header: '加入時間', key: 'joinedAt', width: 22 },
     { header: '最後在線時間', key: 'lastSeenAt', width: 22 },
@@ -246,11 +251,21 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     { header: '作答次數', key: 'answerCount', width: 14 },
     { header: '上傳作答分數', key: 'uploadScore', width: 14 },
   ]
-  for (const participant of data.participants) {
+
+  const bonusByParticipant = new Map<string, number>()
+  for (const award of data.participantPoints || []) {
+    bonusByParticipant.set(award.participant_id, (bonusByParticipant.get(award.participant_id) || 0) + award.points)
+  }
+
+  function participantRow(participant: Participant, studentNo: string, unit: string, attendance: string) {
     const participation = participationByParticipant.get(participant.id)
-    participants.addRow({
+    return {
       name: participant.name,
+      studentNo,
+      unit,
+      attendance,
       score: participation?.score ?? 0,
+      bonus: bonusByParticipant.get(participant.id) || 0,
       badges: participation ? badgeText(participation.badges) : '',
       joinedAt: formatDate(participant.joined_at),
       lastSeenAt: formatDate(participant.last_seen_at),
@@ -261,11 +276,79 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       // Blank rather than 0 when nothing was marked, so an empty cell always
       // means "no upload marked" instead of "marked and scored nothing".
       uploadScore: participation?.uploadScore ?? '',
-    })
+    }
   }
+
+  // Someone the presenter removed mid-class still answered things, so their row
+  // stays — flagged, because two rows for one student would otherwise look like
+  // a duplicate rather than a name that was corrected.
+  const present = data.participants.filter((participant) => !participant.removed_at)
+  const removed = data.participants.filter((participant) => participant.removed_at)
+
+  if (data.roster) {
+    // The class list in the presenter's own order, which is the order they will
+    // read it in. A name nobody joined under still gets a row: that absence is
+    // the thing an attendance sheet exists to record.
+    const { matches, matchedParticipantIds } = matchRoster(data.roster.entries, present)
+    const byId = new Map(present.map((participant) => [participant.id, participant]))
+    for (const { entry, participantId } of matches) {
+      const participant = participantId ? byId.get(participantId) : null
+      if (participant) {
+        participants.addRow(participantRow(participant, entry.studentNo, entry.unit, '出席'))
+      } else {
+        participants.addRow({
+          name: entry.name,
+          studentNo: entry.studentNo,
+          unit: entry.unit,
+          attendance: '未到',
+          score: '',
+          bonus: '',
+          badges: '',
+          joinedAt: '',
+          lastSeenAt: '',
+          presentMinutes: '',
+          unfocusedMinutes: '',
+          messageCount: '',
+          answerCount: '',
+          uploadScore: '',
+        })
+      }
+    }
+    for (const participant of present) {
+      if (matchedParticipantIds.has(participant.id)) continue
+      participants.addRow(participantRow(participant, '', '', '不在名單'))
+    }
+  } else {
+    for (const participant of present) {
+      participants.addRow(participantRow(participant, '', '', '出席'))
+    }
+  }
+  for (const participant of removed) {
+    participants.addRow(participantRow(participant, '', '', '已移出'))
+  }
+
   participants.getColumn('joinedAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
   participants.getColumn('lastSeenAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
   styleTableSheet(participants)
+
+  if ((data.participantPoints || []).length) {
+    const nameById = new Map(data.participants.map((participant) => [participant.id, participant.name]))
+    const bonusSheet = workbook.addWorksheet('老師加分')
+    bonusSheet.columns = [
+      { header: '姓名', key: 'name', width: 20 },
+      { header: '加分', key: 'points', width: 10 },
+      { header: '時間', key: 'awardedAt', width: 22 },
+    ]
+    for (const award of data.participantPoints) {
+      bonusSheet.addRow({
+        name: nameById.get(award.participant_id) || '',
+        points: award.points,
+        awardedAt: formatDate(award.created_at),
+      })
+    }
+    bonusSheet.getColumn('awardedAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
+    styleTableSheet(bonusSheet)
+  }
 
   const analysisMap = questionAnalysisMap(data)
   const screenshotMap = new Map(data.screenshots.map((screenshot) => [screenshot.id, screenshot.public_url]))

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, BookOpen, ChartNoAxesCombined, Clock, Download, ListChecks, LoaderCircle, MessageSquareText, RefreshCw, Users } from 'lucide-react'
 import { getPresenterToken } from '../lib/presenterAuth'
+import { getRoster, getSessionRosterId } from '../lib/classRoster'
 import { useSessionReportBack } from '../lib/sessionReportNavigation'
 import { requireSupabase } from '../lib/supabase'
-import type { AiSummary, Answer, AudioResponse, CaptionSegment, ExitTicket, Message, Participant, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionEvent, SessionReportData, SharedContent, FileResponse } from '../types'
+import type { AiSummary, Answer, AudioResponse, CaptionSegment, ExitTicket, Message, Participant, ParticipantPoint, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionEvent, SessionReportData, SharedContent, FileResponse } from '../types'
 import { useParams, useSearchParams } from 'react-router-dom'
 
 const PAGE_SIZE = 1000
@@ -104,7 +105,7 @@ export function SessionReportPage() {
     const { data: session, error: sessionError } = await supabase.from('sessions').select('*').eq('id', sessionId).single()
     if (sessionError) throw sessionError
 
-    const [participants, messages, sharedContents, captionSegments, screenshots, questions, answers, aiSummaries, exitTickets, sessionEvents] = await Promise.all([
+    const [participants, messages, sharedContents, captionSegments, screenshots, questions, answers, aiSummaries, exitTickets, sessionEvents, participantPoints] = await Promise.all([
       fetchAllRows<Participant>('participants', sessionId, 'joined_at'),
       fetchAllRows<Message>('messages', sessionId, 'created_at'),
       fetchAllRows<SharedContent>('shared_contents', sessionId, 'created_at'),
@@ -115,6 +116,7 @@ export function SessionReportPage() {
       fetchAllRows<AiSummary>('ai_summaries', sessionId, 'created_at'),
       fetchAllRows<ExitTicket>('exit_tickets', sessionId, 'submitted_at'),
       fetchAllRows<SessionEvent>('session_events', sessionId, 'created_at'),
+      fetchAllRows<ParticipantPoint>('participant_points', sessionId, 'created_at'),
     ])
 
     const presenterToken = getPresenterToken(sessionId)
@@ -135,9 +137,17 @@ export function SessionReportPage() {
     if (recordingResult.error) throw new Error(await edgeFunctionMessage(recordingResult.error))
     if (customQuizResult.error) throw new Error(await edgeFunctionMessage(customQuizResult.error))
 
+    // The class list never reaches the database, so the report picks it up from
+    // this computer. Without it the absent students simply do not appear, which
+    // is the same report this produced before class lists existed.
+    const rosterId = getSessionRosterId(sessionId)
+    const classRoster = rosterId ? getRoster(rosterId) : null
+
     setReportData({
       session: session as Session,
       participants,
+      participantPoints,
+      roster: classRoster ? { name: classRoster.name, entries: classRoster.entries } : null,
       messages,
       sharedContents,
       captionSegments,

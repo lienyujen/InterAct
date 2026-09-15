@@ -255,6 +255,19 @@ export function ParticipantPage() {
     if (!participantId) navigate(`/join/${sessionId}${location.search}`)
   }, [location.search, navigate, participantId, sessionId])
 
+  // The presenter removed them so they can rejoin under the name on the class
+  // list. The row is still there — it holds everything they answered — so the
+  // fetch above succeeds and nothing else would notice; without this they sit on
+  // a page whose every action is refused, which reads as the app being broken
+  // rather than as an instruction to type their name again.
+  useEffect(() => {
+    if (!participant?.removed_at) return
+    localStorage.removeItem(`interact_participant_${sessionId}`)
+    localStorage.removeItem(`interact_participant_token_${sessionId}`)
+    localStorage.removeItem(`interact_name_${sessionId}`)
+    navigate(`/join/${sessionId}${location.search}`, { replace: true })
+  }, [location.search, navigate, participant?.removed_at, sessionId])
+
   useEffect(() => {
     loadAll()
   }, [loadAll])

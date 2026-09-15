@@ -39,6 +39,12 @@ create table if not exists public.participants (
   last_seen_at timestamptz not null default now(),
   unfocused_ms bigint not null default 0,
   focus_streak_ms bigint not null default 0,
+  -- Set when the presenter removes someone from the class list. The row stays,
+  -- because every answer, message and recording they made hangs off it by a
+  -- cascading key — deleting it would take the lesson's evidence with it. The
+  -- device_id is rewritten at the same time so the unique constraint below no
+  -- longer blocks that device from joining again under a corrected name.
+  removed_at timestamptz null,
   unique (session_id, device_id)
 );
 
@@ -235,6 +241,21 @@ create table if not exists public.file_responses (
   submitted_at timestamptz not null default now(),
   analyzed_at timestamptz null
 );
+-- Points a presenter hands out by tapping + beside a name. Separate from the
+-- participation score, which is arithmetic over what the class actually did and
+-- has to stay reproducible; this is the teacher's own judgement and belongs in
+-- its own column. Stored per award rather than as a total so a mistaken tap can
+-- be traced, and so the report can show what the points were for.
+create table if not exists public.participant_points (
+  id uuid primary key default gen_random_uuid(),
+  session_id uuid not null references public.sessions(id) on delete cascade,
+  participant_id uuid not null references public.participants(id) on delete cascade,
+  points integer not null default 1 check (points between 1 and 10),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists participant_points_session_idx on public.participant_points (session_id, participant_id);
+
 create table if not exists public.question_keys (
   question_id uuid primary key references public.questions(id) on delete cascade,
   session_id uuid not null references public.sessions(id) on delete cascade,
@@ -468,6 +489,7 @@ alter table public.quiz_item_keys enable row level security;
 alter table public.quiz_attempts enable row level security;
 alter table public.quiz_item_answers enable row level security;
 alter table public.shared_files enable row level security;
+alter table public.participant_points enable row level security;
 alter table public.question_keys enable row level security;
 alter table public.file_responses enable row level security;
 
@@ -488,6 +510,13 @@ with check (
   and char_length(btrim(name)) between 1 and 80
   and char_length(device_id) between 1 and 200
 );
+-- Read like the rest of a session's data, which the roster window and the report
+-- both load directly. Writing goes through presenter-action, which is the only
+-- place holding the presenter token, so anon gets no write of any kind.
+drop policy if exists "mvp read participant points" on public.participant_points;
+create policy "mvp read participant points" on public.participant_points for select using (true);
+revoke insert, update, delete on public.participant_points from anon, authenticated;
+
 drop policy if exists "mvp read messages" on public.messages;
 create policy "mvp read messages" on public.messages for select using (true);
 drop policy if exists "send messages to active sessions" on public.messages;
@@ -769,7 +798,8 @@ alter table public.sessions
 -- rather than only in the table above so a project deployed earlier gains it.
 alter table public.participants
   add column if not exists unfocused_ms bigint not null default 0,
-  add column if not exists focus_streak_ms bigint not null default 0;
+  add column if not exists focus_streak_ms bigint not null default 0,
+  add column if not exists removed_at timestamptz null;
 
 -- Accumulating a column cannot be expressed through the REST API, and reading
 -- then writing would lose concurrent heartbeats.

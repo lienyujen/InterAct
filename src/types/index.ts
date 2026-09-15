@@ -48,6 +48,19 @@ export type Participant = {
   last_seen_at: string
   unfocused_ms?: number
   focus_streak_ms?: number
+  // Set when the presenter removed them. The row and everything hanging off it
+  // stays; it simply drops out of the live roster and lets that device rejoin.
+  removed_at?: string | null
+}
+
+// One tap of the + beside a name. Kept per award rather than as a total so the
+// report can show what the points were for, and a mistaken tap can be traced.
+export type ParticipantPoint = {
+  id: string
+  session_id: string
+  participant_id: string
+  points: number
+  created_at: string
 }
 
 export type Message = {
@@ -399,9 +412,22 @@ export type ExitTicket = {
   submitted_at: string
 }
 
+// A line of the class list as the report needs it. Declared here rather than
+// imported from lib/classRoster so the type layer keeps pointing one way.
+export type ReportRosterEntry = {
+  id: string
+  name: string
+  studentNo: string
+  unit: string
+}
+
 export type SessionReportData = {
   session: Session
   participants: Participant[]
+  participantPoints: ParticipantPoint[]
+  // The class list this session was taught against, read off this computer. Null
+  // when the presenter did not use one — then the report is exactly what it was.
+  roster: { name: string; entries: ReportRosterEntry[] } | null
   messages: Message[]
   sharedContents: SharedContent[]
   captionSegments: CaptionSegment[]
