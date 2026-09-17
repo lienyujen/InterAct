@@ -5266,14 +5266,30 @@ h2 {
   padding: 18px;
 }
 
+/* Both bounds, not just the height. These rules replace the base width: 100%
+   with width: auto so a tall screenshot is not stretched — but with only a
+   max-height, a wide one kept its natural width, overflowed the centred flex
+   line, and lost its right edge off the side of the window. The panel behind it
+   showed the same picture correctly, which made it look like the enlarged view
+   was cropping on purpose.
+   min-width: 0 because a flex item will not shrink below its content otherwise,
+   and the content here is an image that wants to be 2560px wide. */
 .hotspot-review-stage .hotspot-frame {
   max-height: 100%;
+  max-width: 100%;
+  min-width: 0;
   width: auto;
 }
 
+/* No object-fit: with both axes capped and neither dimension forced, the aspect
+   ratio is already preserved and object-fit would never engage. Leaving it in
+   read as if it were what did the fitting.
+   The height cap is the modal minus its header and padding rather than a round
+   number of vh: 78vh was a few pixels taller than the space it had to fit in, so
+   a tall screenshot was clipped along the bottom by the frame's overflow. */
 .hotspot-review-stage .hotspot-image {
-  max-height: 78vh;
-  object-fit: contain;
+  max-height: calc(88vh - 116px);
+  max-width: 100%;
   width: auto;
 }
 
@@ -5311,8 +5327,10 @@ h2 {
   margin: 10px 20px 0;
 }
 
+/* The standalone window is the full viewport and carries a second line above the
+   picture, so it subtracts more than the modal does. */
 .hotspot-review-window .hotspot-review-stage .hotspot-image {
-  max-height: 82vh;
+  max-height: calc(100vh - 160px);
 }
 /* 已上傳 N 人 on one side, 下載全部 on the other. */
 .upload-summary-row {
