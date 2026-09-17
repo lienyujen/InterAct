@@ -117,7 +117,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install-deployment-skill.ps1
 
 ## 自行託管學員端
 
-預設情況下，QR Code 指向共用的學員端網頁 `https://lienyujen.github.io/InterAct`。它只是一份靜態網頁，會依照加入連結上的參數連到**你自己的** Supabase 專案 —— 你的課堂資料不會經過作者的專案。
+預設情況下，QR Code 指向共用的學員端網頁 `https://join.ehuayu.org`。（1.4.0 以前的版本指向 `https://lienyujen.github.io/InterAct`，該網址仍然有效。）它只是一份靜態網頁，會依照加入連結上的參數連到**你自己的** Supabase 專案 —— 你的課堂資料不會經過作者的專案。
 
 想改用自己的網址，打包前設定：
 
