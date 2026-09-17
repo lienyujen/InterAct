@@ -1504,7 +1504,14 @@ Deno.serve(async (req) => {
       }
 
       const winner = eligible[randomIndex(eligible.length)]
-      const animationPool = shuffled(candidates).slice(0, 39)
+      // Built from the eligible list, not from everyone. The presenter stops this
+      // reel on whoever is showing and that person becomes the winner, so a name
+      // that is in the reel is a name that can win — putting the already-drawn
+      // back in made the exclusion above decorative, and the same student could
+      // be picked three times in a row. As the round fills up the reel shortens,
+      // which is the honest thing for it to do: there really are fewer people
+      // left who have not had a turn.
+      const animationPool = shuffled(eligible).slice(0, 39)
       if (!animationPool.some((participant) => participant.id === winner.id)) animationPool.push(winner)
       const orderedPool = shuffled(animationPool)
 
@@ -1632,6 +1639,10 @@ Deno.serve(async (req) => {
       if (!currentEvent) return jsonResponse({ message: '找不到這次抽籤。' }, 404)
       if (currentEvent.payload?.finalized) return jsonResponse({ event: currentEvent })
 
+      // This check is what keeps the no-repeat rule honest. draw_lottery puts
+      // only the still-eligible students in candidate_ids, so refusing anyone
+      // outside that list is also refusing anyone already drawn this round.
+      // Widen the pool there and this stops enforcing anything.
       const candidateIds = Array.isArray(currentEvent.payload?.candidate_ids)
         ? currentEvent.payload.candidate_ids.filter((id: unknown) => typeof id === 'string')
         : [currentEvent.payload?.winner_id].filter((id: unknown) => typeof id === 'string')
