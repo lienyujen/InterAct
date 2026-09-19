@@ -5840,3 +5840,100 @@ h2 {
 .word-cloud-terms-toggle {
   white-space: nowrap;
 }
+
+/* 彈幕時間軸。The bars are how many messages arrived when, so the shape of the
+   class is visible and an earlier wave can be grabbed without remembering the
+   clock. Dragging either handle trims; dragging the middle slides the window. */
+.danmaku-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 24px 0;
+}
+
+.danmaku-timeline-track {
+  background: rgb(255 255 255 / 4%);
+  border-radius: 10px;
+  cursor: default;
+  height: 56px;
+  position: relative;
+  touch-action: none;
+}
+
+.danmaku-timeline-bars {
+  align-items: flex-end;
+  display: flex;
+  gap: 1px;
+  height: 100%;
+  padding: 6px 8px;
+  position: absolute;
+  inset: 0;
+}
+
+.danmaku-timeline-bars span {
+  background: rgb(120 160 255 / 55%);
+  border-radius: 2px;
+  flex: 1 1 0;
+  min-height: 2px;
+}
+
+/* Outside the window is dimmed rather than hidden, so the rest of the class
+   stays visible as somewhere to drag to. */
+.danmaku-timeline-shade {
+  background: rgb(10 14 28 / 68%);
+  border-radius: 10px;
+  bottom: 0;
+  position: absolute;
+  top: 0;
+}
+
+.danmaku-timeline-window {
+  border: 1px solid rgb(150 185 255 / 70%);
+  border-radius: 8px;
+  bottom: 0;
+  cursor: grab;
+  position: absolute;
+  top: 0;
+}
+
+.danmaku-timeline.is-dragging .danmaku-timeline-window {
+  cursor: grabbing;
+}
+
+.danmaku-timeline-handle {
+  background: #9fc0ff;
+  border: 0;
+  border-radius: 6px;
+  bottom: -4px;
+  cursor: ew-resize;
+  padding: 0;
+  position: absolute;
+  top: -4px;
+  transform: translateX(-50%);
+  width: 12px;
+}
+
+.danmaku-timeline-handle:hover,
+.danmaku-timeline-handle:focus-visible {
+  background: #cfe0ff;
+}
+
+/* A finger needs more than twelve pixels, and the classroom display is a very
+   large coarse pointer. */
+@media (any-pointer: coarse) {
+  .danmaku-timeline-track { height: 72px; }
+  .danmaku-timeline-handle { width: 22px; }
+}
+
+.danmaku-timeline-scale {
+  color: rgb(255 255 255 / 55%);
+  display: flex;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  justify-content: space-between;
+}
+
+.danmaku-timeline-scale strong {
+  color: #dbe6ff;
+  font-weight: 600;
+}
