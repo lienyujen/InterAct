@@ -6568,3 +6568,26 @@ h2 {
   font-size: 16px;
   min-width: 160px;
 }
+
+.board-drawing-hint {
+  font-size: 13px;
+  margin: 0;
+}
+
+/* The text box needs its own buttons, because committing on blur is what
+   stopped it working with a mouse. */
+.board-drawing-text-input {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+
+.board-drawing-text-input button {
+  min-height: 0;
+  padding: 6px 8px;
+}
