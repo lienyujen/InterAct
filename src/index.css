@@ -5640,6 +5640,43 @@ h2 {
   flex: none;
 }
 
+/* A submission the window cannot draw still gets its turn in the sequence:
+   leaving it out would silently drop a student from a class the presenter is
+   reading through. */
+.submission-review-file {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 36px 28px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.submission-review-file svg {
+  color: var(--muted);
+}
+
+.submission-review-file strong {
+  overflow-wrap: anywhere;
+}
+
+.submission-review-chip-file {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  display: flex;
+  height: 54px;
+  justify-content: center;
+  width: 72px;
+}
+
 .submission-review-side {
   display: flex;
   flex-direction: column;
@@ -6997,6 +7034,35 @@ h2 {
   border-radius: var(--radius-sm);
   display: block;
   width: 100%;
+}
+
+/* Something the page cannot draw — a spreadsheet, a slide deck, an archive.
+   The icon says which, because the student is checking they sent the right
+   thing and the name alone reads as a wall of characters. */
+.participant-review-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 6px 0 10px;
+  padding: 0;
+}
+
+.participant-review-files a {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: flex;
+  gap: 8px;
+  overflow-wrap: anywhere;
+  padding: 9px 11px;
+  text-decoration: none;
+}
+
+.participant-review-files svg {
+  color: var(--muted);
+  flex: none;
 }
 
 /* 配對題: the prompt and what the student put against it, side by side. A

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, History, Mic2 } from 'lucide-react'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import { ParticipantAnswerReview, Verdict } from './ParticipantAnswerReview'
-import { publicFileUrl } from '../lib/fileLinks'
+import { FileTypeIcon } from './FileTypeIcon'
+import { isImageFileName } from '../lib/fileKinds'
+import { downloadHref, publicFileUrl } from '../lib/fileLinks'
 import type { Answer, AudioResponse, FileAnalysis, ParticipantQuizData, Question, Screenshot } from '../types'
 
 export type SubmittedFile = {
@@ -255,7 +257,9 @@ function SubmissionReview({ drawn, files, locale, onReload }: {
     return <p className="muted">{english ? 'You did not hand anything in for this one.' : '這一題你沒有交作答。'}</p>
   }
 
-  const images = files.filter((file) => file.storage_path)
+  const stored = files.filter((file) => file.storage_path)
+  const images = stored.filter((file) => isImageFileName(file.name, file.mime_type))
+  const others = stored.filter((file) => !isImageFileName(file.name, file.mime_type))
   const verdict = result?.verdict ? submissionVerdicts[result.verdict] : null
   const strengths = result ? (english ? result.strengths_en : result.strengths_zh_tw) : []
   const improvements = result ? (english ? result.improvements_en : result.improvements_zh_tw) : []
@@ -263,7 +267,7 @@ function SubmissionReview({ drawn, files, locale, onReload }: {
   return (
     <div className="participant-review">
       <span className="participant-review-label">{english ? 'What you handed in' : '你送出的作答'}</span>
-      {images.length > 0 ? (
+      {images.length > 0 && (
         // Full width, not a tile: this is the student's own handwriting, and a
         // 72px thumbnail of it is not something anyone can read.
         <div className="participant-review-pages">
@@ -271,8 +275,23 @@ function SubmissionReview({ drawn, files, locale, onReload }: {
             <img alt={file.name} key={file.id} src={publicFileUrl(file.storage_path as string)} />
           ))}
         </div>
-      ) : (
-        <p className="muted">{files.map((file) => file.name).join('、')}</p>
+      )}
+      {others.length > 0 && (
+        <ul className="participant-review-files">
+          {others.map((file) => (
+            <li key={file.id}>
+              <a
+                download
+                href={downloadHref(publicFileUrl(file.storage_path as string), file.name)}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <FileTypeIcon mimeType={file.mime_type} name={file.name} />
+                {file.name}
+              </a>
+            </li>
+          ))}
+        </ul>
       )}
       {result ? (
         <div className="participant-mark">

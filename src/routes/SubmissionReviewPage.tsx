@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, PencilLine, X } from 'lucide-react'
+import { FileTypeIcon } from '../components/FileTypeIcon'
+import { isImageFileName } from '../lib/fileKinds'
 import { useParams } from 'react-router-dom'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { requireSupabase } from '../lib/supabase'
@@ -10,10 +12,6 @@ const verdictLabels: Record<string, string> = {
   partial: '部分正確',
   incorrect: '不正確',
   unscored: '已批閱',
-}
-
-function isImage(response: FileResponse) {
-  return response.mime_type.startsWith('image/') || /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(response.name)
 }
 
 // Marking a class of handwritten answers means looking at each page properly.
@@ -69,13 +67,15 @@ export function SubmissionReviewPage() {
     }
     return [...byStudent.values()].flatMap((files, index) => {
       const marked = files.find((file) => file.analysis_status === 'success' && file.analysis_json) || files[0]
-      const readable = files.filter((file) => isImage(file) && file.file_url)
-      return readable.map((file, page) => ({
+      const shown = files.filter((file) => file.file_url)
+      return shown.map((file, page) => ({
         id: file.id,
         url: file.file_url as string,
         name: file.name,
+        mimeType: file.mime_type,
+        drawable: isImageFileName(file.name, file.mime_type),
         owner: anonymous ? `匿名作答 ${index + 1}` : file.participant_name,
-        page: readable.length > 1 ? `第 ${page + 1} / ${readable.length} 頁` : '',
+        page: shown.length > 1 ? `第 ${page + 1} / ${shown.length} 頁` : '',
         status: marked.analysis_status,
         analysis: marked.analysis_json,
       }))
@@ -127,7 +127,15 @@ export function SubmissionReviewPage() {
             <button aria-label="上一份" className="icon-button" disabled={total < 2} type="button" onClick={() => move(-1)}>
               <ChevronLeft size={30} />
             </button>
-            <img alt={current.name} src={current.url} />
+            {current.drawable ? (
+              <img alt={current.name} src={current.url} />
+            ) : (
+              <a className="submission-review-file" download href={current.url} rel="noreferrer" target="_blank">
+                <FileTypeIcon mimeType={current.mimeType} name={current.name} size={56} />
+                <strong>{current.name}</strong>
+                <span className="muted">這個格式沒辦法在這裡顯示，點一下開啟</span>
+              </a>
+            )}
             <button aria-label="下一份" className="icon-button" disabled={total < 2} type="button" onClick={() => move(1)}>
               <ChevronRight size={30} />
             </button>
@@ -185,7 +193,9 @@ export function SubmissionReviewPage() {
               type="button"
               onClick={() => setAt(pageIndex)}
             >
-              <img alt="" src={page.url} />
+              {page.drawable
+                ? <img alt="" src={page.url} />
+                : <span className="submission-review-chip-file"><FileTypeIcon mimeType={page.mimeType} name={page.name} size={22} /></span>}
             </button>
           ))}
         </nav>

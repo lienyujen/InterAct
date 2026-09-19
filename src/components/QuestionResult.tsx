@@ -8,6 +8,8 @@ import { createZip, safeFileName, uniqueName } from '../lib/zip'
 import type { ZipEntry } from '../lib/zip'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
 import { BoardWall } from './BoardWall'
+import { FileTypeIcon } from './FileTypeIcon'
+import { isImageFileName } from '../lib/fileKinds'
 import { boardAction, loadBoard } from '../lib/boardData'
 import type { BoardSnapshot } from '../lib/boardData'
 import { HotspotImage } from './HotspotImage'
@@ -277,10 +279,6 @@ const uploadStatusLabels: Record<FileResponse['analysis_status'], string> = {
   unsupported: 'AI 無法讀取此格式',
 }
 
-function isImageFile(mimeType: string, name: string) {
-  return mimeType.startsWith('image/') || /.(png|jpe?g|webp|gif|heic|heif)$/i.test(name)
-}
-
 type Plate = { url: string; name: string; owner: string; verdict: string; score: number | null }
 
 function SubmissionViewer({ plates, index, onClose, onMove }: {
@@ -370,7 +368,7 @@ function UploadResults({
   // Every readable page in the class, in the order they are listed, so the
   // arrows in the viewer walk the same sequence the presenter sees.
   const plates = useMemo<Plate[]>(() => submissions.flatMap((files, index) => files
-    .filter((file) => isImageFile(file.mime_type, file.name) && file.file_url)
+    .filter((file) => isImageFileName(file.name, file.mime_type) && file.file_url)
     .map((file) => ({
       url: file.file_url as string,
       name: file.name,
@@ -447,7 +445,7 @@ function UploadResults({
           const result = lead.analysis_json
           const verdict = result?.verdict || ''
           const busy = files.some((file) => fileBusyId === file.id || file.analysis_status === 'analyzing')
-          const preview = files.find((file) => isImageFile(file.mime_type, file.name) && file.file_url)
+          const preview = files.find((file) => isImageFileName(file.name, file.mime_type) && file.file_url)
           const failure = files.find((file) => file.error_message && file.analysis_status !== 'success')
           return (
             <li key={lead.participant_id}>
@@ -471,7 +469,11 @@ function UploadResults({
                     <img alt={preview.name} className="file-response-thumb" src={preview.file_url} />
                     <Maximize2 size={14} />
                   </button>
-                ) : <span className="file-response-thumb is-placeholder"><FileUp size={18} /></span>}
+                ) : (
+                  <span className="file-response-thumb is-placeholder">
+                    <FileTypeIcon mimeType={lead.mime_type} name={lead.name} size={24} />
+                  </span>
+                )}
                 <div className="file-list-meta">
                   <strong>{anonymousEnabled ? `匿名作答 ${index + 1}` : lead.participant_name}</strong>
                   <span className="muted">
