@@ -64,6 +64,11 @@ export async function analyzeFileResponse(input: {
   // One student's submission, which may run to several photographed pages.
   files: Array<{ fileName: string; mimeType: string; fileBytes: Uint8Array }>
   questionImage?: { mimeType: string; bytes: Uint8Array } | null
+  // 電寫題: the student wrote on top of the question itself, so the page they
+  // hand in carries the teacher's printing and their own working in one image.
+  // Without being told, a marker reads the printed question as the student's
+  // answer and marks the teacher's own words.
+  drawnOnQuestion?: boolean
 }) {
   const marking = Boolean(input.questionImage) || Boolean(input.promptText)
   const parts: Array<Record<string, unknown>> = [
@@ -78,7 +83,9 @@ export async function analyzeFileResponse(input: {
     parts.push({ inlineData: { mimeType: input.questionImage.mimeType, data: bytesToBase64(input.questionImage.bytes) } })
   }
   parts.push({
-    text: input.files.length > 1
+    text: input.drawnOnQuestion
+      ? '以下是這位學生的作答。學生是直接在上面那張題目畫面上手寫或畫出來的，所以圖上同時有題目原本的內容和學生加上去的筆跡；請對照上面那張乾淨的題目畫面，只評學生新增的部分。若學生把題目畫面換成白紙自己重畫，整張都是他畫的。'
+      : input.files.length > 1
       ? `以下是這位學生繳交的作答，共 ${input.files.length} 個檔案，屬於同一份作答，請合起來看：`
       : '以下是這位學生繳交的作答：',
   })

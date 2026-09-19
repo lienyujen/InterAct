@@ -4771,6 +4771,122 @@ h2 {
   border: 1px solid var(--border);
 }
 
+/* The thumbnail is the way into the full page, so it has to read as a control
+   rather than as a decoration sitting next to the name. */
+.file-response-thumb-button {
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+  position: relative;
+}
+
+.file-response-thumb-button > svg {
+  background: rgb(24 34 58 / 72%);
+  border-radius: 6px;
+  bottom: 3px;
+  color: #fff;
+  opacity: 0;
+  padding: 2px;
+  position: absolute;
+  right: 3px;
+  transition: opacity 120ms ease;
+}
+
+.file-response-thumb-button:hover > svg,
+.file-response-thumb-button:focus-visible > svg {
+  opacity: 1;
+}
+
+/* Reading a class of handwritten answers means looking at each one properly,
+   so the page fills the window and the arrows walk the class. */
+.submission-viewer {
+  align-items: center;
+  background: rgb(14 20 36 / 88%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 40;
+}
+
+.submission-viewer-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* min-height:0 on both this and the stage below is what stops a tall page
+     pushing its own bottom off the screen: without it a flex child keeps its
+     content height and max-height on the image has nothing to measure against. */
+  max-height: 100%;
+  max-width: 100%;
+  min-height: 0;
+}
+
+.submission-viewer-inner > header {
+  align-items: center;
+  color: #fff;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.submission-viewer-inner > header .muted {
+  color: rgb(255 255 255 / 70%);
+  margin-left: auto;
+}
+
+.submission-viewer-inner > header .ghost-button {
+  background: rgb(255 255 255 / 12%);
+  border-color: rgb(255 255 255 / 28%);
+  color: #fff;
+}
+
+.submission-viewer-stage {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 10px;
+  justify-content: center;
+  min-height: 0;
+}
+
+/* svh rather than a percentage: a percentage max-height resolves against the
+   stage, whose own height comes from this image, so it is ignored and a tall
+   page runs off the bottom of the window. The window is the one height here
+   that is definite. 120px is the header, the gaps and the backdrop padding. */
+.submission-viewer-stage img {
+  background: #fff;
+  border-radius: 10px;
+  max-height: calc(100svh - 120px);
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
+  object-fit: contain;
+}
+
+.submission-viewer-stage .ghost-button {
+  background: rgb(255 255 255 / 12%);
+  border-color: rgb(255 255 255 / 28%);
+  color: #fff;
+  flex: none;
+}
+
+/* 電寫題: the canvas is the answer sheet, so it gets the width the panel has
+   rather than sitting inside the narrower prose column. */
+.participant-drawing-answer .board-drawing {
+  margin-top: 10px;
+}
+
+.participant-drawing-submitted {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 10px 0;
+  width: 100%;
+}
+
 /* The teacher's answer clock, set as chips because this gets chosen mid-class
    and a row of taps beats typing into a spinner while the room waits. */
 .question-timing {

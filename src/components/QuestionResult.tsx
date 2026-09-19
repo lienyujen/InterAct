@@ -1,4 +1,4 @@
-import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, Eye, EyeOff, FileUp, LoaderCircle, Maximize2, RotateCcw, Settings2, Shuffle, Sparkles, SquareX, X } from 'lucide-react'
+import { ArrowDownUp, AudioLines, CheckCircle2, ChevronLeft, ChevronRight, Dice5, Download, Eye, EyeOff, FileUp, LoaderCircle, Maximize2, PencilLine, RotateCcw, Settings2, Shuffle, Sparkles, SquareX, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
@@ -132,7 +132,9 @@ function AiAnalysisPanel({
   if (!question || question.type === 'send_screen') return null
 
   const isBoard = question.type === 'board'
-  const isUpload = question.type === 'file_upload'
+  // 電寫題 arrives as one marked image per student, exactly as an upload
+  // does, so the marking button and its wording are the same button.
+  const isUpload = question.type === 'file_upload' || question.type === 'drawing'
   // A spoken answer is already assessed one student at a time; what this adds
   // is the reading across the room that no individual evaluation can give.
   const isSpoken = question.type === 'pronunciation' || question.type === 'oral_response'
@@ -274,6 +276,64 @@ function isImageFile(mimeType: string, name: string) {
   return mimeType.startsWith('image/') || /.(png|jpe?g|webp|gif|heic|heif)$/i.test(name)
 }
 
+type Plate = { url: string; name: string; owner: string; verdict: string; score: number | null }
+
+function SubmissionViewer({ plates, index, onClose, onMove }: {
+  plates: Plate[]
+  index: number
+  onClose: () => void
+  onMove: (delta: number) => void
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+      if (event.key === 'ArrowRight') onMove(1)
+      if (event.key === 'ArrowLeft') onMove(-1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose, onMove])
+
+  const plate = plates[index]
+  if (!plate) return null
+
+  return createPortal(
+    <div className="submission-viewer" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="submission-viewer-inner" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <strong>{plate.owner}</strong>
+          {plate.verdict && <span className={`file-verdict is-${plate.verdict}`}>{verdictLabels[plate.verdict] || plate.verdict}</span>}
+          {typeof plate.score === 'number' && <span className="upload-score">{plate.score} 分</span>}
+          <span className="muted">{index + 1} / {plates.length}</span>
+          <button aria-label="關閉" className="ghost-button icon-button" type="button" onClick={onClose}><X size={18} /></button>
+        </header>
+        <div className="submission-viewer-stage">
+          <button
+            aria-label="上一份"
+            className="ghost-button icon-button"
+            disabled={plates.length < 2}
+            type="button"
+            onClick={() => onMove(-1)}
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <img alt={plate.name} src={plate.url} />
+          <button
+            aria-label="下一份"
+            className="ghost-button icon-button"
+            disabled={plates.length < 2}
+            type="button"
+            onClick={() => onMove(1)}
+          >
+            <ChevronRight size={22} />
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 // One row per student, not per file: an essay photographed as three pages is
 // one answer, and the marker treats it that way too.
 function UploadResults({
@@ -299,6 +359,20 @@ function UploadResults({
   const [zipping, setZipping] = useState(false)
   const [zipDone, setZipDone] = useState(0)
   const [zipError, setZipError] = useState('')
+  const [viewing, setViewing] = useState<number | null>(null)
+
+  const drawn = question.type === 'drawing'
+  // Every readable page in the class, in the order they are listed, so the
+  // arrows in the viewer walk the same sequence the presenter sees.
+  const plates = useMemo<Plate[]>(() => submissions.flatMap((files, index) => files
+    .filter((file) => isImageFile(file.mime_type, file.name) && file.file_url)
+    .map((file) => ({
+      url: file.file_url as string,
+      name: file.name,
+      owner: anonymousEnabled ? `匿名作答 ${index + 1}` : file.participant_name,
+      verdict: files[0].analysis_json?.verdict || '',
+      score: typeof files[0].analysis_json?.score === 'number' ? files[0].analysis_json.score : null,
+    }))), [anonymousEnabled, submissions])
 
   // One archive rather than a click per student. A class of thirty hands back
   // thirty-odd files and saving them one at a time is most of a break.
@@ -345,7 +419,9 @@ function UploadResults({
   if (!submissions.length) {
     return (
       <p className="muted">
-        {question.status === 'active' ? '還沒有學生上傳作答。' : '這一題沒有收到任何上傳。'}
+        {drawn
+          ? question.status === 'active' ? '還沒有學生送出作答。' : '這一題沒有收到任何作答。'
+          : question.status === 'active' ? '還沒有學生上傳作答。' : '這一題沒有收到任何上傳。'}
       </p>
     )
   }
@@ -353,7 +429,7 @@ function UploadResults({
   return (
     <>
       <div className="upload-summary-row">
-        <p className="muted">已上傳 {submissions.length} 人 · 已批改 {marked} 人</p>
+        <p className="muted">{drawn ? '已作答' : '已上傳'} {submissions.length} 人 · 已批改 {marked} 人</p>
         <button className="ghost-button" disabled={zipping} type="button" onClick={() => void downloadAll()}>
           {zipping ? <LoaderCircle className="spin" size={15} /> : <Download size={15} />}
           {zipping ? `打包中 ${zipDone} / ${totalFiles}` : `下載全部（${totalFiles} 個檔案）`}
@@ -372,9 +448,20 @@ function UploadResults({
             <li key={lead.participant_id}>
               <div className="file-response-row">
                 {preview ? (
-                  <a href={preview.file_url} rel="noreferrer" target="_blank">
+                  <button
+                    aria-label={`放大 ${anonymousEnabled ? `匿名作答 ${index + 1}` : lead.participant_name} 的作答`}
+                    className="file-response-thumb-button"
+                    type="button"
+                    onClick={() => {
+                      const at = plates.findIndex((plate) => plate.url === preview.file_url)
+                      // -1 would open the viewer on nothing; leaving it closed
+                      // is at least honest about having nothing to show.
+                      if (at >= 0) setViewing(at)
+                    }}
+                  >
                     <img alt={preview.name} className="file-response-thumb" src={preview.file_url} />
-                  </a>
+                    <Maximize2 size={14} />
+                  </button>
                 ) : <span className="file-response-thumb is-placeholder"><FileUp size={18} /></span>}
                 <div className="file-list-meta">
                   <strong>{anonymousEnabled ? `匿名作答 ${index + 1}` : lead.participant_name}</strong>
@@ -443,6 +530,18 @@ function UploadResults({
           )
         })}
       </ul>
+      {viewing !== null && (
+        <SubmissionViewer
+          index={viewing}
+          plates={plates}
+          onClose={() => setViewing(null)}
+          // Wraps rather than stopping: going past the last one lands on the
+          // first, which is what a presenter flicking through a class expects.
+          onMove={(delta) => setViewing((current) => (
+            current === null ? null : (current + delta + plates.length) % plates.length
+          ))}
+        />
+      )}
     </>
   )
 }
@@ -972,12 +1071,12 @@ export function QuestionResult(props: Props) {
     )
   }
 
-  if (question.type === 'file_upload') {
+  if (question.type === 'file_upload' || question.type === 'drawing') {
     return (
       <>
         <section className="panel result-panel upload-results-panel">
           <div className="panel-heading">
-            <h2><FileUp size={20} />{question.title}</h2>
+            <h2>{question.type === 'drawing' ? <PencilLine size={20} /> : <FileUp size={20} />}{question.title}</h2>
             <QuestionStatusActions {...props} question={question} />
           </div>
           {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}

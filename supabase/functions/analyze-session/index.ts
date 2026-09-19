@@ -275,6 +275,13 @@ Deno.serve(async (req) => {
       ))
       const topLevelCards = cards.filter((post) => !post.reply_to)
       const isBoard = question.type === 'board'
+      // An upload and a 電寫題 answer with a page, and the row in `answers`
+      // only exists so the class list can tell who handed in. Sending thirty
+      // copies of that placeholder as the written answers would have the
+      // report quoting an internal marker back at the teacher as though it
+      // were what the class wrote; the marking in file_submissions below is
+      // the real evidence.
+      const handedInAPage = question.type === 'file_upload' || question.type === 'drawing'
       const answerCount = quiz ? questionQuizAttempts.length
         : isBoard ? new Set(topLevelCards.map((post) => post.participant_id)).size
         : questionAnswers.length
@@ -294,6 +301,7 @@ Deno.serve(async (req) => {
         distribution,
         written_response_sample: isBoard
           ? topLevelCards.map((post) => post.body || post.url).filter(Boolean).slice(0, 100)
+          : handedInAPage ? []
           : questionAnswers.map((answer) => answer.answer_text).filter(Boolean).slice(0, 100),
         ...(isBoard ? {
           board: {

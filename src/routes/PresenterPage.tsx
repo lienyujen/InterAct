@@ -1239,7 +1239,7 @@ export function PresenterPage() {
       // still unmarked gets marked first. One request per student, not per file:
       // a whole class in a single call would outlive the function that sent it.
       // Work already paid for is skipped, and one unreadable photo stops nothing.
-      if (question.type === 'file_upload') {
+      if (question.type === 'file_upload' || question.type === 'drawing') {
         const unmarked = fileResponses.filter((item) => item.question_id === question.id
           && ['pending', 'failed'].includes(item.analysis_status))
         // Marking is per student, so a submission of three pages is one unit of
@@ -1590,7 +1590,7 @@ export function PresenterPage() {
   }, [sessionId])
 
   useEffect(() => {
-    if (question?.type !== 'file_upload') return
+    if (question?.type !== 'file_upload' && question?.type !== 'drawing') return
     void refreshFileResponses()
     if (question.status !== 'active') return
     // Skipped while a mark is in flight: a reply issued before the mark landed

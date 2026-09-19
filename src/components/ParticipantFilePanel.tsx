@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Download, FileUp, LoaderCircle, Sparkles, Upload } from 'lucide-react'
+import { Camera, Download, FileUp, LoaderCircle, PencilLine, Sparkles, Upload } from 'lucide-react'
+import { BoardDrawing } from './BoardDrawing'
 import { requireSupabase } from '../lib/supabase'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
@@ -89,11 +90,18 @@ type UploadProps = {
   imageUrl?: string | null
   active: boolean
   locale: ParticipantLocale
+  // 電寫題 hands in the same thing an upload hands in — one image per student,
+  // marked by the same pipeline and read back through the same rows — so it is
+  // this panel with the file picker swapped for a canvas, rather than a second
+  // panel that would have to be kept in step with this one.
+  mode?: 'upload' | 'drawing'
 }
 
 type StudentMark = {
   id: string
   name: string
+  mime_type?: string | null
+  storage_path?: string | null
   analysis_status: FileAnalysisStatus
   analysis_json: FileAnalysis | null
 }
@@ -114,8 +122,13 @@ export function ParticipantFileUpload({
   imageUrl,
   active,
   locale,
+  mode = 'upload',
 }: UploadProps) {
+  const drawing = mode === 'drawing'
   const [uploaded, setUploaded] = useState<string[]>([])
+  // A student who wants to change their answer goes back to a blank canvas;
+  // sending again replaces what they sent, so there is nothing to undo first.
+  const [redrawing, setRedrawing] = useState(false)
   const [marks, setMarks] = useState<StudentMark[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -161,7 +174,7 @@ export function ParticipantFileUpload({
   }, [participantId, participantToken, questionId, sessionId, uploaded.length])
 
   async function upload(files: File[]) {
-    if (!files.length) return
+    if (!files.length) return false
     setBusy(true)
     setError('')
     const supabase = requireSupabase()
@@ -205,11 +218,62 @@ export function ParticipantFileUpload({
         if (submitError) throw submitError
         setUploaded((current) => [...current, file.name])
       }
+      return true
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : participantText(locale, 'uploadFailed'))
+      return false
     } finally {
       setBusy(false)
     }
+  }
+
+  // What this student has already handed in. A 電寫題 only ever has one row,
+  // because sending again replaces the last one.
+  const submitted = marks
+    .filter((mark) => mark.storage_path)
+    .map((mark) => ({ ...mark, url: publicFileUrl(mark.storage_path as string) }))
+  const handedIn = drawing && (submitted.length > 0 || uploaded.length > 0)
+
+  if (drawing) {
+    return (
+      <section className="panel participant-file-upload participant-drawing-answer">
+        <h2><PencilLine size={17} />{participantText(locale, 'drawAnswer')}</h2>
+        {promptText && <p className="participant-file-prompt">{promptText}</p>}
+        {/* The capture is the canvas background, so printing it above as well
+            would show the class the same picture twice. */}
+        {active && (!handedIn || redrawing) ? (
+          <BoardDrawing
+            backgroundUrl={imageUrl || null}
+            busy={busy}
+            locale={locale}
+            onSubmit={async (file) => {
+              setError('')
+              // Thrown rather than swallowed so the canvas keeps the drawing:
+              // it clears once a send resolves, and a student who lost five
+              // minutes of working to a dropped connection will not draw it a
+              // second time.
+              if (!await upload([file])) throw new Error('upload failed')
+              setRedrawing(false)
+            }}
+          />
+        ) : (
+          <>
+            {submitted[0]?.url
+              ? <img alt={participantText(locale, 'drawSubmitted')} className="participant-image participant-drawing-submitted" src={submitted[0].url} />
+              : <p className="muted"><Sparkles size={13} />{participantText(locale, 'drawSubmitted')}</p>}
+            {active
+              ? (
+                <button className="ghost-button" disabled={busy} type="button" onClick={() => setRedrawing(true)}>
+                  <PencilLine size={16} />{participantText(locale, 'drawAgain')}
+                </button>
+              )
+              : <p className="muted">{participantText(locale, 'uploadClosed')}</p>}
+          </>
+        )}
+        {error && <p className="error">{error}</p>}
+        <StudentMarks locale={locale} marks={marks} />
+      </section>
+    )
   }
 
   return (

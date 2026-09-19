@@ -141,7 +141,10 @@ Deno.serve(async (req) => {
     }
     // An upload question collected through the file panel has no screenshot; it
     // is analysed from what the marker already wrote about each submission.
-    const isFileUpload = question.type === 'file_upload'
+    // 電寫題 hands in the same thing — one marked image per student — and is
+    // read the same way; only the sentence describing where it came from differs.
+    const isDrawing = question.type === 'drawing'
+    const isFileUpload = question.type === 'file_upload' || isDrawing
     // A spoken answer's row in `answers` is the placeholder [錄音已送出]; the
     // substance is the per-student evaluation, which is what this reads.
     const isSpoken = question.type === 'pronunciation' || question.type === 'oral_response'
@@ -312,7 +315,9 @@ Deno.serve(async (req) => {
     const spokenInstruction = '你是 InterAct 的課堂形成性評量分析助理。這是一題口說作答（朗讀發音或口語表達）：每位學生各自錄音，並已由 AI 逐份評測，anonymous_answers 帶的是每份評測的分數、辨識語言、逐字稿與個別評語，不是原始音檔。請以繁體中文彙整全班的口說表現。若有題目截圖請據以判讀題目要求。suggested_correct_answer 一律填 null，口說沒有單一正解。response_analysis 要指出全班共通的優點、反覆出現的發音或表達問題，以及分數分布的意義；不可只把個別評語抄一遍，要看出跨學生的模式。teaching_recommendations 要針對聽到的問題給出可立即帶全班做的練習。尚未完成評測的份數要說明其對結論的影響，不可臆測其內容。'
     const boardInstruction = '你是 InterAct 的課堂形成性評量分析助理。這是一面「討論板」：學生把自己的想法貼在同一面牆上，彼此看得見，也可以互相回覆。anonymous_answers 每一筆是一張卡片，card_type 是它的型式，is_reply 為 true 代表那是回覆同學而不是回應主題。請以繁體中文彙整整面牆。detected_question 以 presenter_question 為準；若為空且有截圖，依截圖判讀討論主題。suggested_correct_answer 一律填 null，討論沒有標準答案。response_analysis 要看出跨學生的模式：有哪幾種立場或角度、哪些想法重覆出現、哪些只有一個人提到卻值得全班看見、以及回覆裡有沒有真正的互相回應（而不是各說各話）。card_counts 裡的圖片、檔案、錄音與電繪只給了數量，你沒有看到它們的內容，若它們佔多數必須明說結論只根據文字與連結，不可臆測那些卡片畫了或說了什麼。teaching_recommendations 要針對牆上實際出現的分歧或缺口，給出可以立刻帶全班做的下一步。'
     const instruction = isBoard ? boardInstruction : isSpoken ? spokenInstruction : isFileUpload
-      ? '你是 InterAct 的課堂形成性評量分析助理。這是一題「上傳作答」：學生把答案寫在紙上或做成檔案後上傳，每份都已由 AI 逐份批改，anonymous_answers 帶的是每份批改的判定、分數與摘要，不是學生原文。請以繁體中文彙整全班表現。若有題目截圖請據以判讀題目；沒有截圖時以 presenter_question 為準。suggested_correct_answer 一律填 null，因為這種題型沒有選項可選。response_analysis 要指出全班共通的正確作法與反覆出現的錯誤步驟，並說明尚未批改的份數對結論的影響。teaching_recommendations 要針對觀察到的錯誤給出可立即執行的講解與追問。不可臆測尚未批改的內容。'
+      ? `你是 InterAct 的課堂形成性評量分析助理。${isDrawing
+        ? '這是一題「電寫題」：學生直接在題目畫面上手寫或畫出解題過程與答案，'
+        : '這是一題「上傳作答」：學生把答案寫在紙上或做成檔案後上傳，'}每份都已由 AI 逐份批改，anonymous_answers 帶的是每份批改的判定、分數與摘要，不是學生原文。請以繁體中文彙整全班表現。若有題目截圖請據以判讀題目；沒有截圖時以 presenter_question 為準。suggested_correct_answer 一律填 null，因為這種題型沒有選項可選。response_analysis 要指出全班共通的正確作法與反覆出現的錯誤步驟，並說明尚未批改的份數對結論的影響。teaching_recommendations 要針對觀察到的錯誤給出可立即執行的講解與追問。不可臆測尚未批改的內容。`
       : '你是 InterAct 的課堂形成性評量分析助理。請以繁體中文分析截圖中的題目與匿名化群體作答。若 presenter_question 有內容，detected_question 應優先忠實使用該題目；若為空，截圖有明確題幹時忠實轉寫或精簡，沒有明顯題幹時依畫面脈絡與選項產生中立、不誘導且不暗示正解的題目。無論是否有 presenter_question，都必須繼續根據截圖、選項及實際作答行為分析理解、證據、常見誤解與教學行動，不可只依題目文字推測。選擇題與是非題只能提出建議答案，最後決定權屬於講者。投票題不判定對錯。'
 
     const requestPayload = {

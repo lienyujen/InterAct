@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
 import { ParticipantBoard } from '../components/ParticipantBoard'
 import { ParticipantQuestionHistory } from '../components/ParticipantQuestionHistory'
+import type { SubmittedFile } from '../components/ParticipantQuestionHistory'
 import { ParticipantCustomQuiz } from '../components/ParticipantCustomQuiz'
 import type { QuizSubmission } from '../components/ParticipantCustomQuiz'
 import { ParticipantInterpretationAudio } from '../components/ParticipantInterpretationAudio'
@@ -70,6 +71,7 @@ export function ParticipantPage() {
   const [historyScreenshots, setHistoryScreenshots] = useState<Record<string, Screenshot>>({})
   const [historyAudioResponses, setHistoryAudioResponses] = useState<Record<string, AudioResponse | null>>({})
   const [historyQuizData, setHistoryQuizData] = useState<Record<string, ParticipantQuizData | null>>({})
+  const [historyFiles, setHistoryFiles] = useState<Record<string, SubmittedFile[]>>({})
   // 排序題 and 配對題 keep their answer off the question row so the class
   // cannot read it before answering; this is how it comes back afterwards.
   const [historyKeys, setHistoryKeys] = useState<Record<string, string[]>>({})
@@ -277,6 +279,25 @@ export function ParticipantPage() {
       }
       return
     }
+    // What this student handed in, which is a page rather than a row in
+    // `answers`: that row only holds a placeholder for these two types.
+    if (historyQuestion.type === 'file_upload' || historyQuestion.type === 'drawing') {
+      // Refetched while the question is still open, and once more after it
+      // closes, because the mark lands whenever the teacher gets to it.
+      if (historyFiles[historyQuestion.id] !== undefined && historyQuestion.status !== 'active') {
+        const known = historyFiles[historyQuestion.id]
+        if (known.some((file) => file.analysis_status === 'success')) return
+      }
+      try {
+        const { data } = await requireSupabase().functions.invoke('participant-action', {
+          body: { action: 'get_file_result', sessionId, participantId, participantToken, questionId: historyQuestion.id },
+        })
+        setHistoryFiles((current) => ({ ...current, [historyQuestion.id]: (data?.responses || []) as SubmittedFile[] }))
+      } catch {
+        setHistoryFiles((current) => ({ ...current, [historyQuestion.id]: current[historyQuestion.id] || [] }))
+      }
+      return
+    }
     if (!['custom_quiz', 'pronunciation', 'oral_response'].includes(historyQuestion.type)) return
     // A quiz fetched while it was still running carries no answer key,
     // because while it is running the key is the answer. Once it has
@@ -309,7 +330,7 @@ export function ParticipantPage() {
         return next
       })
     }
-  }, [historyAudioResponses, historyKeys, historyQuizData, participantId, participantToken, sessionId])
+  }, [historyAudioResponses, historyFiles, historyKeys, historyQuizData, participantId, participantToken, sessionId])
 
   useEffect(() => {
     if (!participantId) navigate(`/join/${sessionId}${location.search}`)
@@ -682,6 +703,7 @@ export function ParticipantPage() {
           questions={historyQuestions}
           quizData={historyQuizData}
           screenshots={historyScreenshots}
+          submittedFiles={historyFiles}
           questionKeys={historyKeys}
         onLoadDetails={loadHistoryDetails}
         />
@@ -731,11 +753,12 @@ export function ParticipantPage() {
         />
       )}
       <ParticipantSharedFiles locale={locale} sessionId={sessionId} />
-      {question?.type === 'file_upload' && participant && participantToken && (
+      {(question?.type === 'file_upload' || question?.type === 'drawing') && participant && participantToken && (
         <ParticipantFileUpload
           active={question.status === 'active'}
           imageUrl={screenshot?.public_url || null}
           locale={locale}
+          mode={question.type === 'drawing' ? 'drawing' : 'upload'}
           participantId={participant.id}
           participantToken={participantToken}
           promptText={question.prompt_text}
@@ -756,7 +779,7 @@ export function ParticipantPage() {
         </div>
       )}
       <SharedContentPanel contents={sharedContents} locale={locale} />
-      {screenshot && question?.share_screenshot && question?.type !== 'file_upload' && question?.type !== 'hotspot' && question?.type !== 'board' && (
+      {screenshot && question?.share_screenshot && question?.type !== 'file_upload' && question?.type !== 'drawing' && question?.type !== 'hotspot' && question?.type !== 'board' && (
         <img alt={participantText(locale, 'imageAlt')} className="participant-image" src={screenshot.public_url} />
       )}
       {question?.type === 'custom_quiz' ? (quizData ? (
@@ -802,6 +825,7 @@ export function ParticipantPage() {
         questions={historyQuestions}
         quizData={historyQuizData}
         screenshots={historyScreenshots}
+        submittedFiles={historyFiles}
         questionKeys={historyKeys}
         onLoadDetails={loadHistoryDetails}
       />

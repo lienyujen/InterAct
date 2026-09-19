@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, History, Mic2 } from 'lucide-react'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import { ParticipantAnswerReview, Verdict } from './ParticipantAnswerReview'
-import type { Answer, AudioResponse, ParticipantQuizData, Question, Screenshot } from '../types'
+import { publicFileUrl } from '../lib/fileLinks'
+import type { Answer, AudioResponse, FileAnalysis, ParticipantQuizData, Question, Screenshot } from '../types'
+
+export type SubmittedFile = {
+  id: string
+  name: string
+  mime_type?: string | null
+  storage_path?: string | null
+  analysis_status: string
+  analysis_json: FileAnalysis | null
+}
 
 type Props = {
   activeQuestionId?: string | null
@@ -17,6 +27,8 @@ type Props = {
   // question has closed and so has to be fetched rather than read off the
   // question row.
   questionKeys: Record<string, string[]>
+  // What this student handed in for an upload or a 電寫題, fetched the same way.
+  submittedFiles: Record<string, SubmittedFile[]>
   screenshots: Record<string, Screenshot>
 }
 
@@ -36,6 +48,7 @@ export function ParticipantQuestionHistory({
   questionKeys,
   quizData,
   screenshots,
+  submittedFiles,
 }: Props) {
   const history = useMemo(() => questions.filter((item) => item.id !== activeQuestionId).slice().reverse(), [activeQuestionId, questions])
   const [sectionExpanded, setSectionExpanded] = useState(true)
@@ -91,6 +104,13 @@ export function ParticipantQuestionHistory({
                     {/* 圖上點選 draws the same picture with the taps on it, so
                         showing it here as well would print it twice. */}
                     {screenshot && question.type !== 'hotspot' && <img alt={english ? 'Dispatched question' : '派送題目'} src={screenshot.public_url} />}
+                    {(question.type === 'file_upload' || question.type === 'drawing') && (
+                      <SubmissionReview
+                        drawn={question.type === 'drawing'}
+                        files={submittedFiles[question.id] || []}
+                        locale={locale}
+                      />
+                    )}
                     {loading && <p className="muted"><Clock3 size={16} />{english ? 'Loading your answer…' : '正在載入你的作答…'}</p>}
                     {question.type === 'custom_quiz' ? (quiz?.attempt ? (
                       <div className="participant-history-quiz">
@@ -138,7 +158,7 @@ export function ParticipantQuestionHistory({
                         {audio.analysis_json?.summary && <p>{locale === 'en' ? audio.analysis_json.translations?.en?.summary || audio.analysis_json.summary : audio.analysis_json.summary}</p>}
                         {audio.transcript && <small>{english ? 'Transcript' : '逐字稿'}：{audio.transcript}</small>}
                       </div>
-                    ) : answer ? (
+                    ) : question.type === 'file_upload' || question.type === 'drawing' ? null : answer ? (
                       <ParticipantAnswerReview
                         answer={answer}
                         correctValues={questionKeys[question.id] || []}
@@ -155,5 +175,61 @@ export function ParticipantQuestionHistory({
         </div>
       )}
     </section>
+  )
+}
+
+// An upload and a 電寫題 both answer with a page rather than with words, so
+// this is the review for both: the page itself, and the marking if the teacher
+// has run it. Without it the history would show the placeholder that the
+// answers row carries, which tells a student nothing about what they wrote.
+function SubmissionReview({ drawn, files, locale }: {
+  drawn: boolean
+  files: SubmittedFile[]
+  locale: ParticipantLocale
+}) {
+  const english = locale === 'en'
+  const images = files.filter((file) => file.storage_path)
+  // Pages of one submission share one mark, so it is shown once.
+  const marked = files.find((file) => file.analysis_status === 'success' && file.analysis_json)
+  const result = marked?.analysis_json || null
+
+  if (!files.length) {
+    return <p className="muted">{english ? 'You did not hand anything in for this one.' : '這一題你沒有交作答。'}</p>
+  }
+
+  return (
+    <div className="participant-review">
+      <span className="participant-review-label">{english ? 'What you handed in' : '你送出的作答'}</span>
+      {images.length > 0 ? (
+        <div className="participant-review-tiles">
+          {images.map((file) => (
+            <img alt={file.name} key={file.id} src={publicFileUrl(file.storage_path as string)} />
+          ))}
+        </div>
+      ) : (
+        <p className="muted">{files.map((file) => file.name).join('、')}</p>
+      )}
+      {result ? (
+        <div className="participant-mark">
+          {typeof result.score === 'number' && (
+            <p className="participant-mark-score">{result.score}{english ? ' points' : ' 分'}</p>
+          )}
+          <p>{english ? result.summary_en : result.summary_zh_tw}</p>
+          {(english ? result.improvements_en : result.improvements_zh_tw).length > 0 && (
+            <ul>
+              {(english ? result.improvements_en : result.improvements_zh_tw).map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <p className="muted">
+          {drawn
+            ? english ? 'Your teacher has not marked this yet.' : '老師還沒批改這一張。'
+            : english ? 'Your teacher has not marked this yet.' : '老師還沒批改這一份。'}
+        </p>
+      )}
+    </div>
   )
 }

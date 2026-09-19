@@ -72,7 +72,7 @@ type Input = {
 
 // Questions a student could actually have answered. A screen that was only
 // pushed out asks nothing, so counting it would punish everyone equally.
-const answerableTypes = new Set(['poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'board'])
+const answerableTypes = new Set(['poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'drawing', 'board'])
 
 export function answerableQuestions(questions: Question[]) {
   return questions.filter((question) => answerableTypes.has(question.type))

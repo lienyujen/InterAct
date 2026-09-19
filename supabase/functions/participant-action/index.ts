@@ -483,7 +483,7 @@ Deno.serve(async (req) => {
       const questionId = typeof input.questionId === 'string' ? input.questionId : ''
       if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
       const { data, error } = await supabase.from('file_responses')
-        .select('id, name, analysis_status, analysis_json, submitted_at, analyzed_at')
+        .select('id, name, mime_type, storage_path, analysis_status, analysis_json, submitted_at, analyzed_at')
         .eq('question_id', questionId)
         .eq('session_id', sessionId)
         .eq('participant_id', participantId)
@@ -495,6 +495,8 @@ Deno.serve(async (req) => {
       const responses = (data || []).map((row) => ({
         id: row.id,
         name: row.name,
+        mime_type: row.mime_type,
+        storage_path: row.storage_path,
         analysis_status: row.analysis_status,
         analysis_json: row.analysis_status === 'success' ? row.analysis_json : null,
         submitted_at: row.submitted_at,
@@ -511,7 +513,9 @@ Deno.serve(async (req) => {
       const { data: question, error: questionError } = await supabase.from('questions')
         .select('id, status, type').eq('id', questionId).eq('session_id', sessionId).maybeSingle()
       if (questionError) throw questionError
-      if (!question || question.type !== 'file_upload') return jsonResponse({ message: '找不到檔案上傳題。' }, 404)
+      if (!question || !['file_upload', 'drawing'].includes(question.type)) {
+        return jsonResponse({ message: '找不到檔案上傳題。' }, 404)
+      }
       if (question.status !== 'active') return jsonResponse({ message: '教師已停止收件。' }, 409)
 
       const fileName = typeof input.fileName === 'string' ? input.fileName.trim().slice(0, 200) : ''
@@ -537,6 +541,23 @@ Deno.serve(async (req) => {
         ? input.mimeType.trim().slice(0, 150)
         : 'application/octet-stream'
 
+      // A 電寫題 is one page, and sending a second one means the student
+      // redrew it. Kept side by side they would be marked as two pages of one
+      // answer — the marker reads a multi-file submission as chapters of the
+      // same argument — so the first attempt would be graded alongside the
+      // correction that was meant to replace it. An upload is the opposite: a
+      // second photograph is page two, and both belong.
+      if (question.type === 'drawing') {
+        const { data: earlier } = await supabase.from('file_responses')
+          .select('id, storage_path')
+          .eq('question_id', questionId)
+          .eq('participant_id', participantId)
+        if (earlier?.length) {
+          await supabase.storage.from('interact-files').remove(earlier.map((row) => row.storage_path))
+          await supabase.from('file_responses').delete().in('id', earlier.map((row) => row.id))
+        }
+      }
+
       const { data: saved, error: insertError } = await supabase.from('file_responses').insert({
         session_id: sessionId,
         question_id: questionId,
@@ -560,7 +581,7 @@ Deno.serve(async (req) => {
           question_id: questionId,
           participant_id: participantId,
           participant_name: participant.name,
-          answer_text: '[已上傳檔案]',
+          answer_text: question.type === 'drawing' ? '[已交電寫作答]' : '[已上傳檔案]',
         })
       }
       return jsonResponse({ response: saved })

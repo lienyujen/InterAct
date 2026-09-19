@@ -72,7 +72,7 @@ const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'custom_quiz', label: '自訂測驗' },
   { type: 'poll', label: '投票題' },
   { type: 'multiple_choice', label: '選擇題' },
-  { type: 'true_false', label: '是非題' },
+  { type: 'drawing', label: '電寫題' },
   { type: 'ordering', label: '排序題' },
   { type: 'matching', label: '配對題' },
   { type: 'file_upload', label: '上傳作答' },
@@ -145,8 +145,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
   const finalOptions = useMemo(() => {
-    if (type === 'true_false') return ['是', '否']
-    if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'hotspot'].includes(type)) return []
+    if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'drawing', 'hotspot'].includes(type)) return []
     return options.map((option) => option.trim()).filter(Boolean)
   }, [options, type])
 
@@ -336,6 +335,12 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             學生端會看到這張截圖和上傳按鈕，手機、平板可以直接拍照上傳。停止作答後可逐份批改。
           </p>
         )}
+        {type === 'drawing' && (
+          <p className="muted question-type-hint">
+            學生會拿到這張截圖當底圖，直接在上面寫解題過程或作答，也可以勾掉底圖用白紙自己畫。
+            收回來的是一人一張圖，可以逐張放大看，也可以一次交給 AI 批改全班。
+          </p>
+        )}
         {type === 'custom_quiz' && (
           <CustomQuizFields
             count={quizCount}
@@ -434,6 +439,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
           <label className="question-prompt-field">
             {type === 'pronunciation' ? '指定朗讀內容（選填）'
               : type === 'file_upload' ? '作答說明（選填）'
+              : type === 'drawing' ? '題目（選填，寫了 AI 更知道怎麼改）'
               : type === 'matching' ? '出題方向（選填）'
               : '題目（選填）'}
             <input
@@ -442,6 +448,8 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                 ? '未輸入則以 AI 判讀截圖中的朗讀內容'
                 : type === 'file_upload'
                   ? '例如：請把計算過程寫在紙上拍照上傳'
+                : type === 'drawing'
+                  ? '例如：把因式分解的每一步寫出來（留空則由 AI 判讀截圖上的題目）'
                   : type === 'matching'
                     // Matching is generated on dispatch with nothing shown first, so this
                     // is the only steer the presenter gets — say so.
