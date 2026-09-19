@@ -52,7 +52,39 @@ const MANAGEMENT = [
   '決策分析', '商業模式', '供應鏈', '顧客關係管理', '創新管理',
 ]
 
-export const BUILT_IN_TERMS = [...AI, ...LINGUISTICS, ...CHINESE_TEACHING, ...PEDAGOGY, ...MANAGEMENT]
+// What students actually send. These are the shortest messages in the room and
+// the ones most often cut in half: 還不行 came back as 還不 + 行, 沒問題 as 沒 +
+// 問題, 等一下 as 等 + 一下. Measured across this list, ICU split 37 of 57.
+const CLASSROOM_REPLIES = [
+  // 懂或不懂
+  '懂了', '不懂', '看不懂', '聽不懂', '不太懂', '有點懂', '大概懂', '完全不懂',
+  '了解', '瞭解', '知道', '不知道', '明白', '清楚', '不清楚', '有概念了',
+  // 行或不行
+  '可以', '不可以', '行', '不行', '還不行', '沒問題', '有問題', '應該可以', '好像不行',
+  // 節奏
+  '太快了', '太慢了', '慢一點', '快一點', '等一下', '再說一次', '請再說一次', '重來一次',
+  '跟上了', '跟不上', '跟得上', '還在跟',
+  // 設備與環境
+  '太小聲', '太大聲', '沒聲音', '沒畫面', '聽不到', '看不到', '畫面卡住', '沒反應',
+  '進不去', '出不來', '當機了', '卡住了', '網路不穩', '連不上', '重新整理',
+  // 進度
+  '完成了', '做好了', '交出去了', '還在做', '快好了', '需要幫忙', '幫我看一下',
+  // 意見
+  '同意', '不同意', '我覺得', '我認為', '有道理', '沒想過', '第一次聽到',
+  '很有趣', '很實用', '想試試看', '有點難', '難度剛好', '太簡單了',
+  // 客套
+  '謝謝老師', '辛苦了', '受教了', '收到', '好的',
+]
+
+// Names and titles. A surname is exactly where a general dictionary goes wrong:
+// 連 is also a common verb, so 連老師 came back as 連 + 老師 and the presenter's
+// own name never appeared in a cloud full of messages addressed to them.
+const PEOPLE = ['連老師', '連總', '連教授', '連育仁']
+
+export const BUILT_IN_TERMS = [
+  ...AI, ...LINGUISTICS, ...CHINESE_TEACHING, ...PEDAGOGY, ...MANAGEMENT,
+  ...CLASSROOM_REPLIES, ...PEOPLE,
+]
 
 const CUSTOM_KEY = 'interact:word-cloud-terms'
 

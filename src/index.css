@@ -3440,11 +3440,14 @@ h2 {
   font-size: 26px;
 }
 
+/* One row. As a grid these stacked, and every extra control pushed the cloud
+   further down the screen. */
 .word-cloud-tools {
-  align-items: flex-end;
-  display: grid;
-  gap: 8px;
-  justify-items: end;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .segmented-control {
@@ -5844,18 +5847,22 @@ h2 {
 /* 彈幕時間軸。The bars are how many messages arrived when, so the shape of the
    class is visible and an earlier wave can be grabbed without remembering the
    clock. Dragging either handle trims; dragging the middle slides the window. */
+/* The handles stand proud of the track by design, so the room above and below
+   has to clear them or they sit on the clock labels. */
 .danmaku-timeline {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 12px 24px 0;
+  gap: 14px;
+  margin: 16px 24px 0;
 }
 
+/* A third of what it was. The shape of the class is still legible at this
+   height and the cloud gets the space back. */
 .danmaku-timeline-track {
   background: rgb(255 255 255 / 4%);
-  border-radius: 10px;
+  border-radius: 6px;
   cursor: default;
-  height: 56px;
+  height: 20px;
   position: relative;
   touch-action: none;
 }
@@ -5865,7 +5872,7 @@ h2 {
   display: flex;
   gap: 1px;
   height: 100%;
-  padding: 6px 8px;
+  padding: 3px 6px;
   position: absolute;
   inset: 0;
 }
@@ -5881,7 +5888,7 @@ h2 {
    stays visible as somewhere to drag to. */
 .danmaku-timeline-shade {
   background: rgb(10 14 28 / 68%);
-  border-radius: 10px;
+  border-radius: 6px;
   bottom: 0;
   position: absolute;
   top: 0;
@@ -5889,7 +5896,7 @@ h2 {
 
 .danmaku-timeline-window {
   border: 1px solid rgb(150 185 255 / 70%);
-  border-radius: 8px;
+  border-radius: 5px;
   bottom: 0;
   cursor: grab;
   position: absolute;
@@ -5903,14 +5910,14 @@ h2 {
 .danmaku-timeline-handle {
   background: #9fc0ff;
   border: 0;
-  border-radius: 6px;
-  bottom: -4px;
+  border-radius: 5px;
+  bottom: -7px;
   cursor: ew-resize;
   padding: 0;
   position: absolute;
-  top: -4px;
+  top: -7px;
   transform: translateX(-50%);
-  width: 12px;
+  width: 11px;
 }
 
 .danmaku-timeline-handle:hover,
@@ -5921,8 +5928,8 @@ h2 {
 /* A finger needs more than twelve pixels, and the classroom display is a very
    large coarse pointer. */
 @media (any-pointer: coarse) {
-  .danmaku-timeline-track { height: 72px; }
-  .danmaku-timeline-handle { width: 22px; }
+  .danmaku-timeline-track { height: 26px; }
+  .danmaku-timeline-handle { bottom: -11px; top: -11px; width: 22px; }
 }
 
 .danmaku-timeline-scale {

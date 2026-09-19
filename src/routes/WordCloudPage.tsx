@@ -170,13 +170,6 @@ export function WordCloudPage() {
         </div>
         <div className="word-cloud-tools">
           <span><MessageSquareText size={16} />{visibleMessages.length} 則彈幕</span>
-          <button
-            className="ghost-button word-cloud-terms-toggle"
-            type="button"
-            onClick={() => { setTermText(customTerms.join('\n')); setTermsOpen((open) => !open) }}
-          >
-            自訂詞彙
-          </button>
           <div className="segmented-control" aria-label="文字雲統計範圍">
             <button
               aria-pressed={!pinned}
@@ -195,6 +188,13 @@ export function WordCloudPage() {
               整個場次
             </button>
           </div>
+          <button
+            className="ghost-button word-cloud-terms-toggle"
+            type="button"
+            onClick={() => { setTermText(customTerms.join('\n')); setTermsOpen((open) => !open) }}
+          >
+            自訂詞彙
+          </button>
         </div>
       </header>
       {times.length > 0 && (

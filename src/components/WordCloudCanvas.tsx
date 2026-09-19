@@ -50,13 +50,10 @@ function wordCounts(messages: Message[], index: TermIndex) {
     // two things a student wrote with a comma between them, not the term
     // 教學設計, and the same goes for two English words either side of a space.
     let run: string[] = []
+    const words: string[] = []
     const tally = () => {
       if (!run.length) return
-      for (const merged of mergeTerms(run, index)) {
-        const word = merged.trim().toLocaleLowerCase('zh-TW')
-        if (!word || stopWords.has(word) || (/^[a-z\d]$/i.test(word))) continue
-        counts.set(word, (counts.get(word) || 0) + 1)
-      }
+      words.push(...mergeTerms(run, index))
       run = []
     }
     for (const segment of segmenter.segment(message.content)) {
@@ -64,6 +61,17 @@ function wordCounts(messages: Message[], index: TermIndex) {
       else tally()
     }
     tally()
+
+    // A message that is one word is that word — 可以 on its own is a student
+    // answering, not the filler it is in the middle of a sentence, so the stop
+    // list does not get to throw it away.
+    const wholeMessage = words.length === 1
+    for (const merged of words) {
+      const word = merged.trim().toLocaleLowerCase('zh-TW')
+      if (!word || (/^[a-z\d]$/i.test(word))) continue
+      if (!wholeMessage && stopWords.has(word)) continue
+      counts.set(word, (counts.get(word) || 0) + 1)
+    }
   }
   return [...counts.entries()]
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-TW'))
