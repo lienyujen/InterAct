@@ -12,6 +12,7 @@ import { PresenterNewPage } from './routes/PresenterNewPage'
 import { PresenterPage } from './routes/PresenterPage'
 import { SessionReportPage } from './routes/SessionReportPage'
 import { BoardReviewPage } from './routes/BoardReviewPage'
+import { SubmissionReviewPage } from './routes/SubmissionReviewPage'
 import { WindowErrorBoundary } from './components/WindowErrorBoundary'
 import { WordCloudPage } from './routes/WordCloudPage'
 import { BackendSetup } from './components/BackendSetup'
@@ -26,6 +27,7 @@ function AppRoutes() {
   const isCustomQuizReview = location.pathname.startsWith('/custom-quiz-review/')
   const isHotspotReview = location.pathname.startsWith('/hotspot-review/')
   const isBoardReview = location.pathname.startsWith('/board-review/')
+  const isSubmissionReview = location.pathname.startsWith('/submission-review/')
   const isDesktopPresenter = isDesktop && location.pathname.startsWith('/presenter/') && location.pathname !== '/presenter/new'
   const isSessionReport = location.pathname.startsWith('/session-report/')
   const isWordCloud = location.pathname.startsWith('/word-cloud/')
@@ -44,7 +46,7 @@ function AppRoutes() {
 
   return (
     <div className={isDesktop ? 'desktop-shell' : undefined}>
-      {!isDesktopOverlay && !isDesktopPresenter && !isCustomQuizReview && !isHotspotReview && !isBoardReview && !isRoster && (
+      {!isDesktopOverlay && !isDesktopPresenter && !isCustomQuizReview && !isHotspotReview && !isBoardReview && !isSubmissionReview && !isRoster && (
         <DesktopWindowChrome
           confirmClose={!isWordCloud}
           onBack={isSessionReport ? returnFromSessionReport : undefined}
@@ -58,6 +60,7 @@ function AppRoutes() {
         <Route path="/custom-quiz-review/:sessionId/:questionId" element={isDesktop ? <WindowErrorBoundary><CustomQuizReviewPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
         <Route path="/hotspot-review/:sessionId/:questionId" element={isDesktop ? <WindowErrorBoundary><HotspotReviewPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
         <Route path="/board-review/:sessionId/:questionId" element={isDesktop ? <WindowErrorBoundary><BoardReviewPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
+        <Route path="/submission-review/:sessionId/:questionId" element={isDesktop ? <WindowErrorBoundary><SubmissionReviewPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
         <Route path="/session-report/:sessionId" element={isDesktop ? <SessionReportPage /> : <Navigate to="/" replace />} />
         <Route path="/roster/:sessionId" element={isDesktop ? <RosterPage /> : <Navigate to="/" replace />} />
         <Route path="/word-cloud/:sessionId" element={isDesktop ? <WordCloudPage /> : <Navigate to="/" replace />} />

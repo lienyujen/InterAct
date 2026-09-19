@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   openCustomQuizReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-custom-quiz-review', sessionId, questionId),
   openHotspotReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-hotspot-review', sessionId, questionId),
   openBoardReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-board-review', sessionId, questionId),
+  openSubmissionReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-submission-review', sessionId, questionId),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close'),
   listCaptureSources: () => ipcRenderer.invoke('capture:list'),

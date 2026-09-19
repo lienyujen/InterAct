@@ -4038,9 +4038,6 @@ h2 {
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-}
-
-.file-list-meta strong {
   overflow-wrap: anywhere;
 }
 
@@ -4058,8 +4055,11 @@ h2 {
   gap: 10px;
 }
 
+/* A real basis, so when the buttons no longer fit beside the name the row
+   wraps and gives them their own line — rather than the name shrinking until
+   it reads one character tall. */
 .file-response-row .file-list-meta {
-  flex: 1;
+  flex: 1 1 180px;
 }
 
 .file-response-row .file-list-actions {
@@ -4742,6 +4742,41 @@ h2 {
 
 .upload-answer-list {
   margin-top: 10px;
+}
+
+/* The results panel is a narrow column beside the class list, so a marked
+   submission is laid out to survive it: the page thumbnail and who wrote it on
+   one line, the verdict under the name, and the buttons on their own line once
+   they stop fitting. */
+.upload-answer-list .file-response-row {
+  align-items: flex-start;
+  column-gap: 12px;
+  row-gap: 10px;
+}
+
+.upload-answer-list .file-list-meta {
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.upload-answer-list .file-list-meta strong {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.upload-answer-list .file-list-meta .muted {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* Right-aligned so that on the line of their own they sit under the buttons
+   they replaced rather than drifting back under the thumbnail. */
+.upload-answer-list .file-list-actions {
+  margin-left: auto;
+}
+
+.upload-answer-list .file-list-actions > * {
+  white-space: nowrap;
 }
 
 .question-type-hint {
@@ -5536,6 +5571,159 @@ h2 {
 .hotspot-review-window .hotspot-review-stage .hotspot-image {
   max-height: calc(100vh - 160px);
 }
+/* 電寫題 / 上傳作答 in its own window: the page big enough to read the
+   handwriting, the marking beside it, and every submission along the bottom so
+   a class of thirty is not thirty presses of an arrow away. */
+.submission-review-window {
+  background: var(--surface);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.submission-review-window > header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 14px 20px;
+  -webkit-app-region: drag;
+}
+
+.submission-review-window > header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.submission-review-window > header .show-answers-toggle,
+.submission-review-window > header .icon-button {
+  -webkit-app-region: no-drag;
+}
+
+.submission-review-window > .muted,
+.submission-review-window > .error {
+  margin: 16px 20px 0;
+}
+
+.submission-review-body {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  min-height: 0;
+  padding: 16px 20px;
+}
+
+.submission-review-stage {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+}
+
+.submission-review-stage img {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  max-height: 100%;
+  max-width: 100%;
+  min-height: 0;
+  min-width: 0;
+  object-fit: contain;
+}
+
+.submission-review-stage .icon-button {
+  flex: none;
+}
+
+.submission-review-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.submission-review-side h2 {
+  font-size: 0.85rem;
+  margin: 8px 0 0;
+}
+
+.submission-review-side p {
+  font-size: 0.88rem;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.submission-review-side ul {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.submission-review-who {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.submission-review-who strong {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.submission-review-count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-left: auto;
+}
+
+.submission-review-verdict {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.submission-review-strip {
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 20px;
+}
+
+.submission-review-chip {
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  flex: none;
+  padding: 0;
+}
+
+.submission-review-chip img {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: block;
+  height: 54px;
+  object-fit: contain;
+  object-position: top left;
+  width: 72px;
+}
+
+.submission-review-chip.is-current {
+  border-color: var(--primary);
+}
+
 /* 已上傳 N 人 on one side, 下載全部 on the other. */
 .upload-summary-row {
   align-items: center;
@@ -6792,6 +6980,23 @@ h2 {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   max-height: 72px;
+}
+
+/* The page a student handed in, at the width they have. A 電寫題 answer is
+   their own handwriting — shrunk to a tile it is a grey smudge, and the whole
+   point of showing it back is that they can read what they wrote. */
+.participant-review-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+
+.participant-review-pages img {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: block;
+  width: 100%;
 }
 
 /* 配對題: the prompt and what the student put against it, side by side. A

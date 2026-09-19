@@ -453,6 +453,10 @@ function UploadResults({
                     className="file-response-thumb-button"
                     type="button"
                     onClick={() => {
+                      if (window.interactDesktop?.openSubmissionReview) {
+                        void window.interactDesktop.openSubmissionReview(question.session_id, question.id)
+                        return
+                      }
                       const at = plates.findIndex((plate) => plate.url === preview.file_url)
                       // -1 would open the viewer on nothing; leaving it closed
                       // is at least honest about having nothing to show.
@@ -1077,7 +1081,20 @@ export function QuestionResult(props: Props) {
         <section className="panel result-panel upload-results-panel">
           <div className="panel-heading">
             <h2>{question.type === 'drawing' ? <PencilLine size={20} /> : <FileUp size={20} />}{question.title}</h2>
-            <QuestionStatusActions {...props} question={question} />
+            <span className="hotspot-heading-actions">
+              {window.interactDesktop?.openSubmissionReview && props.fileResponses.some((item) => item.question_id === question.id) && (
+                <button
+                  aria-label="放大檢視學生作答"
+                  className="icon-button"
+                  title="放大檢視學生作答"
+                  type="button"
+                  onClick={() => void window.interactDesktop?.openSubmissionReview(question.session_id, question.id)}
+                >
+                  <Maximize2 size={20} />
+                </button>
+              )}
+              <QuestionStatusActions {...props} question={question} />
+            </span>
           </div>
           {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
           <UploadResults

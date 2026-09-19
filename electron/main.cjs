@@ -777,6 +777,12 @@ ipcMain.handle('window:open-board-review', (_event, sessionId, questionId) => {
   createQuestionDetailWindow(`/board-review/${sessionId}/${questionId}`, 'InterAct 討論板')
 })
 
+ipcMain.handle('window:open-submission-review', (_event, sessionId, questionId) => {
+  requireUuid(sessionId)
+  requireUuid(questionId, 'question')
+  createQuestionDetailWindow(`/submission-review/${sessionId}/${questionId}`, 'InterAct 作答檢視')
+})
+
 ipcMain.handle('capture:list', listCaptureSources)
 
 ipcMain.handle('capture:start-selection', async () => {
