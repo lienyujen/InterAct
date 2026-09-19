@@ -1,4 +1,5 @@
-import { Download, Link2, Mic, Paperclip, Square, Trash2, Type as TypeIcon, Image as ImageIcon } from 'lucide-react'
+import { Download, Link2, Mic, Paperclip, PenTool, Square, Trash2, Type as TypeIcon, Image as ImageIcon } from 'lucide-react'
+import { BoardDrawing } from './BoardDrawing'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardFileName, isImageCard } from '../lib/boardCards'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
@@ -44,6 +45,7 @@ const kindIcons: Record<BoardPostKind, typeof TypeIcon> = {
   image: ImageIcon,
   file: Paperclip,
   audio: Mic,
+  drawing: PenTool,
 }
 
 export function ParticipantBoard({ locale, locked, participant, participantToken, question, session, imageUrl }: Props) {
@@ -290,6 +292,7 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
             {formats.map((kind) => {
               const Icon = kindIcons[kind]
               const labels: Record<BoardPostKind, string> = {
+                drawing: participantText(locale, 'boardDrawing'),
                 text: participantText(locale, 'boardWrite'),
                 link: participantText(locale, 'boardLink'),
                 image: participantText(locale, 'boardImage'),
@@ -366,6 +369,25 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
             </div>
           )}
 
+          {composing === 'drawing' && (
+            <BoardDrawing
+              backgroundUrl={question.share_screenshot ? imageUrl : null}
+              busy={busy}
+              locale={locale}
+              onSubmit={async (file) => {
+                setBusy(true)
+                setError('')
+                try {
+                  await upload('drawing', file)
+                  setComposing(null)
+                } catch {
+                  setError(full ? participantText(locale, 'boardFull') : participantText(locale, 'boardOpenFailed'))
+                } finally {
+                  setBusy(false)
+                }
+              }}
+            />
+          )}
           {composing === 'audio' && (
             <BoardRecorder
               busy={busy}

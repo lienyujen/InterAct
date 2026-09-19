@@ -9,7 +9,9 @@ import type { BoardPost } from '../types'
 // opens. What decides this is what the file actually is, not which button was
 // pressed to send it.
 export function isImageCard(post: Pick<BoardPost, 'kind' | 'mime_type'>) {
-  if (post.kind === 'image') return true
+  // A drawing is a picture the student made rather than one they had, but on
+  // the wall it is a picture like any other.
+  if (post.kind === 'image' || post.kind === 'drawing') return true
   return post.kind === 'file' && Boolean(post.mime_type?.toLowerCase().startsWith('image/'))
 }
 

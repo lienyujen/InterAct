@@ -375,7 +375,7 @@ Deno.serve(async (req) => {
         if (question.status !== 'active') return jsonResponse({ message: '討論板已經結束。' }, 409)
 
         const kind = typeof input.kind === 'string' ? input.kind : ''
-        if (!['image', 'file', 'audio'].includes(kind)) return jsonResponse({ message: '這個格式不需要上傳。' }, 400)
+        if (!['image', 'file', 'audio', 'drawing'].includes(kind)) return jsonResponse({ message: '這個格式不需要上傳。' }, 400)
         if (!(question.board_formats as string[] || []).includes(kind)) {
           return jsonResponse({ message: '這個討論板沒有開放這種回覆方式。' }, 409)
         }

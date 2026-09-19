@@ -63,6 +63,7 @@ const boardFormatChoices: Array<{ kind: BoardPostKind; label: string; hint: stri
   { kind: 'image', label: '圖片', hint: '上傳圖片，行動裝置自動開啟相機' },
   { kind: 'file', label: '檔案', hint: '上傳檔案' },
   { kind: 'audio', label: '錄音', hint: '直接錄' },
+  { kind: 'drawing', label: '電繪', hint: '在截圖上畫或重畫' },
 ]
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
@@ -373,7 +374,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                 ticked is the plain 派送畫面 it has always been, which is why
                 there is no separate type to choose on the way in. */}
             <fieldset className="board-formats">
-              <legend>開放答題方式（不勾就是單純派送）</legend>
+              <legend>開放答題方式（不選就是單純派送）</legend>
               <div className="board-format-grid">
                 {boardFormatChoices.map((choice) => {
                   const on = boardFormats.includes(choice.kind)

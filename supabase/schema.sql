@@ -311,7 +311,7 @@ create table if not exists public.board_posts (
   question_id uuid not null references public.questions(id) on delete cascade,
   participant_id uuid not null references public.participants(id) on delete cascade,
   participant_name text not null,
-  kind text not null check (kind in ('text', 'link', 'image', 'file', 'audio')),
+  kind text not null check (kind in ('text', 'link', 'image', 'file', 'audio', 'drawing')),
   -- The words on the card: the note itself, or the caption under a photograph.
   body text null,
   url text null,
@@ -339,6 +339,11 @@ create table if not exists public.board_posts (
   pinned_at timestamptz null,
   created_at timestamptz not null default now()
 );
+
+alter table public.board_posts drop constraint if exists board_posts_kind_check;
+alter table public.board_posts
+  add constraint board_posts_kind_check
+  check (kind in ('text', 'link', 'image', 'file', 'audio', 'drawing'));
 
 create index if not exists board_posts_question_idx on public.board_posts (question_id, created_at);
 create index if not exists board_posts_participant_idx on public.board_posts (question_id, participant_id);

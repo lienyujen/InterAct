@@ -638,7 +638,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       { header: '狀態', key: 'state', width: 14 },
     ]
     const kindLabels: Record<string, string> = {
-      text: '文字', link: '連結', image: '圖片', file: '檔案', audio: '錄音',
+      text: '文字', link: '連結', image: '圖片', file: '檔案', audio: '錄音', drawing: '電繪',
     }
     const authorOf = new Map(data.boardPosts.map((post) => [post.id, post.participant_name]))
     const ordered = [...data.boardPosts].sort((left, right) => (

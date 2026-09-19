@@ -6470,3 +6470,101 @@ h2 {
   padding: 12px 14px;
   white-space: pre-wrap;
 }
+
+/* ---- the drawing board ---- */
+
+.board-drawing {
+  gap: 10px;
+}
+
+.board-drawing-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.board-drawing-group {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+
+.board-drawing-group button {
+  border-radius: 999px;
+  min-height: 0;
+  padding: 6px 12px;
+}
+
+.board-drawing-group .is-selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.board-swatch {
+  border: 2px solid transparent;
+  border-radius: 50%;
+  height: 26px;
+  min-height: 0;
+  padding: 0;
+  width: 26px;
+}
+
+.board-swatch.is-selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--surface) inset;
+}
+
+.board-width {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: flex;
+  height: 30px;
+  justify-content: center;
+  min-height: 0;
+  padding: 0;
+  width: 30px;
+}
+
+.board-width span {
+  background: var(--text);
+  border-radius: 50%;
+  display: block;
+}
+
+.board-width.is-selected {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.board-drawing-surface {
+  position: relative;
+}
+
+/* touch-action is the whole reason a finger can draw here rather than
+   scrolling the page out from under the stroke. */
+.board-drawing-surface canvas {
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: crosshair;
+  display: block;
+  touch-action: none;
+  width: 100%;
+}
+
+.board-drawing-text-input {
+  position: absolute;
+  transform: translate(0, -4px);
+}
+
+.board-drawing-text-input input {
+  font-size: 16px;
+  min-width: 160px;
+}

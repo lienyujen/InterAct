@@ -1,7 +1,7 @@
 // Shared bits of the 討論板, used by both the presenter's side and the class's.
 
 // Every kind of card a student can put up.
-export const BOARD_KINDS = ['text', 'link', 'image', 'file', 'audio'] as const
+export const BOARD_KINDS = ['text', 'link', 'image', 'file', 'audio', 'drawing'] as const
 
 // Board uploads all go to interact-files, including the recordings.
 //

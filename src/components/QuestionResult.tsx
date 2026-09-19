@@ -21,7 +21,7 @@ import { joinSequence } from '../lib/ordering'
 import type { Answer, AudioResponse, BoardPostKind, FileResponse, Question, QuestionAnalysis } from '../types'
 
 const BOARD_FORMAT_LABELS: Array<[BoardPostKind, string]> = [
-  ['text', '文字'], ['link', '連結'], ['image', '圖片'], ['file', '檔案'], ['audio', '錄音'],
+  ['text', '文字'], ['link', '連結'], ['image', '圖片'], ['file', '檔案'], ['audio', '錄音'], ['drawing', '電繪'],
 ]
 
 type Props = {
