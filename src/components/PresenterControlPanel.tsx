@@ -97,7 +97,7 @@ export function PresenterControlPanel({
           {onCaptureScreen && (
             <button className="control-action share-action" type="button" onClick={onCaptureScreen} disabled={busy}>
               <span className="control-action-icon"><MonitorUp size={18} /></span>
-              截圖派題
+              派題討論
             </button>
           )}
           <button className="control-action share-action" type="button" onClick={onOpenTextDispatch} disabled={busy}>
