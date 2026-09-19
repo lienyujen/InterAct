@@ -58,7 +58,12 @@ type Props = {
 
 type AnalysisProps = Pick<Props,
   'question' | 'answers' | 'analysis' | 'analysisBusy' | 'analysisError' | 'onAnalyze' | 'onSetCorrectAnswer'
-  | 'fileResponses' | 'gradeProgress' | 'audioResponses'>
+  | 'fileResponses' | 'gradeProgress' | 'audioResponses'> & {
+  // How many cards are on the board. Cards live in their own table and never
+  // reach `answers`, so without this the panel would read a busy wall as empty
+  // and never let the presenter press the button.
+  boardCardCount?: number
+}
 
 function ItemList({ items }: { items: string[] }) {
   if (!items.length) return <p className="muted">目前沒有可列出的項目。</p>
@@ -122,9 +127,11 @@ function QuestionStatusActions({
 
 function AiAnalysisPanel({
   question, answers, analysis, analysisBusy, analysisError, fileResponses, audioResponses, gradeProgress, onAnalyze, onSetCorrectAnswer,
+  boardCardCount = 0,
 }: AnalysisProps) {
   if (!question || question.type === 'send_screen') return null
 
+  const isBoard = question.type === 'board'
   const isUpload = question.type === 'file_upload'
   // A spoken answer is already assessed one student at a time; what this adds
   // is the reading across the room that no individual evaluation can give.
@@ -139,8 +146,10 @@ function AiAnalysisPanel({
       .filter((response) => ['pending', 'failed'].includes(response.analysis_status))
       .map((response) => response.participant_id)).size
     : 0
-  const canAnalyze = question.status !== 'active'
-    && (isUpload ? fileResponses.length > 0 : isSpoken ? assessed > 0 : answers.length > 0)
+  const canAnalyze = isBoard
+    ? boardCardCount > 0
+    : question.status !== 'active'
+      && (isUpload ? fileResponses.length > 0 : isSpoken ? assessed > 0 : answers.length > 0)
   const suggestion = analysis?.question_understanding.suggested_correct_answer
   const canApplySuggestion = Boolean(
     suggestion
@@ -166,7 +175,9 @@ function AiAnalysisPanel({
       </div>
       {!canAnalyze && (
         <p className="muted">
-          {isSpoken
+          {isBoard
+            ? '討論板上還沒有內容可以分析。'
+            : isSpoken
             ? '停止作答、且至少有一份錄音完成 AI 評測後，才能綜整全班。'
             : '停止作答且至少收到一份答案後，即可手動執行分析。'}
         </p>
@@ -936,7 +947,7 @@ export function QuestionResult(props: Props) {
     )
   }
 
-  if (question.type === 'board') return <BoardResults question={question} />
+  if (question.type === 'board') return <BoardResults {...props} question={question} />
 
   if (question.type === 'short_answer') {
     return (
@@ -1173,7 +1184,8 @@ export function QuestionResult(props: Props) {
 // The wall as it appears beside the class list. Its own component so the
 // polling and the reveal state are hooks on the branch that uses them rather
 // than on the dispatcher, which returns early for a dozen other types.
-function BoardResults({ question }: { question: Question }) {
+function BoardResults(props: Props & { question: Question }) {
+  const { question } = props
   const [snapshot, setSnapshot] = useState<BoardSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -1231,6 +1243,7 @@ function BoardResults({ question }: { question: Question }) {
   }
 
   return (
+    <>
     <section className="panel result-panel board-results-panel">
       <div className="panel-heading">
         <h2>{question.title}</h2>
@@ -1320,6 +1333,13 @@ function BoardResults({ question }: { question: Question }) {
         reactions={snapshot?.reactions || []}
         onSetState={(postId, patch) => void run({ action: 'set_board_post_state', postId, ...patch })}
       />
-    </section>
+      </section>
+      {/* Counted from what the class can actually see: a card its author took
+          back, or one taken down, is not part of the discussion to analyse. */}
+      <AiAnalysisPanel
+        {...props}
+        boardCardCount={cards.filter((post) => !post.deleted_at && !post.hidden_at).length}
+      />
+    </>
   )
 }
