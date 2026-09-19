@@ -60,8 +60,8 @@ export type DispatchRequest = {
 const boardFormatChoices: Array<{ kind: BoardPostKind; label: string; hint: string }> = [
   { kind: 'text', label: '文字', hint: '打字回應' },
   { kind: 'link', label: '連結', hint: '貼網址' },
-  { kind: 'image', label: '圖片', hint: '拍照或選圖' },
-  { kind: 'file', label: '檔案', hint: '任何檔案' },
+  { kind: 'image', label: '圖片', hint: '上傳圖片，行動裝置自動開啟相機' },
+  { kind: 'file', label: '檔案', hint: '上傳檔案' },
   { kind: 'audio', label: '錄音', hint: '直接錄' },
 ]
 

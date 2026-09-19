@@ -743,10 +743,11 @@ export function ParticipantPage() {
       {/* Sits between the current question and the danmaku field: the board is
           somewhere the class goes back to, not something they are being asked
           right now, so it stays put while questions come and go above it. */}
-      {boardQuestion && participant && participantToken && session && !onBreak && (
+      {boardQuestion && participant && participantToken && session && (
         <ParticipantBoard
           imageUrl={boardImageUrl}
           locale={locale}
+          locked={onBreak}
           participant={participant}
           participantToken={participantToken}
           question={boardQuestion}

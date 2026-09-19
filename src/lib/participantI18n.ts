@@ -3,7 +3,7 @@ export type ParticipantLocale = 'zh-TW' | 'en'
 const messages = {
   'zh-TW': {
     language: '語言', chinese: '繁體中文', english: 'English', courseEnded: '課程已結束', classDismissed: '下課啦！', onBreak: '下課中', teacherAway: '老師目前不在線上，回來後這裡會自動恢復。',
-    board: '討論板', boardWrite: '寫一則', boardLink: '貼連結', boardImage: '圖片', boardFile: '檔案', boardAudio: '錄音',
+    board: '討論板', boardWrite: '文字回應', boardLink: '貼連結', boardImage: '圖片', boardFile: '檔案', boardAudio: '錄音',
     boardPlaceholder: '寫下你的想法', boardLinkPlaceholder: 'https://', boardPost: '貼上去', boardPosting: '張貼中…',
     boardYoursOnly: '這一題自行作答，只有你看得到自己貼的。', boardRevealed: '全班的討論',
     boardUsed: '你已經貼了', boardOf: '，可貼', boardUnlimited: '則數不限', boardWithdraw: '刪除',
@@ -12,6 +12,7 @@ const messages = {
     boardFull: '你已經貼滿了。刪除一則就能再貼一則。', boardReply: '回覆', boardReplyPlaceholder: '回覆這則…',
     boardRecord: '開始錄音', boardStop: '停止', boardRecording: '錄音中', boardUploading: '上傳中…',
     boardAnonymous: '匿名', boardOpenFailed: '貼文失敗，請再試一次。',
+    boardPausedWhileAway: '老師不在線上，現在只能看，不能貼。',
     thankYou: '謝謝你的參與。', aiSummary: 'AI 課程總結', todayHighlights: '今天的課程重點', lessonKeyPoints: '課堂重點整理',
     learningReview: '學習整理', strengths: '本次掌握的重點', reviewMore: '可以再複習', sharedResources: '課堂文字與連結',
     attendee: '與會者', welcome: '歡迎加入', session: 'InterAct 場次', sendFeedback: '送出問題或回饋',
@@ -37,7 +38,7 @@ const messages = {
   },
   en: {
     language: 'Language', chinese: '繁體中文', english: 'English', courseEnded: 'Class ended', classDismissed: 'That’s a wrap!', onBreak: 'Class is on a break', teacherAway: 'Your teacher is offline right now. This page comes back by itself when they return.',
-    board: 'Discussion board', boardWrite: 'Write one', boardLink: 'Add a link', boardImage: 'Image', boardFile: 'File', boardAudio: 'Record',
+    board: 'Discussion board', boardWrite: 'Text', boardLink: 'Add a link', boardImage: 'Image', boardFile: 'File', boardAudio: 'Record',
     boardPlaceholder: 'Write what you think', boardLinkPlaceholder: 'https://', boardPost: 'Post', boardPosting: 'Posting…',
     boardYoursOnly: 'This one is on your own — only you can see your cards.', boardRevealed: 'The whole class',
     boardUsed: 'You have posted ', boardOf: ' of ', boardUnlimited: 'no limit', boardWithdraw: 'Delete',
@@ -46,6 +47,7 @@ const messages = {
     boardFull: 'You have used all your cards. Delete one to post again.', boardReply: 'Reply', boardReplyPlaceholder: 'Reply to this…',
     boardRecord: 'Record', boardStop: 'Stop', boardRecording: 'Recording', boardUploading: 'Uploading…',
     boardAnonymous: 'Anonymous', boardOpenFailed: 'Could not post. Please try again.',
+    boardPausedWhileAway: 'Your teacher is offline. You can read the board but not post.',
     thankYou: 'Thank you for participating.', aiSummary: 'AI class summary', todayHighlights: 'Today’s class highlights', lessonKeyPoints: 'Key takeaways',
     learningReview: 'Learning review', strengths: 'What the class understood', reviewMore: 'Worth reviewing', sharedResources: 'Class text and links',
     attendee: 'Participant', welcome: ', welcome to ', session: 'InterAct session', sendFeedback: 'Send a question or feedback',

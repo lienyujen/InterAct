@@ -1,4 +1,5 @@
 import { Download, Eye, EyeOff, Pin, PinOff } from 'lucide-react'
+import { boardFileName, isImageCard } from '../lib/boardCards'
 import { repliesByParent, sortedBoardPosts } from '../lib/boardData'
 import type { BoardPost, BoardReaction } from '../types'
 
@@ -47,14 +48,14 @@ export function BoardWall({ anonymous, busy, posts, reactions, onSetState }: Pro
             {card.kind === 'link' && card.url && (
               <a className="board-wall-link" href={card.url} rel="noreferrer noopener" target="_blank">{card.url}</a>
             )}
-            {card.kind === 'image' && card.public_url && (
+            {isImageCard(card) && card.public_url && (
               <a href={card.public_url} rel="noreferrer noopener" target="_blank">
                 <img alt="" className="board-wall-image" src={card.public_url} />
               </a>
             )}
             {card.kind === 'file' && card.public_url && (
               <a className="board-wall-file" download href={card.public_url}>
-                <Download size={16} />{card.storage_path?.split('/').pop()}
+                <Download size={16} />{boardFileName(card)}
               </a>
             )}
             {card.kind === 'audio' && card.public_url && <audio controls preload="none" src={card.public_url} />}

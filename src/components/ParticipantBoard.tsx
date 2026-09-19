@@ -1,11 +1,16 @@
 import { Download, Link2, Mic, Paperclip, Square, Trash2, Type as TypeIcon, Image as ImageIcon } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { boardFileName, isImageCard } from '../lib/boardCards'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import type { BoardPost, BoardPostKind, BoardReaction, Participant, Question, Session } from '../types'
 
 type Props = {
+  // The teacher is not online. The wall stays readable — taking it away would
+  // remove the one thing the class can still usefully do — but nothing new is
+  // accepted while there is nobody watching what arrives.
+  locked: boolean
   locale: ParticipantLocale
   participant: Participant
   participantToken: string
@@ -41,7 +46,7 @@ const kindIcons: Record<BoardPostKind, typeof TypeIcon> = {
   audio: Mic,
 }
 
-export function ParticipantBoard({ locale, participant, participantToken, question, session, imageUrl }: Props) {
+export function ParticipantBoard({ locale, locked, participant, participantToken, question, session, imageUrl }: Props) {
   const [mine, setMine] = useState<BoardPost[]>([])
   const [wall, setWall] = useState<BoardPost[]>([])
   const [reactions, setReactions] = useState<BoardReaction[]>([])
@@ -53,12 +58,14 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
   const [replyDraft, setReplyDraft] = useState('')
 
   const revealed = Boolean(question.board_revealed_at)
-  const open = question.status === 'active'
+  const open = question.status === 'active' && !locked
   const formats = question.board_formats || []
   const limit = question.board_max_posts
-  // Withdrawn cards still count. Otherwise the limit is only a limit until
-  // someone works out that deleting is free.
-  const usedCount = mine.filter((post) => !post.reply_to).length
+  // Deleted cards do not count, and replies never did. This has to match
+  // board_card_count in the schema exactly: the policy is what actually
+  // decides, so a page that counted differently would either hide the composer
+  // from someone who is allowed to post or offer it to someone who is not.
+  const usedCount = mine.filter((post) => !post.reply_to && !post.deleted_at).length
   const full = limit !== null && usedCount >= limit
 
   const invoke = useCallback(async (body: Record<string, unknown>) => {
@@ -270,7 +277,8 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
         <img alt={participantText(locale, 'board')} className="participant-board-image" src={imageUrl} />
       )}
 
-      {!open && <p className="muted">{participantText(locale, 'boardClosed')}</p>}
+      {locked && <p className="muted">{participantText(locale, 'boardPausedWhileAway')}</p>}
+      {!open && !locked && <p className="muted">{participantText(locale, 'boardClosed')}</p>}
       {open && !revealed && <p className="muted">{participantText(locale, 'boardYoursOnly')}</p>}
       {error && <p className="error">{error}</p>}
 
@@ -389,11 +397,12 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
             anonymous={session.anonymous_enabled}
             card={card}
             key={card.id}
+            readOnly={locked}
             locale={locale}
             mine={card.participant_id === participant.id}
             reactions={reactions.filter((entry) => entry.post_id === card.id)}
             replies={repliesOf.get(card.id) || []}
-            revealed={revealed}
+            revealed={revealed && !locked}
             viewerId={participant.id}
             onReact={(emoji) => void react(card.id, emoji)}
             onReply={() => { setReplyTo(replyTo === card.id ? null : card.id); setReplyDraft('') }}
@@ -413,6 +422,8 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
 function BoardCard(props: {
   anonymous: boolean
   busy: boolean
+  // Nothing on this card may be changed: the teacher is away.
+  readOnly?: boolean
   card: BoardPost
   locale: ParticipantLocale
   mine: boolean
@@ -449,14 +460,16 @@ function BoardCard(props: {
       {card.kind === 'link' && card.url && (
         <a className="board-card-link" href={card.url} rel="noreferrer noopener" target="_blank">{card.url}</a>
       )}
-      {card.kind === 'image' && card.public_url && (
+      {isImageCard(card) && card.public_url && (
         <a href={card.public_url} rel="noreferrer noopener" target="_blank">
           <img alt="" className="board-card-image" src={card.public_url} />
         </a>
       )}
       {card.kind === 'file' && card.public_url && (
+        // Kept under a picture as well: the name is often the only clue to
+        // what a classmate's photograph is of.
         <a className="board-card-file" download href={card.public_url}>
-          <Download size={16} />{card.storage_path?.split('/').pop()}
+          <Download size={16} />{boardFileName(card)}
         </a>
       )}
       {card.kind === 'audio' && card.public_url && (
@@ -485,7 +498,7 @@ function BoardCard(props: {
             </button>
           </div>
         )}
-        {mine && !card.deleted_at && (
+        {mine && !card.deleted_at && !props.readOnly && (
           <button className="board-card-action is-danger" disabled={busy} type="button" onClick={props.onWithdraw}>
             <Trash2 size={14} />{participantText(locale, 'boardWithdraw')}
           </button>
