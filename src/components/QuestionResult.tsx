@@ -1,5 +1,5 @@
-import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, FileUp, LoaderCircle, Maximize2, Shuffle, Sparkles, X } from 'lucide-react'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, Eye, FileUp, LoaderCircle, Maximize2, Shuffle, Sparkles, SquareX, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { correctnessStats, countByAnswer } from '../lib/stats'
@@ -7,6 +7,9 @@ import { downloadHref } from '../lib/fileLinks'
 import { createZip, safeFileName, uniqueName } from '../lib/zip'
 import type { ZipEntry } from '../lib/zip'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
+import { BoardWall } from './BoardWall'
+import { boardAction, loadBoard } from '../lib/boardData'
+import type { BoardSnapshot } from '../lib/boardData'
 import { HotspotImage } from './HotspotImage'
 import { parsePins, pinColor, pinLabel } from '../lib/hotspot'
 import { isImageValue } from '../lib/sliceImage'
@@ -928,6 +931,8 @@ export function QuestionResult(props: Props) {
     )
   }
 
+  if (question.type === 'board') return <BoardResults question={question} />
+
   if (question.type === 'short_answer') {
     return (
       <>
@@ -1157,5 +1162,113 @@ export function QuestionResult(props: Props) {
       <RoundComparison answers={answers} correctAnswers={correctAnswers} question={question} />
       <AiAnalysisPanel {...props} />
     </>
+  )
+}
+
+// The wall as it appears beside the class list. Its own component so the
+// polling and the reveal state are hooks on the branch that uses them rather
+// than on the dispatcher, which returns early for a dozen other types.
+function BoardResults({ question }: { question: Question }) {
+  const [snapshot, setSnapshot] = useState<BoardSnapshot | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  // Polled rather than subscribed: the presenter's copy comes through the edge
+  // function on the service role, because before the reveal the table is
+  // closed even to them through the ordinary client, and realtime obeys the
+  // same policy. Ten seconds is well inside the pace a teacher reads a wall at.
+  useEffect(() => {
+    let live = true
+    const read = async () => {
+      try {
+        const next = await loadBoard(question.session_id, question.id)
+        if (live) {
+          setSnapshot(next)
+          setError('')
+        }
+      } catch (caught) {
+        if (live) setError(caught instanceof Error ? caught.message : '讀取討論板失敗。')
+      }
+    }
+    void read()
+    const timer = window.setInterval(() => void read(), 10_000)
+    return () => { live = false; window.clearInterval(timer) }
+  }, [question.id, question.session_id])
+
+  const revealed = Boolean(snapshot?.question.board_revealed_at ?? question.board_revealed_at)
+  const cards = (snapshot?.posts || []).filter((post) => !post.reply_to)
+  const contributors = new Set(cards.filter((post) => !post.deleted_at).map((post) => post.participant_id)).size
+
+  async function run(body: Record<string, unknown>) {
+    setBusy(true)
+    setError('')
+    try {
+      await boardAction(question.session_id, body)
+      setSnapshot(await loadBoard(question.session_id, question.id))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '操作失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function enlarge() {
+    if (window.interactDesktop?.openBoardReview) {
+      void window.interactDesktop.openBoardReview(question.session_id, question.id)
+    }
+  }
+
+  return (
+    <section className="panel result-panel board-results-panel">
+      <div className="panel-heading">
+        <h2>{question.title}</h2>
+        <span className="hotspot-heading-actions">
+          {window.interactDesktop?.openBoardReview && (
+            <button aria-label="放大檢視討論板" className="icon-button" title="放大檢視討論板" type="button" onClick={enlarge}>
+              <Maximize2 size={20} />
+            </button>
+          )}
+          <span className={`status ${question.status}`}>{question.status}</span>
+        </span>
+      </div>
+      {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
+      <p className="muted">
+        {cards.filter((post) => !post.deleted_at).length} 則 · {contributors} 人
+        {question.board_max_posts === null ? ' · 每人不限' : ` · 每人上限 ${question.board_max_posts} 則`}
+      </p>
+      {error && <p className="error">{error}</p>}
+
+      <div className="board-results-actions">
+        {/* One way. Un-revealing would take back something the class has
+            already read, which is not a state the room can return to. */}
+        <button
+          className={revealed ? 'ghost-button' : ''}
+          disabled={busy || revealed}
+          type="button"
+          onClick={() => void run({ action: 'reveal_board', questionId: question.id })}
+        >
+          <Eye size={16} />{revealed ? '全班已可瀏覽' : '開放瀏覽'}
+        </button>
+        {question.status === 'active' && (
+          <button
+            className="ghost-button"
+            disabled={busy}
+            type="button"
+            onClick={() => void run({ action: 'close_board', questionId: question.id })}
+          >
+            <SquareX size={16} />結束討論板
+          </button>
+        )}
+      </div>
+      {!revealed && <p className="muted">學生現在只看得到自己貼的。</p>}
+
+      <BoardWall
+        anonymous={Boolean(snapshot?.posts.some((post) => post.anonymous_at_display))}
+        busy={busy}
+        posts={snapshot?.posts || []}
+        reactions={snapshot?.reactions || []}
+        onSetState={(postId, patch) => void run({ action: 'set_board_post_state', postId, ...patch })}
+      />
+    </section>
   )
 }

@@ -936,6 +936,8 @@ export function PresenterPage() {
           maxPins,
           sentenceMode,
           shareScreenshot,
+          boardFormats: request.boardFormats,
+          boardMaxPosts: request.boardMaxPosts,
           choices: dispatchKey.choices,
           correctValues: dispatchKey.correctValues,
           promptText,

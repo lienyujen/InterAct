@@ -1,6 +1,6 @@
 import { Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { QuestionType, QuizRequestedType } from '../types'
+import type { BoardPostKind, QuestionType, QuizRequestedType } from '../types'
 import { CustomQuizFields } from './CustomQuizFields'
 import { TimingRow } from './TimingRow'
 import { ANSWER_PRESETS, PREPARE_PRESETS, canBeTimed, canPrepare } from '../lib/questionTiming'
@@ -46,8 +46,22 @@ export type DispatchRequest = {
   // sliced ordering the uncut original is the answer.
   shareScreenshot: boolean
   maxPins: number | null
+  // 討論板: which kinds of card the class may put up. Empty means the screen
+  // was dispatched with nothing to answer, and the type goes out as
+  // 'send_screen' — the board is this same dispatch with replies switched on.
+  boardFormats: BoardPostKind[]
+  // How many cards one student may put up; null is ∞.
+  boardMaxPosts: number | null
   quizSettings?: CustomQuizSettings
 }
+
+const boardFormatChoices: Array<{ kind: BoardPostKind; label: string; hint: string }> = [
+  { kind: 'text', label: '文字', hint: '打字回應' },
+  { kind: 'link', label: '連結', hint: '貼網址' },
+  { kind: 'image', label: '圖片', hint: '拍照或選圖' },
+  { kind: 'file', label: '檔案', hint: '任何檔案' },
+  { kind: 'audio', label: '錄音', hint: '直接錄' },
+]
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'send_screen', label: '派送畫面' },
@@ -86,6 +100,16 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
   // An ordering question does not have to have a right answer: sometimes the
   // point is what the class thinks the order is.
   const [orderingHasAnswer, setOrderingHasAnswer] = useState(true)
+  // 派送畫面 becomes a 討論板 the moment one of these is ticked. Nothing ticked
+  // is the plain dispatch it has always been, so the presenter never has to
+  // choose between two things that look the same on the way in.
+  const [boardFormats, setBoardFormats] = useState<BoardPostKind[]>([])
+  const [boardMaxPosts, setBoardMaxPosts] = useState<number | null>(1)
+  // Its own flag rather than the one 排序題 uses, because the sensible default
+  // is the other way round: a board was captured from something worth
+  // discussing, so the picture goes with it unless the presenter says not to.
+  const [boardShareScreenshot, setBoardShareScreenshot] = useState(true)
+  const isBoard = type === 'send_screen' && boardFormats.length > 0
 
   useEffect(() => {
     if (!open) return
@@ -106,6 +130,9 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     setSliceCount(4)
     setSentenceMode(false)
     setShareScreenshot(false)
+    setBoardFormats([])
+    setBoardMaxPosts(1)
+    setBoardShareScreenshot(true)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -184,16 +211,21 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               sliceHasAnswer: false,
               sentenceMode: false,
               shareScreenshot: false,
+              boardFormats: [],
+              boardMaxPosts: null,
               quizSettings: quizSettingsFrom(quizCount, quizType, direction),
             })
             return
           }
           const dispatchOptions = type === 'ordering' ? shuffled(items) : finalOptions
           onCreate({
-            type,
+            type: isBoard ? 'board' : type,
             options: dispatchOptions,
             allowMultiple: editableOptions && allowMultiple,
-            promptText: type === 'send_screen' ? '' : promptText.trim(),
+            // A dispatched screen has nothing to say; a board is a topic, and
+            // the topic is the only thing on the card for a board sent without
+            // the capture.
+            promptText: type === 'send_screen' && !isBoard ? '' : promptText.trim(),
             timing: {
               prepareSeconds: canPrepare(type) ? prepareSeconds : null,
               answerSeconds: canBeTimed(type) ? answerSeconds : null,
@@ -203,7 +235,13 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             sliceCount: type === 'ordering' && sliceImage ? sliceCount : null,
             sliceHasAnswer: orderingHasAnswer,
             sentenceMode: type === 'ordering' && !sliceImage && sentenceMode,
-            shareScreenshot,
+            // A board has its own answer to this, and the opposite default:
+            // 排序題 hides the capture because the uncut original is the
+            // answer, while a board has just been captured from something the
+            // presenter wants to talk about.
+            shareScreenshot: isBoard ? boardShareScreenshot : shareScreenshot,
+            boardFormats: isBoard ? boardFormats : [],
+            boardMaxPosts: isBoard ? boardMaxPosts : null,
           })
         }}
       >
@@ -297,6 +335,78 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             onDirectionChange={setQuizDirection}
             onTypeChange={setQuizType}
           />
+        )}
+        {type === 'send_screen' && (
+          <div className="board-setup">
+            <label className="question-prompt-field">
+              題目（選填）
+              <input
+                value={promptText}
+                placeholder="例如：看完這段，你想到哪一個教學現場的例子？"
+                onChange={(event) => setPromptText(event.target.value)}
+              />
+            </label>
+            <label className="multi-select-setting">
+              <input
+                checked={boardShareScreenshot}
+                type="checkbox"
+                onChange={(event) => setBoardShareScreenshot(event.target.checked)}
+              />
+              附上目前畫面
+            </label>
+            <p className="muted question-type-hint">
+              {boardShareScreenshot
+                ? (promptText.trim() ? '學生會看到這張截圖和你的題目。' : '學生只會看到這張截圖。')
+                : (promptText.trim() ? '不送出截圖，學生只讀到你的題目。' : '沒有截圖也沒有題目，學生會看到一張空白的卡。')}
+            </p>
+
+            {/* Ticking any of these turns the dispatch into a board. Nothing
+                ticked is the plain 派送畫面 it has always been, which is why
+                there is no separate type to choose on the way in. */}
+            <fieldset className="board-formats">
+              <legend>開放學生回應（不勾就是單純派送）</legend>
+              <div className="board-format-grid">
+                {boardFormatChoices.map((choice) => {
+                  const on = boardFormats.includes(choice.kind)
+                  return (
+                    <button
+                      aria-pressed={on}
+                      className={`board-format-chip${on ? ' is-selected' : ''}`}
+                      key={choice.kind}
+                      type="button"
+                      onClick={() => setBoardFormats((current) => (
+                        current.includes(choice.kind)
+                          ? current.filter((kind) => kind !== choice.kind)
+                          : [...current, choice.kind]
+                      ))}
+                    >
+                      <strong>{choice.label}</strong>
+                      <span>{choice.hint}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </fieldset>
+
+            {isBoard && (
+              <div className="question-timing">
+                <TimingRow
+                  formatValue={(value) => `${value} 則`}
+                  label="每人可貼"
+                  offLabel="∞"
+                  presets={[1, 2, 3, 5, null]}
+                  value={boardMaxPosts}
+                  onChange={setBoardMaxPosts}
+                />
+              </div>
+            )}
+            {isBoard && (
+              <p className="muted question-type-hint">
+                學生貼的時候只看得見自己的，你按「開放瀏覽」才整面翻開。
+                討論板會一直開著，你可以繼續派別的題目，學生隨時回來加。
+              </p>
+            )}
+          </div>
         )}
         {type !== 'send_screen' && type !== 'custom_quiz' && (
           <label className="question-prompt-field">

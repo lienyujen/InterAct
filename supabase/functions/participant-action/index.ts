@@ -2,6 +2,7 @@ import { corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
 import { analyzeAudioResponse, removeRecording } from '../_shared/audio-analysis.ts'
 import { gradeCustomQuizAttempt } from '../_shared/custom-quiz.ts'
 import { getAdminClient, hashParticipantToken } from '../_shared/supabase.ts'
+import { attachBoardUrls, BOARD_BUCKET, boardStoragePrefix } from '../_shared/board.ts'
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void }
 
@@ -334,6 +335,107 @@ Deno.serve(async (req) => {
       }
       // The key itself is never returned — only whether they matched it.
       return jsonResponse({ answer: saved, isCorrect })
+    }
+
+    // --- 討論板 ---
+    //
+    // Posting a card is an ordinary insert from the page, the way a danmaku
+    // message is, so it lands on the wall at once and the row-level policy does
+    // the checking. The three actions here are the ones a policy cannot do,
+    // because each of them turns on knowing WHICH student is asking — and all
+    // a policy can see is that the row names somebody in this session.
+    if (['prepare_board_upload', 'get_my_board_posts', 'withdraw_board_post', 'toggle_board_reaction'].includes(action)) {
+      const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
+      if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)
+
+      // Before the board is revealed the class cannot read the table at all, so
+      // a student's own cards have to come back through here. After it is
+      // revealed the page reads the wall directly and this still answers,
+      // which is what lets the composer show "you have used 2 of 3" either way.
+      if (action === 'get_my_board_posts') {
+        const questionId = typeof input.questionId === 'string' ? input.questionId : ''
+        if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+        const { data, error } = await supabase.from('board_posts')
+          .select('*')
+          .eq('question_id', questionId)
+          .eq('session_id', sessionId)
+          .eq('participant_id', participantId)
+          .order('created_at')
+        if (error) throw error
+        return jsonResponse({ posts: attachBoardUrls(supabase, data || []) })
+      }
+
+      if (action === 'prepare_board_upload') {
+        const questionId = typeof input.questionId === 'string' ? input.questionId : ''
+        if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+        const { data: question, error: questionError } = await supabase.from('questions')
+          .select('id, status, type, board_formats').eq('id', questionId).eq('session_id', sessionId).maybeSingle()
+        if (questionError) throw questionError
+        if (!question || question.type !== 'board') return jsonResponse({ message: '找不到這個討論板。' }, 404)
+        if (question.status !== 'active') return jsonResponse({ message: '討論板已經結束。' }, 409)
+
+        const kind = typeof input.kind === 'string' ? input.kind : ''
+        if (!['image', 'file', 'audio'].includes(kind)) return jsonResponse({ message: '這個格式不需要上傳。' }, 400)
+        if (!(question.board_formats as string[] || []).includes(kind)) {
+          return jsonResponse({ message: '這個討論板沒有開放這種回覆方式。' }, 409)
+        }
+        const fileName = typeof input.fileName === 'string' ? input.fileName.trim().slice(0, 200) : ''
+        const fileSize = Number(input.fileSize)
+        if (!fileName || !Number.isInteger(fileSize) || fileSize < 1 || fileSize > MAX_UPLOAD_BYTES) {
+          return jsonResponse({ message: '檔案資料不正確，單檔上限 200 MB。' }, 400)
+        }
+        const fileId = crypto.randomUUID()
+        const storagePath = `${boardStoragePrefix(sessionId, questionId, participantId)}${fileId}/${storageSafeName(fileName)}`
+        const { data, error } = await supabase.storage.from(BOARD_BUCKET).createSignedUploadUrl(storagePath)
+        if (error) throw error
+        const { data: publicData } = supabase.storage.from(BOARD_BUCKET).getPublicUrl(storagePath)
+        return jsonResponse({ storagePath, uploadToken: data.token, publicUrl: publicData.publicUrl })
+      }
+
+      if (action === 'withdraw_board_post') {
+        const postId = typeof input.postId === 'string' ? input.postId : ''
+        if (!validUuid(postId)) return jsonResponse({ message: '貼文資料不正確。' }, 400)
+        // Marked rather than removed: the report still shows it was written,
+        // and the per-student limit cannot be reset by deleting and reposting.
+        const { data, error } = await supabase.from('board_posts')
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', postId)
+          .eq('session_id', sessionId)
+          .eq('participant_id', participantId)
+          .is('deleted_at', null)
+          .select('id').maybeSingle()
+        if (error) throw error
+        if (!data) return jsonResponse({ message: '找不到這則貼文，或它已經收回了。' }, 404)
+        return jsonResponse({ ok: true })
+      }
+
+      // A second tap takes the reaction back, which is why this is a toggle
+      // rather than an insert: the page does not have to know what it already
+      // sent, and two taps in quick succession cannot leave a duplicate.
+      const postId = typeof input.postId === 'string' ? input.postId : ''
+      if (!validUuid(postId)) return jsonResponse({ message: '貼文資料不正確。' }, 400)
+      const emoji = typeof input.emoji === 'string' ? input.emoji.trim().slice(0, 8) : ''
+      if (!emoji) return jsonResponse({ message: '沒有指定反應。' }, 400)
+      const { data: post, error: postError } = await supabase.from('board_posts')
+        .select('id, question_id').eq('id', postId).eq('session_id', sessionId).maybeSingle()
+      if (postError) throw postError
+      if (!post) return jsonResponse({ message: '找不到這則貼文。' }, 404)
+      const { data: board } = await supabase.from('questions')
+        .select('board_revealed_at').eq('id', post.question_id).maybeSingle()
+      if (!board?.board_revealed_at) return jsonResponse({ message: '討論板還沒有開放瀏覽。' }, 409)
+
+      const { data: existing } = await supabase.from('board_reactions')
+        .select('post_id').eq('post_id', postId).eq('participant_id', participantId).eq('emoji', emoji).maybeSingle()
+      if (existing) {
+        const { error } = await supabase.from('board_reactions')
+          .delete().eq('post_id', postId).eq('participant_id', participantId).eq('emoji', emoji)
+        if (error) throw error
+        return jsonResponse({ reacted: false })
+      }
+      const { error: insertError } = await supabase.from('board_reactions')
+        .insert({ post_id: postId, participant_id: participantId, session_id: sessionId, emoji })
+      if (insertError) throw insertError
+      return jsonResponse({ reacted: true })
     }
 
     if (action === 'get_file_result') {

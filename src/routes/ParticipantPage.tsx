@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { BookOpen, Coffee, PartyPopper, Send, Sparkles, Waves } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
+import { ParticipantBoard } from '../components/ParticipantBoard'
 import { ParticipantQuestionHistory } from '../components/ParticipantQuestionHistory'
 import { ParticipantCustomQuiz } from '../components/ParticipantCustomQuiz'
 import type { QuizSubmission } from '../components/ParticipantCustomQuiz'
@@ -58,6 +59,9 @@ export function ParticipantPage() {
   const [orderedBusy, setOrderedBusy] = useState(false)
   const [quizLoadError, setQuizLoadError] = useState('')
   const [screenshot, setScreenshot] = useState<Screenshot | null>(null)
+  // The open 討論板, which outlives the question the class is currently on.
+  const [boardQuestion, setBoardQuestion] = useState<Question | null>(null)
+  const [boardImageUrl, setBoardImageUrl] = useState<string | null>(null)
   const [exitTicket, setExitTicket] = useState<ExitTicket | null>(null)
   const [sessionSummary, setSessionSummary] = useState<SessionAnalysis | null>(null)
   const [sharedContents, setSharedContents] = useState<SharedContent[]>([])
@@ -228,6 +232,29 @@ export function ParticipantPage() {
       setQuizData(null)
       setQuizLoadError('')
       setScreenshot(null)
+    }
+
+    // The board is loaded separately from the current question because it is
+    // not one: the presenter opens it for a topic and carries on dispatching
+    // other questions, and the class has to be able to go back to it the whole
+    // time. It is on the page alongside whatever they are being asked now.
+    if (nextSession?.board_question_id) {
+      const { data: boardData } = await supabase
+        .from('questions').select('*').eq('id', nextSession.board_question_id).maybeSingle()
+      if (requestId !== loadSequence.current) return
+      const nextBoard = boardData as Question | null
+      setBoardQuestion(nextBoard)
+      if (nextBoard?.screenshot_id && nextBoard.share_screenshot) {
+        const { data } = await supabase
+          .from('screenshots').select('public_url').eq('id', nextBoard.screenshot_id).maybeSingle()
+        if (requestId !== loadSequence.current) return
+        setBoardImageUrl((data as { public_url: string } | null)?.public_url || null)
+      } else {
+        setBoardImageUrl(null)
+      }
+    } else {
+      setBoardQuestion(null)
+      setBoardImageUrl(null)
     }
   }, [locale, participantId, participantToken, sessionId])
 
@@ -713,6 +740,19 @@ export function ParticipantPage() {
         orderedBusy={orderedBusy}
         onSubmitAudio={submitAudio}
       />}
+      {/* Sits between the current question and the danmaku field: the board is
+          somewhere the class goes back to, not something they are being asked
+          right now, so it stays put while questions come and go above it. */}
+      {boardQuestion && participant && participantToken && session && !onBreak && (
+        <ParticipantBoard
+          imageUrl={boardImageUrl}
+          locale={locale}
+          participant={participant}
+          participantToken={participantToken}
+          question={boardQuestion}
+          session={session}
+        />
+      )}
       <ParticipantQuestionHistory
         activeQuestionId={question?.id}
         answers={historyAnswers}

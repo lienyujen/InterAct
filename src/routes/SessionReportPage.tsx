@@ -4,7 +4,7 @@ import { getPresenterToken } from '../lib/presenterAuth'
 import { getRoster, getSessionRosterId } from '../lib/classRoster'
 import { useSessionReportBack } from '../lib/sessionReportNavigation'
 import { requireSupabase } from '../lib/supabase'
-import type { AiSummary, Answer, AudioResponse, CaptionSegment, ExitTicket, Message, Participant, ParticipantPoint, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionEvent, SessionReportData, SharedContent, FileResponse } from '../types'
+import type { AiSummary, Answer, BoardPost, AudioResponse, CaptionSegment, ExitTicket, Message, Participant, ParticipantPoint, Question, Screenshot, Session, SessionAnalysis, SessionCustomQuizResults, SessionMetrics, SessionEvent, SessionReportData, SharedContent, FileResponse } from '../types'
 import { useParams, useSearchParams } from 'react-router-dom'
 
 const PAGE_SIZE = 1000
@@ -19,6 +19,7 @@ const reportModes: { level: ReportThinkingLevel; label: string; hint: string }[]
 
 const questionTypeLabels: Record<Question['type'], string> = {
   send_screen: '派送畫面',
+  board: '討論板',
   poll: '投票題',
   multiple_choice: '選擇題',
   true_false: '是非題',
@@ -121,7 +122,7 @@ export function SessionReportPage() {
 
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到這個場次的講者權限，無法讀取錄音評測。')
-    const [recordingResult, customQuizResult, fileResult] = await Promise.all([
+    const [recordingResult, customQuizResult, fileResult, boardResult] = await Promise.all([
       supabase.functions.invoke('presenter-action', {
         body: { action: 'get_session_recording_results', sessionId, presenterToken },
       }),
@@ -132,6 +133,12 @@ export function SessionReportPage() {
       // has to carry whatever was analysed by the time the class ended.
       supabase.functions.invoke('presenter-action', {
         body: { action: 'get_file_responses', sessionId, presenterToken },
+      }),
+      // Read on the service role, because a board that was never revealed is
+      // closed to the ordinary client — and an unrevealed board is exactly the
+      // one whose cards the presenter still has to be able to look back at.
+      supabase.functions.invoke('presenter-action', {
+        body: { action: 'get_session_board_posts', sessionId, presenterToken },
       }),
     ])
     if (recordingResult.error) throw new Error(await edgeFunctionMessage(recordingResult.error))
@@ -149,6 +156,7 @@ export function SessionReportPage() {
       participantPoints,
       roster: classRoster ? { name: classRoster.name, entries: classRoster.entries } : null,
       messages,
+      boardPosts: (boardResult.data?.posts || []) as BoardPost[],
       sharedContents,
       captionSegments,
       screenshots,

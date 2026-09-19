@@ -38,6 +38,7 @@ const fileVerdictLabels: Record<string, string> = {
 
 const questionTypeLabels = {
   send_screen: '派送畫面',
+  board: '討論板',
   poll: '投票題',
   multiple_choice: '選擇題',
   true_false: '是非題',
@@ -612,6 +613,55 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
   }
   messages.getColumn('createdAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
   styleTableSheet(messages)
+
+  // Every card, in board order then time order, with the two states that
+  // explain a gap: a student took it back, or the presenter took it down.
+  // Replies are rows of their own, pointing at what they answered, so a thread
+  // can be reconstructed from the sheet rather than only seen on screen.
+  const boardQuestionTitles = new Map(
+    data.questions.filter((question) => question.type === 'board').map((question) => [question.id, question]),
+  )
+  if (data.boardPosts.length) {
+    const board = workbook.addWorksheet('討論板')
+    board.columns = [
+      { header: '討論板', key: 'boardTitle', width: 26 },
+      { header: '主題', key: 'topic', width: 30 },
+      { header: '時間', key: 'createdAt', width: 22 },
+      { header: '姓名', key: 'participantName', width: 20 },
+      { header: '顯示模式', key: 'displayMode', width: 12 },
+      { header: '型式', key: 'kind', width: 10 },
+      { header: '內容', key: 'content', width: 60 },
+      { header: '連結／檔案', key: 'link', width: 48 },
+      { header: '長度（秒）', key: 'seconds', width: 12 },
+      { header: '回覆誰', key: 'replyTo', width: 22 },
+      { header: '狀態', key: 'state', width: 14 },
+    ]
+    const kindLabels: Record<string, string> = {
+      text: '文字', link: '連結', image: '圖片', file: '檔案', audio: '錄音',
+    }
+    const authorOf = new Map(data.boardPosts.map((post) => [post.id, post.participant_name]))
+    const ordered = [...data.boardPosts].sort((left, right) => (
+      left.question_id.localeCompare(right.question_id) || left.created_at.localeCompare(right.created_at)
+    ))
+    for (const post of ordered) {
+      const question = boardQuestionTitles.get(post.question_id)
+      board.addRow({
+        boardTitle: question?.title || '討論板',
+        topic: question?.prompt_text || '',
+        createdAt: formatDate(post.created_at),
+        participantName: post.participant_name,
+        displayMode: post.anonymous_at_display ? '匿名' : '具名',
+        kind: kindLabels[post.kind] || post.kind,
+        content: post.body || '',
+        link: post.url || post.public_url || post.storage_path || '',
+        seconds: post.duration_ms ? Math.round(post.duration_ms / 1000) : '',
+        replyTo: post.reply_to ? (authorOf.get(post.reply_to) || '') : '',
+        state: post.deleted_at ? '學生收回' : post.hidden_at ? '教師收起' : post.pinned_at ? '置頂' : '',
+      })
+    }
+    board.getColumn('createdAt').numFmt = 'yyyy-mm-dd hh:mm:ss'
+    styleTableSheet(board)
+  }
 
   const sharedContents = workbook.addWorksheet('文字派送')
   sharedContents.columns = [

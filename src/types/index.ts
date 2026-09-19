@@ -6,6 +6,9 @@ export type Session = {
   danmaku_enabled: boolean
   anonymous_enabled: boolean
   current_question_id: string | null
+  // The 討論板 that is open, which is not the same as the question the class is
+  // on: a board stays reachable while the lesson moves on to other questions.
+  board_question_id: string | null
   short_join_url: string | null
   exit_ticket_prompt: string | null
   exit_ticket_prompt_en: string | null
@@ -84,7 +87,44 @@ export type Screenshot = {
   created_at: string
 }
 
-export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz' | 'file_upload' | 'hotspot' | 'ordering' | 'matching'
+export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz' | 'file_upload' | 'hotspot' | 'ordering' | 'matching' | 'board'
+
+// The kinds of card a student can put on a 討論板.
+export type BoardPostKind = 'text' | 'link' | 'image' | 'file' | 'audio'
+
+export type BoardPost = {
+  id: string
+  session_id: string
+  question_id: string
+  participant_id: string
+  participant_name: string
+  kind: BoardPostKind
+  body: string | null
+  url: string | null
+  storage_path: string | null
+  mime_type: string | null
+  file_size: number | null
+  duration_ms: number | null
+  // Set on a reply; null on a card of its own.
+  reply_to: string | null
+  anonymous_at_display: boolean
+  // The student took it back down.
+  deleted_at: string | null
+  // The presenter took it down for everyone.
+  hidden_at: string | null
+  pinned_at: string | null
+  created_at: string
+  // Filled in by whoever loaded the card rather than stored: a playable or
+  // viewable address for the uploaded file, and who reacted to it.
+  public_url?: string | null
+  reactions?: BoardReaction[]
+}
+
+export type BoardReaction = {
+  post_id: string
+  participant_id: string
+  emoji: string
+}
 export type QuizItemType = 'multiple_choice' | 'fill_blank' | 'short_answer'
 export type QuizRequestedType = 'random' | QuizItemType
 export type ExitTicketCategory = 'lesson_summary' | 'learning_assessment' | 'course_satisfaction' | 'student_question'
@@ -173,6 +213,15 @@ export type Question = {
   sentence_mode: boolean
   // Whether the class is shown the capture this question was made from.
   share_screenshot: boolean
+  // 討論板: which kinds of card the class may put up. Empty is the plain
+  // 派送畫面 this type has always been — a board is the same dispatch with
+  // replies switched on.
+  board_formats: BoardPostKind[]
+  // How many cards one student may put up; null is the ∞ option.
+  board_max_posts: number | null
+  // When the presenter opened the board to the class. Until then each student
+  // sees only their own cards.
+  board_revealed_at: string | null
   // Bumped by 再做一次; answers carry the round they were given in.
   answer_round: number
   started_at: string | null
@@ -429,6 +478,10 @@ export type SessionReportData = {
   // when the presenter did not use one — then the report is exactly what it was.
   roster: { name: string; entries: ReportRosterEntry[] } | null
   messages: Message[]
+  // Every card put on a 討論板, including the ones a student took back and the
+  // ones the presenter took down — what was written is part of what happened
+  // in the room even when it was not left up.
+  boardPosts: BoardPost[]
   sharedContents: SharedContent[]
   captionSegments: CaptionSegment[]
   screenshots: Screenshot[]

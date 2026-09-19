@@ -6050,3 +6050,396 @@ h2 {
     border-top-width: 13px;
   }
 }
+
+/* ---- 討論板 ----
+   Three surfaces share this block: the setup panel in the dispatch dialog, the
+   class's own board, and the presenter's wall (in the side panel and in the
+   window that fills the screen). They are kept together because the card is the
+   same object in all of them and drifting apart would show. */
+
+.board-setup {
+  display: grid;
+  gap: 12px;
+}
+
+.board-formats {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 0;
+  padding: 12px 14px 14px;
+}
+
+.board-formats legend {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 0 6px;
+}
+
+.board-format-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+}
+
+.board-format-chip {
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.board-format-chip span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.board-format-chip.is-selected {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary-dark);
+}
+
+.board-format-chip.is-selected span { color: var(--primary-dark); }
+
+/* ---- the class's own board ---- */
+
+.participant-board {
+  display: grid;
+  gap: 12px;
+}
+
+.participant-board-heading {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.participant-board-heading h2 { margin: 0; }
+
+.participant-board-count {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.participant-board-topic {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.participant-board-image {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  max-height: 260px;
+  object-fit: contain;
+  width: 100%;
+}
+
+.board-composer {
+  background: var(--surface-subtle);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.board-composer-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.board-composer-tab {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  display: inline-flex;
+  gap: 6px;
+  padding: 8px 14px;
+}
+
+.board-composer-tab.is-selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.board-composer-body {
+  display: grid;
+  gap: 8px;
+}
+
+.board-composer-body textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.board-file-pick {
+  align-items: center;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  padding: 18px;
+}
+
+.board-file-pick input { display: none; }
+
+.board-recorder button.is-recording {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.board-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.board-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.board-card.is-pinned { border-color: var(--energy); }
+.board-card.is-withdrawn { opacity: 0.55; }
+
+.board-card header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.board-card header strong { font-size: 14px; }
+
+.board-card-tag {
+  background: var(--surface-subtle);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 8px;
+}
+
+.board-card-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.board-card-link,
+.board-wall-link {
+  word-break: break-all;
+}
+
+.board-card-image,
+.board-wall-image {
+  border-radius: var(--radius-sm);
+  max-height: 280px;
+  object-fit: contain;
+  width: 100%;
+}
+
+.board-card-file,
+.board-wall-file {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.board-card audio,
+.board-wall-card audio { width: 100%; }
+
+.board-card footer {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.board-card-reactions {
+  display: flex;
+  gap: 6px;
+}
+
+.board-reaction {
+  align-items: center;
+  background: var(--surface-subtle);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 4px;
+  min-height: 0;
+  padding: 4px 10px;
+}
+
+.board-reaction.is-own {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.board-card-action {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  display: inline-flex;
+  gap: 4px;
+  min-height: 0;
+  padding: 4px 6px;
+}
+
+.board-card-action.is-danger { color: var(--danger); }
+
+.board-replies {
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 10px;
+}
+
+.board-replies li { font-size: 14px; }
+.board-replies strong { margin-right: 6px; }
+
+.board-reply-composer {
+  display: flex;
+  gap: 8px;
+}
+
+.board-reply-composer input { flex: 1 1 auto; }
+
+/* ---- the presenter's wall ---- */
+
+.board-results-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Columns, so a wall reads as a wall rather than a list. The count follows the
+   width it is given: two in the panel beside the class list, as many as fit in
+   the window that fills the screen. */
+.board-wall {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.board-wall-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.board-wall-card.is-pinned { border-color: var(--energy); }
+.board-wall-card.is-hidden,
+.board-wall-card.is-withdrawn { opacity: 0.5; }
+
+.board-wall-card header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.board-wall-tag {
+  background: var(--surface-subtle);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.board-wall-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.board-wall-reactions {
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+}
+
+.board-wall-replies {
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 8px;
+}
+
+.board-wall-replies strong { margin-right: 6px; }
+
+.board-wall-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.board-wall-actions button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  min-height: 0;
+  padding: 4px 8px;
+}
+
+/* ---- the window that fills the screen ---- */
+
+.board-review-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100vh;
+  overflow: auto;
+  padding: 18px 22px 24px;
+}
+
+.board-review-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.board-review-heading h1 { margin: 0; }
+.board-review-heading p { color: var(--muted); margin: 4px 0 0; }
+
+.board-review-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.board-review-image {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  max-height: 220px;
+  object-fit: contain;
+  width: 100%;
+}

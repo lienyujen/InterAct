@@ -750,6 +750,12 @@ ipcMain.handle('window:open-hotspot-review', (_event, sessionId, questionId) => 
   createQuestionDetailWindow(`/hotspot-review/${sessionId}/${questionId}`, 'InterAct 圖上點選檢視')
 })
 
+ipcMain.handle('window:open-board-review', (_event, sessionId, questionId) => {
+  requireUuid(sessionId)
+  requireUuid(questionId, 'question')
+  createQuestionDetailWindow(`/board-review/${sessionId}/${questionId}`, 'InterAct 討論板')
+})
+
 ipcMain.handle('capture:list', listCaptureSources)
 
 ipcMain.handle('capture:start-selection', async () => {
