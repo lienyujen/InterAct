@@ -15,12 +15,9 @@ type Props = {
 
 // What a student sees about a question after it has closed.
 //
-// It used to be one line: 你的答案 followed by whatever was in the row. For a
-// 圖上點選 that was a pair of coordinates, which tells a student nothing about
-// where they tapped; for a 排序題 it was their sequence with no way of knowing
-// whether it was right or what right would have been. A closed question is
-// where the learning is, so it shows three things wherever they exist: what
-// was asked, what the answer was, and what this student said.
+// It used to be one line: 你的答案 followed by whatever was in the row. A
+// closed question is where the learning is, so it shows three things wherever
+// they exist: what was asked, what the answer was, and what this student said.
 
 function optionText(question: Question, locale: ParticipantLocale) {
   const translated = locale === 'en' && question.translations?.en?.options?.length === question.options.length
@@ -32,7 +29,7 @@ function optionText(question: Question, locale: ParticipantLocale) {
   }
 }
 
-function Verdict({ correct, locale }: { correct: boolean; locale: ParticipantLocale }) {
+export function Verdict({ correct, locale }: { correct: boolean; locale: ParticipantLocale }) {
   const english = locale === 'en'
   return (
     <p className={`participant-review-verdict${correct ? ' is-correct' : ' is-wrong'}`}>
@@ -88,9 +85,47 @@ export function ParticipantAnswerReview({ answer, correctValues, locale, questio
     )
   }
 
-  // 排序題 / 配對題: both are a sequence, and the key is only readable once the
-  // question has closed.
-  if (question.type === 'ordering' || question.type === 'matching') {
+  // 配對題 is pairs, and a list of the right-hand halves on their own is
+  // unreadable: a student cannot tell which prompt they put 'Update' against.
+  // options holds the prompts and the answer holds what was matched to each,
+  // in the same order, so they belong side by side.
+  if (question.type === 'matching') {
+    const given = answer.answer_values || []
+    const translatedPrompts = english && question.translations?.en?.options?.length === question.options.length
+      ? question.translations.en.options
+      : question.options
+    return (
+      <div className="participant-review">
+        {answer.is_correct !== null && <Verdict correct={Boolean(answer.is_correct)} locale={locale} />}
+        <table className="participant-review-pairs">
+          <thead>
+            <tr>
+              <th>{english ? 'Prompt' : '題目'}</th>
+              <th>{yours}</th>
+              {correctValues.length > 0 && <th>{theAnswer}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {question.options.map((prompt, index) => {
+              const mine = given[index]
+              const right = correctValues[index]
+              const wrong = Boolean(right) && mine !== right
+              return (
+                <tr className={wrong ? 'is-wrong' : undefined} key={`${prompt}-${index}`}>
+                  <td>{translatedPrompts[index] || prompt}</td>
+                  <td><strong>{mine || (english ? '(blank)' : '（未配對）')}</strong></td>
+                  {correctValues.length > 0 && <td>{right}</td>}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  // 排序題 is one sequence, so the order itself is the answer.
+  if (question.type === 'ordering') {
     const given = answer.answer_values || []
     return (
       <div className="participant-review">

@@ -171,7 +171,17 @@ Deno.serve(async (req) => {
           if (error) throw error
           answers = data || []
         }
-        return jsonResponse({ quiz, items: items || [], attempt: attempt || null, answers })
+        // Once the quiz is over, what the right answers were. A student who
+        // is told a score and not what they should have written has been
+        // given a mark, not a lesson.
+        let keys: unknown[] = []
+        if (question.status !== 'active' && (items || []).length) {
+          const { data } = await supabase.from('quiz_item_keys')
+            .select('item_id, accepted_answers')
+            .in('item_id', (items || []).map((item) => item.id))
+          keys = data || []
+        }
+        return jsonResponse({ quiz, items: items || [], attempt: attempt || null, answers, keys })
       }
 
       if (!quiz) return jsonResponse({ message: '自訂測驗仍在出題中，請稍候。' }, 409)

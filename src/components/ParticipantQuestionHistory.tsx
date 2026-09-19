@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, History, Mic2 } from 'lucide-react'
 import type { ParticipantLocale } from '../lib/participantI18n'
-import { ParticipantAnswerReview } from './ParticipantAnswerReview'
+import { ParticipantAnswerReview, Verdict } from './ParticipantAnswerReview'
 import type { Answer, AudioResponse, ParticipantQuizData, Question, Screenshot } from '../types'
 
 type Props = {
@@ -92,18 +92,46 @@ export function ParticipantQuestionHistory({
                         showing it here as well would print it twice. */}
                     {screenshot && question.type !== 'hotspot' && <img alt={english ? 'Dispatched question' : '派送題目'} src={screenshot.public_url} />}
                     {loading && <p className="muted"><Clock3 size={16} />{english ? 'Loading your answer…' : '正在載入你的作答…'}</p>}
-                    {question.type === 'custom_quiz' && quiz?.attempt ? (
+                    {question.type === 'custom_quiz' ? (quiz?.attempt ? (
                       <div className="participant-history-quiz">
                         <p><CheckCircle2 size={17} />{english ? 'Submitted score' : '作答分數'}：{quiz.attempt.total_score ?? '-'}/{quiz.attempt.max_score}</p>
                         {quiz.items.map((item, itemIndex) => {
                           const response = quiz.answers.find((entry) => entry.item_id === item.id)
                           const prompt = locale === 'en' ? item.translations?.en?.prompt_text || item.prompt_text : item.prompt_text
-                          const submitted = response?.answer_values?.join(', ') || response?.answer_text || '-'
+                          const submitted = response?.answer_values?.join(', ') || response?.answer_text || ''
                           const feedback = locale === 'en' ? response?.feedback?.en || response?.feedback?.zh_tw : response?.feedback?.zh_tw
-                          return <div key={item.id}><strong>{itemIndex + 1}. {prompt}</strong><p>{english ? 'Your answer' : '你的答案'}：{submitted}</p>{feedback && <small>{feedback}</small>}</div>
+                          // Sent only once the quiz has closed; empty while it is open.
+                          const accepted = quiz.keys?.find((key) => key.item_id === item.id)?.accepted_answers || []
+                          // A score of full marks on an item is the only
+                          // thing that says "right" here, because an item
+                          // can be partly credited.
+                          const scored = typeof response?.score === 'number' ? response.score : null
+                          return (
+                            <div className="participant-review-item" key={item.id}>
+                              <strong>{itemIndex + 1}. {prompt}</strong>
+                              {scored !== null && <Verdict correct={scored >= item.points} locale={locale} />}
+                              <p className="participant-review-line">
+                                <span className="participant-review-label">{english ? 'Your answer' : '你的答案'}</span>
+                                <strong>{submitted || (english ? '(blank)' : '（未作答）')}</strong>
+                              </p>
+                              {accepted.length > 0 && (
+                                <p className="participant-review-line">
+                                  <span className="participant-review-label">{english ? 'Correct answer' : '正確答案'}</span>
+                                  <strong>{accepted.join(english ? ', ' : '、')}</strong>
+                                </p>
+                              )}
+                              {scored !== null && <small>{english ? 'Score' : '得分'}：{scored}/{item.points}</small>}
+                              {feedback && <small>{feedback}</small>}
+                            </div>
+                          )
                         })}
                       </div>
-                    ) : question.type === 'pronunciation' || question.type === 'oral_response' ? (
+                    ) : (
+                      // Never the generic line for this type: the answers row
+                      // holds an internal placeholder, not anything a student
+                      // wrote.
+                      <p className="muted">{english ? 'Your quiz answers could not be loaded. Please reopen this question.' : '讀不到你的測驗作答，請再展開一次這一題。'}</p>
+                    )) : question.type === 'pronunciation' || question.type === 'oral_response' ? (
                       audio && <div className="participant-history-audio">
                         <p><Mic2 size={17} />{english ? 'Recording submitted' : '已送出錄音'}{audio.score !== null ? ` · ${audio.score} ${english ? 'points' : '分'}` : ''}</p>
                         {audio.signed_url && <audio controls preload="metadata" src={audio.signed_url} />}

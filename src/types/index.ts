@@ -418,6 +418,9 @@ export type ParticipantQuizData = {
   items: QuizItem[]
   attempt: QuizAttempt | null
   answers: QuizItemAnswer[]
+  // What each item would have accepted. Empty while the quiz is still
+  // open, because then it is still the answer.
+  keys?: Array<{ item_id: string; accepted_answers: string[] }>
 }
 
 export type PresenterQuizResults = ParticipantQuizData & {

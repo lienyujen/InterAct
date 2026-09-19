@@ -6677,3 +6677,41 @@ h2 {
   border-radius: var(--radius-sm);
   max-height: 72px;
 }
+
+/* 配對題: the prompt and what the student put against it, side by side. A
+   list of the right-hand halves alone cannot be read — the student has no way
+   of telling which prompt an answer belonged to. */
+.participant-review-pairs {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.participant-review-pairs th {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 8px 4px 0;
+  text-align: left;
+}
+
+.participant-review-pairs td {
+  border-top: 1px solid var(--border);
+  padding: 6px 8px 6px 0;
+  vertical-align: top;
+}
+
+.participant-review-pairs tr.is-wrong td:nth-child(2) {
+  color: var(--danger-dark);
+}
+
+.participant-review-item {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+}
+
+.participant-review-item .participant-review-verdict {
+  font-size: 13px;
+  padding: 2px 10px;
+}

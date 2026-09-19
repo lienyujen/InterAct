@@ -278,7 +278,15 @@ export function ParticipantPage() {
       return
     }
     if (!['custom_quiz', 'pronunciation', 'oral_response'].includes(historyQuestion.type)) return
-    if (historyQuizData[historyQuestion.id] !== undefined || historyAudioResponses[historyQuestion.id] !== undefined) return
+    // A quiz fetched while it was still running carries no answer key,
+    // because while it is running the key is the answer. Once it has
+    // stopped, fetch it again so the review can show what was accepted.
+    const cachedQuiz = historyQuizData[historyQuestion.id]
+    const staleQuiz = historyQuestion.type === 'custom_quiz'
+      && cachedQuiz !== undefined && cachedQuiz !== null
+      && !cachedQuiz.keys?.length
+      && historyQuestion.status !== 'active'
+    if (!staleQuiz && (historyQuizData[historyQuestion.id] !== undefined || historyAudioResponses[historyQuestion.id] !== undefined)) return
     setHistoryLoadingQuestionIds((current) => new Set(current).add(historyQuestion.id))
     try {
       const action = historyQuestion.type === 'custom_quiz' ? 'get_custom_quiz' : 'get_recording_result'
