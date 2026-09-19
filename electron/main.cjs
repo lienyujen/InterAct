@@ -439,6 +439,7 @@ function createWordCloudWindow(sessionId) {
   if (wordCloudWindow && !wordCloudWindow.isDestroyed()) {
     if (wordCloudWindow.isMinimized()) wordCloudWindow.restore()
     wordCloudWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, WORD_CLOUD_RELATIVE_LEVEL)
+    mainWindow?.hide()
     wordCloudWindow.show()
     wordCloudWindow.moveTop()
     wordCloudWindow.focus()
@@ -477,6 +478,7 @@ function createWordCloudWindow(sessionId) {
   wordCloudWindow.once('ready-to-show', () => {
     overlayVisibilitySuppressed = true
     overlayWindow?.hide()
+    mainWindow?.hide()
     wordCloudWindow?.show()
     wordCloudWindow?.moveTop()
     wordCloudWindow?.focus()
@@ -485,7 +487,10 @@ function createWordCloudWindow(sessionId) {
     wordCloudWindow = null
     overlayVisibilitySuppressed = false
     showOverlayInactive()
-    setTimeout(() => bringControlToFront(false), 60)
+    // Focused, not merely shown: closing the word cloud is the presenter asking
+    // for the controls back, and they were hidden rather than sent behind, so
+    // they return to whatever screen they were left on.
+    setTimeout(() => bringControlToFront(true), 60)
   })
 }
 
