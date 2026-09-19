@@ -136,20 +136,21 @@ Deno.serve(async (req) => {
       return jsonResponse({ analysis: cached.output_json, metrics: cached.input_json?.metrics, cached: true })
     }
 
-    const [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, audioResponseResult, fileResponseResult, questionAnalysisResult, exitTicketResult] = await Promise.all([
+    const [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, boardPostResult, audioResponseResult, fileResponseResult, questionAnalysisResult, exitTicketResult] = await Promise.all([
       supabase.from('participants').select('id').eq('session_id', sessionId).order('joined_at').limit(5000),
       supabase.from('messages').select('participant_id, content, created_at').eq('session_id', sessionId).order('created_at').limit(5000),
       supabase.from('shared_contents').select('body, url, created_at').eq('session_id', sessionId).order('created_at').limit(1000),
       supabase.from('caption_segments').select('language, source_language, text, is_translation, created_at').eq('session_id', sessionId).order('created_at').limit(10000),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
       supabase.from('answers').select('question_id, participant_id, answer_value, answer_values, answer_text, is_correct').eq('session_id', sessionId).order('submitted_at').limit(10000),
+      supabase.from('board_posts').select('question_id, participant_id, kind, body, url, reply_to, deleted_at, hidden_at').eq('session_id', sessionId).order('created_at').limit(5000),
       supabase.from('audio_responses').select('question_id, analysis_status, detected_language, transcript, score, analysis_json, submitted_at').eq('session_id', sessionId).order('submitted_at').limit(10000),
       supabase.from('file_responses').select('question_id, participant_id, name, mime_type, analysis_status, analysis_json, submitted_at').eq('session_id', sessionId).order('submitted_at').limit(10000),
       supabase.from('ai_summaries').select('question_id, output_json').eq('session_id', sessionId).eq('type', 'question_analysis').eq('status', 'success').order('created_at').limit(500),
       supabase.from('exit_tickets').select('most_useful, still_confused, understanding_score, engagement_score, next_suggestion, response_text, rating').eq('session_id', sessionId).order('submitted_at').limit(5000),
     ])
 
-    for (const result of [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, audioResponseResult, fileResponseResult, questionAnalysisResult, exitTicketResult]) {
+    for (const result of [participantResult, messageResult, sharedContentResult, captionResult, questionResult, answerResult, boardPostResult, audioResponseResult, fileResponseResult, questionAnalysisResult, exitTicketResult]) {
       if (result.error) throw result.error
     }
 
@@ -159,6 +160,7 @@ Deno.serve(async (req) => {
     const captionSegments = captionResult.data || []
     const questions = questionResult.data || []
     const answers = answerResult.data || []
+    const boardPosts = boardPostResult.data || []
     const audioResponses = audioResponseResult.data || []
     // A student's pages carry one mark between them, so the submission — not
     // the file — is the unit everything below counts in.
@@ -202,8 +204,17 @@ Deno.serve(async (req) => {
     const correctQuizItemAnswers = scoredQuizItemAnswers.filter((answer) => Number(answer.score) >= (quizItemPoints.get(answer.item_id) || 0))
     const durationEnd = new Date(endedAt).getTime()
     const durationMinutes = Math.max(0, Math.round((durationEnd - new Date(session.created_at).getTime()) / 60000))
+    // A board's answers are cards, not rows in `answers`, so leaving them out
+    // reported every board as nobody having taken part and dragged the whole
+    // average down with it. Counted per student per board, which is the unit
+    // every other type is counted in.
+    const boardParticipations = new Set(
+      boardPosts
+        .filter((post) => !post.reply_to && !post.deleted_at && !post.hidden_at)
+        .map((post) => `${post.question_id}:${post.participant_id}`),
+    ).size
     const averageResponseRate = participants.length && interactiveQuestions.length
-      ? roundPercent(((answers.length + submittedQuizAttempts.length) / (participants.length * interactiveQuestions.length)) * 100)
+      ? roundPercent(((answers.length + submittedQuizAttempts.length + boardParticipations) / (participants.length * interactiveQuestions.length)) * 100)
       : 0
 
     const analysisByQuestion = new Map(questionAnalyses.map((item) => [item.question_id, item.output_json]))
@@ -255,7 +266,18 @@ Deno.serve(async (req) => {
           })),
         })),
       } : null
-      const answerCount = quiz ? questionQuizAttempts.length : questionAnswers.length
+      // A discussion board keeps its answers in board_posts, so counting rows
+      // in `answers` reported every board as 0 — and the report then said in
+      // plain words that nobody had taken part, on boards the class had
+      // filled. What a student put on the wall is their answer to it.
+      const cards = boardPosts.filter((post) => (
+        post.question_id === question.id && !post.deleted_at && !post.hidden_at
+      ))
+      const topLevelCards = cards.filter((post) => !post.reply_to)
+      const isBoard = question.type === 'board'
+      const answerCount = quiz ? questionQuizAttempts.length
+        : isBoard ? new Set(topLevelCards.map((post) => post.participant_id)).size
+        : questionAnswers.length
 
       return {
         question_id: question.id,
@@ -270,7 +292,23 @@ Deno.serve(async (req) => {
         response_rate: participants.length ? roundPercent((answerCount / participants.length) * 100) : 0,
         correct_rate: assessed.length ? roundPercent((assessed.filter((answer) => answer.is_correct).length / assessed.length) * 100) : null,
         distribution,
-        written_response_sample: questionAnswers.map((answer) => answer.answer_text).filter(Boolean).slice(0, 100),
+        written_response_sample: isBoard
+          ? topLevelCards.map((post) => post.body || post.url).filter(Boolean).slice(0, 100)
+          : questionAnswers.map((answer) => answer.answer_text).filter(Boolean).slice(0, 100),
+        ...(isBoard ? {
+          board: {
+            // Counted, not sent: the report cannot look at a drawing, and
+            // should say so rather than write as though it had.
+            card_counts: ['text', 'link', 'image', 'file', 'audio', 'drawing'].reduce(
+              (counts: Record<string, number>, kind) => ({
+                ...counts,
+                [kind]: topLevelCards.filter((post) => post.kind === kind).length,
+              }), {}),
+            contributor_count: new Set(topLevelCards.map((post) => post.participant_id)).size,
+            reply_count: cards.length - topLevelCards.length,
+            replies: cards.filter((post) => post.reply_to).map((post) => post.body).filter(Boolean).slice(0, 100),
+          },
+        } : {}),
         audio_evaluations: questionAudioResponses.map((response, index) => ({
           response_number: index + 1,
           analysis_status: response.analysis_status,
@@ -306,7 +344,7 @@ Deno.serve(async (req) => {
       active_message_participants: new Set(messages.map((message) => message.participant_id)).size,
       question_count: questions.length,
       interactive_question_count: interactiveQuestions.length,
-      answer_count: answers.length + submittedQuizAttempts.length,
+      answer_count: answers.length + submittedQuizAttempts.length + boardParticipations,
       average_response_rate: averageResponseRate,
       assessed_answer_count: assessedAnswers.length + scoredQuizItemAnswers.length,
       correct_answer_count: correctAnswers.length + correctQuizItemAnswers.length,
@@ -354,7 +392,7 @@ Deno.serve(async (req) => {
     }
 
     const result = await callAiJson(
-      '你是 InterAct 的課堂互動與形成性評量分析顧問。請先以繁體中文根據匿名化統計、講師派送的課程文字與連結、課堂原文逐字稿、彈幕內容、每題作答結果、錄音評測、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告；再於 translations.en 輸出結構相同、證據與意義一致的自然英文版本。英文版本是翻譯，不可另行推論。lesson_transcript 是講師授課內容：若有內容，lesson_key_points 必須將整節課整理成精煉、具結構且可直接給教師與學生閱讀的課堂重點，不可逐句照抄、不可顯示逐字稿；若 lesson_transcript 為空，中英文 lesson_key_points 都必須回傳空陣列。逐字稿可用來核對互動脈絡與提出教學建議，但不可把講師說的話誤認為學生意見或學習證據。錄音題的 audio_evaluations 包含匿名化逐字稿、分數及個別 AI 評語，必須納入該題的 result_summary、evidence 與整體學習分析。上傳作答題的 file_submissions 是學生寫在紙上或做成檔案後上傳、再由 AI 逐份批改的結果，一位學生一筆（file_count 是他交了幾個檔）；判定與分數必須納入該題的 result_summary 與 evidence，analysis_status 不是 success 的代表尚未批改，只能算在未批改份數裡，不可當成沒作答，也不可臆測其內容。自訂測驗的 custom_quiz 包含題目、選項、正確答案、匿名化學生答案、得分與回饋，必須逐題分析其答題表現、錯誤與迷思，並納入對應的 question_findings；只要 attempts 有資料，就不可把該測驗判斷為無人作答。instructor_shared_contents 是講師提供的課程參考資料。所有結論都要指出資料證據；資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
+      '你是 InterAct 的課堂互動與形成性評量分析顧問。請先以繁體中文根據匿名化統計、講師派送的課程文字與連結、課堂原文逐字稿、彈幕內容、每題作答結果、錄音評測、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告；再於 translations.en 輸出結構相同、證據與意義一致的自然英文版本。英文版本是翻譯，不可另行推論。lesson_transcript 是講師授課內容：若有內容，lesson_key_points 必須將整節課整理成精煉、具結構且可直接給教師與學生閱讀的課堂重點，不可逐句照抄、不可顯示逐字稿；若 lesson_transcript 為空，中英文 lesson_key_points 都必須回傳空陣列。逐字稿可用來核對互動脈絡與提出教學建議，但不可把講師說的話誤認為學生意見或學習證據。錄音題的 audio_evaluations 包含匿名化逐字稿、分數及個別 AI 評語，必須納入該題的 result_summary、evidence 與整體學習分析。上傳作答題的 file_submissions 是學生寫在紙上或做成檔案後上傳、再由 AI 逐份批改的結果，一位學生一筆（file_count 是他交了幾個檔）；判定與分數必須納入該題的 result_summary 與 evidence，analysis_status 不是 success 的代表尚未批改，只能算在未批改份數裡，不可當成沒作答，也不可臆測其內容。討論板（type 為 board）的作答是牆上的卡片，不在一般作答裡：board.card_counts 是各型式的卡片數、board.contributor_count 是有幾位學生貼了東西、board.replies 是學生之間的回覆，written_response_sample 則是卡片上的文字與連結。只要這些有內容，就不可把討論板判斷為無人作答。card_counts 裡的圖片、檔案、錄音與電繪只給了數量，你沒有看到它們的內容，若它們佔多數必須明說結論只根據文字，不可臆測那些卡片畫了或說了什麼。自訂測驗的 custom_quiz 包含題目、選項、正確答案、匿名化學生答案、得分與回饋，必須逐題分析其答題表現、錯誤與迷思，並納入對應的 question_findings；只要 attempts 有資料，就不可把該測驗判斷為無人作答。instructor_shared_contents 是講師提供的課程參考資料。所有結論都要指出資料證據，但 evidence 必須寫成教師讀得懂的話，例如「3 位學生貼了 5 張卡片，其中 2 張是電繪」或「2 人作答，各選了 A 與 B」；不可出現 answer_count、response_rate、distribution 等欄位名稱或程式碼樣式的片段，也不可直接貼出原始 JSON。資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
       summaryInput,
       sessionAnalysisSchema,
       'deep',

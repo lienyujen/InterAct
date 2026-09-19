@@ -634,6 +634,18 @@ export function ParticipantPage() {
             />
           </section>
         )}
+        {boardQuestion && participant && participantToken && session && (
+          <ParticipantBoard
+            imageUrl={boardImageUrl}
+            locale={locale}
+            // Read-only: the class is over, so nothing more is written.
+            locked
+            participant={participant}
+            participantToken={participantToken}
+            question={boardQuestion}
+            session={session}
+          />
+        )}
         {/* Files stay downloadable after class until the presenter deletes the session. */}
         <ParticipantSharedFiles locale={locale} sessionId={sessionId} />
         <ParticipantQuestionHistory

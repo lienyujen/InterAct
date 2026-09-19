@@ -287,7 +287,13 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
         <img alt={participantText(locale, 'board')} className="participant-board-image" src={imageUrl} />
       )}
 
-      {locked && <p className="muted">{participantText(locale, 'boardPausedWhileAway')}</p>}
+      {locked && (
+        <p className="muted">
+          {session.status === 'ended'
+            ? participantText(locale, 'boardAfterClass')
+            : participantText(locale, 'boardPausedWhileAway')}
+        </p>
+      )}
       {!open && !locked && <p className="muted">{participantText(locale, 'boardClosed')}</p>}
       {open && !revealed && <p className="muted">{participantText(locale, 'boardYoursOnly')}</p>}
       {error && <p className="error">{error}</p>}
