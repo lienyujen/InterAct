@@ -39,7 +39,7 @@ export function BoardWall({ anonymous, busy, posts, reactions, onSetState }: Pro
                   giving out points has to know whose work it is. */}
               <strong>{card.participant_name}</strong>
               {anonymous && <span className="board-wall-tag">班上匿名</span>}
-              {card.deleted_at && <span className="board-wall-tag">學生收回</span>}
+              {card.deleted_at && <span className="board-wall-tag">學生刪除</span>}
               {card.hidden_at && <span className="board-wall-tag">已收起</span>}
             </header>
 

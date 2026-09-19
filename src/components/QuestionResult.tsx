@@ -1,4 +1,4 @@
-import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, Eye, FileUp, LoaderCircle, Maximize2, Shuffle, Sparkles, SquareX, X } from 'lucide-react'
+import { ArrowDownUp, AudioLines, CheckCircle2, Dice5, Download, Eye, EyeOff, FileUp, LoaderCircle, Maximize2, RotateCcw, Settings2, Shuffle, Sparkles, SquareX, X } from 'lucide-react'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import { createPortal } from 'react-dom'
@@ -14,10 +14,15 @@ import { HotspotImage } from './HotspotImage'
 import { parsePins, pinColor, pinLabel } from '../lib/hotspot'
 import { isImageValue } from '../lib/sliceImage'
 import { QuestionStopControl } from './QuestionStopControl'
+import { TimingRow } from './TimingRow'
 import { MatchingBoard } from './MatchingBoard'
 import { SortableList } from './SortableList'
 import { joinSequence } from '../lib/ordering'
-import type { Answer, AudioResponse, FileResponse, Question, QuestionAnalysis } from '../types'
+import type { Answer, AudioResponse, BoardPostKind, FileResponse, Question, QuestionAnalysis } from '../types'
+
+const BOARD_FORMAT_LABELS: Array<[BoardPostKind, string]> = [
+  ['text', '文字'], ['link', '連結'], ['image', '圖片'], ['file', '檔案'], ['audio', '錄音'],
+]
 
 type Props = {
   anonymousEnabled: boolean
@@ -1172,6 +1177,7 @@ function BoardResults({ question }: { question: Question }) {
   const [snapshot, setSnapshot] = useState<BoardSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState(false)
 
   // Polled rather than subscribed: the presenter's copy comes through the edge
   // function on the service role, because before the reveal the table is
@@ -1195,7 +1201,11 @@ function BoardResults({ question }: { question: Question }) {
     return () => { live = false; window.clearInterval(timer) }
   }, [question.id, question.session_id])
 
-  const revealed = Boolean(snapshot?.question.board_revealed_at ?? question.board_revealed_at)
+  const live = snapshot?.question
+  const revealed = Boolean(live?.board_revealed_at ?? question.board_revealed_at)
+  const open = (live?.status ?? question.status) === 'active'
+  const formats = (live?.board_formats ?? question.board_formats ?? []) as BoardPostKind[]
+  const maxPosts = live?.board_max_posts ?? question.board_max_posts
   const cards = (snapshot?.posts || []).filter((post) => !post.reply_to)
   const contributors = new Set(cards.filter((post) => !post.deleted_at).map((post) => post.participant_id)).size
 
@@ -1234,33 +1244,72 @@ function BoardResults({ question }: { question: Question }) {
       {question.prompt_text && <p className="detected-question">{question.prompt_text}</p>}
       <p className="muted">
         {cards.filter((post) => !post.deleted_at).length} 則 · {contributors} 人
-        {question.board_max_posts === null ? ' · 每人不限' : ` · 每人上限 ${question.board_max_posts} 則`}
+        {maxPosts === null ? ' · 每人不限' : ` · 每人上限 ${maxPosts} 則`}
       </p>
       {error && <p className="error">{error}</p>}
 
       <div className="board-results-actions">
-        {/* One way. Un-revealing would take back something the class has
-            already read, which is not a state the room can return to. */}
+        {/* Both ways. A presenter may want the class to think alone and then
+            look together, or to share from the start and then close the wall
+            again to settle the room. */}
         <button
-          className={revealed ? 'ghost-button' : ''}
-          disabled={busy || revealed}
+          className="ghost-button"
+          disabled={busy}
           type="button"
-          onClick={() => void run({ action: 'reveal_board', questionId: question.id })}
+          onClick={() => void run({ action: 'set_board_visibility', questionId: question.id, shared: !revealed })}
         >
-          <Eye size={16} />{revealed ? '全班已可瀏覽' : '開放瀏覽'}
+          {revealed ? <><EyeOff size={16} />改為自行作答</> : <><Eye size={16} />開放全班瀏覽</>}
         </button>
-        {question.status === 'active' && (
-          <button
-            className="ghost-button"
-            disabled={busy}
-            type="button"
-            onClick={() => void run({ action: 'close_board', questionId: question.id })}
-          >
-            <SquareX size={16} />結束討論板
-          </button>
-        )}
+        <button
+          className="ghost-button"
+          disabled={busy}
+          type="button"
+          onClick={() => void run({ action: 'set_board_open', questionId: question.id, open: !open })}
+        >
+          {open ? <><SquareX size={16} />結束討論板</> : <><RotateCcw size={16} />重新開啟</>}
+        </button>
+        <button className="ghost-button" disabled={busy} type="button" onClick={() => setEditing((current) => !current)}>
+          <Settings2 size={16} />調整答題方式
+        </button>
       </div>
+      {editing && (
+        <div className="board-settings">
+          {/* A discussion that has started is exactly when a presenter finds
+              out that words were not enough, or that one card each was too
+              few. Changing either does not disturb what is already up. */}
+          <div className="board-format-grid">
+            {BOARD_FORMAT_LABELS.map(([kind, label]) => {
+              const on = formats.includes(kind)
+              return (
+                <button
+                  aria-pressed={on}
+                  className={`board-format-chip${on ? ' is-selected' : ''}`}
+                  disabled={busy}
+                  key={kind}
+                  type="button"
+                  onClick={() => {
+                    const next = on ? formats.filter((item) => item !== kind) : [...formats, kind]
+                    if (!next.length) return
+                    void run({ action: 'update_board_settings', questionId: question.id, boardFormats: next })
+                  }}
+                >
+                  <strong>{label}</strong>
+                </button>
+              )
+            })}
+          </div>
+          <TimingRow
+            formatValue={(value: number) => `${value} 則`}
+            label="每人可貼"
+            offLabel="∞"
+            presets={[1, 2, 3, 5, null]}
+            value={maxPosts}
+            onChange={(value: number | null) => void run({ action: 'update_board_settings', questionId: question.id, boardMaxPosts: value })}
+          />
+        </div>
+      )}
       {!revealed && <p className="muted">學生現在只看得到自己貼的。</p>}
+      {!open && <p className="muted">討論板已結束，學生看得到但不能再貼。</p>}
 
       <BoardWall
         anonymous={Boolean(snapshot?.posts.some((post) => post.anonymous_at_display))}

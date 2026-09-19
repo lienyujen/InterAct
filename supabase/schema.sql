@@ -147,9 +147,12 @@ alter table public.questions
   -- the reason this is nullable rather than a large number: the presenter picks
   -- 1, 2, 3, 5 or ∞, and ∞ has to mean it.
   add column if not exists board_max_posts integer null,
-  -- When the presenter opened the board to the class. Until then each student
-  -- sees only their own cards, so everyone writes before anyone reads — the
-  -- part of a discussion that a shared wall normally destroys.
+  -- When the class could see each other's cards. Normally set the moment the
+  -- board is dispatched, because a wall everyone can see is what a wall is for.
+  -- Null means the presenter asked for 自行作答: each student sees only their
+  -- own until the board is opened. Reversible in both directions — a presenter
+  -- may want the class to think alone first and then look, or to share from the
+  -- start and then close it again to settle everyone down.
   add column if not exists board_revealed_at timestamptz null,
   add column if not exists answer_round integer not null default 1;
 
@@ -672,6 +675,12 @@ as $board$
   where question_id = target_question
     and participant_id = target_participant
     and reply_to is null
+    -- Deleting gives the card back. The first version counted deleted cards so
+    -- that nobody could delete their way past the limit, which turned out to
+    -- punish the ordinary case: a student who posts, thinks better of it and
+    -- wants to say it properly. The limit is there to stop one person filling
+    -- the wall, and a card that is not on the wall is not filling it.
+    and deleted_at is null
 $board$;
 
 create or replace function public.board_parent_exists(target_question uuid, target_parent uuid)

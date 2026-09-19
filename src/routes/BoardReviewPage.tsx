@@ -1,4 +1,4 @@
-import { Eye, X } from 'lucide-react'
+import { Eye, EyeOff, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { BoardWall } from '../components/BoardWall'
@@ -56,12 +56,12 @@ export function BoardReviewPage() {
         <div className="board-review-actions">
           <span className="muted">{live.length} 則 · {contributors} 人</span>
           <button
-            className={revealed ? 'ghost-button' : ''}
-            disabled={busy || revealed || !question}
+            className="ghost-button"
+            disabled={busy || !question}
             type="button"
-            onClick={() => void run({ action: 'reveal_board', questionId })}
+            onClick={() => void run({ action: 'set_board_visibility', questionId, shared: !revealed })}
           >
-            <Eye size={16} />{revealed ? '全班已可瀏覽' : '開放瀏覽'}
+            {revealed ? <><EyeOff size={16} />改為自行作答</> : <><Eye size={16} />開放全班瀏覽</>}
           </button>
           {/* This window draws its own frame, so it draws its own way out. */}
           <button

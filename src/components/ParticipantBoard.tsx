@@ -16,6 +16,19 @@ type Props = {
 
 const REACTIONS = ['👍', '❤️', '🤔']
 
+// Board uploads live in a public bucket, so an address is a string build
+// rather than a round trip. The rows carry a storage path and nothing else:
+// the edge function fills an address in on the way past, but the wall is read
+// straight from the table, so it has to build its own. Without this every
+// photograph, file and recording on the wall rendered as nothing at all.
+function withPublicUrls(supabase: ReturnType<typeof requireSupabase>, posts: BoardPost[]) {
+  return posts.map((post) => {
+    if (post.public_url || !post.storage_path) return post
+    const { data } = supabase.storage.from('interact-files').getPublicUrl(post.storage_path)
+    return { ...post, public_url: data.publicUrl }
+  })
+}
+
 // Long enough for a thought, short enough that thirty of them do not become an
 // hour of listening for the presenter.
 const MAX_RECORDING_MS = 120_000
@@ -77,7 +90,7 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
       supabase.from('board_posts').select('*').eq('question_id', question.id).order('created_at'),
       supabase.from('board_reactions').select('post_id, participant_id, emoji'),
     ])
-    setWall((posts || []) as BoardPost[])
+    setWall(withPublicUrls(supabase, (posts || []) as BoardPost[]))
     setReactions((reacted || []) as BoardReaction[])
   }, [question.id, revealed])
 
@@ -319,8 +332,13 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
           {composing === 'image' && (
             <div className="board-composer-body">
               <label className="board-file-pick">
+                {/* capture asks a phone for its camera directly rather than the
+                    photo roll, which is what a student in a classroom almost
+                    always wants. A laptop ignores it and shows the ordinary
+                    file picker. */}
                 <input
                   accept="image/*"
+                  capture="environment"
                   type="file"
                   onChange={(event) => void pickFile('image', event.target.files?.[0])}
                 />
@@ -368,6 +386,7 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
         )}
         {visible.map((card) => (
           <BoardCard
+            anonymous={session.anonymous_enabled}
             card={card}
             key={card.id}
             locale={locale}
@@ -392,6 +411,7 @@ export function ParticipantBoard({ locale, participant, participantToken, questi
 }
 
 function BoardCard(props: {
+  anonymous: boolean
   busy: boolean
   card: BoardPost
   locale: ParticipantLocale
@@ -408,11 +428,13 @@ function BoardCard(props: {
   onReplySubmit: () => void
   onWithdraw: () => void
 }) {
-  const { busy, card, locale, mine, reactions, replies, revealed, viewerId, replying, replyDraft } = props
-  // Whose name shows is decided by what was true when the card was written, so
-  // switching anonymity off later cannot put a name on something written
-  // without one.
-  const author = card.anonymous_at_display && !mine
+  const { anonymous, busy, card, locale, mine, reactions, replies, revealed, viewerId, replying, replyDraft } = props
+  // Follows the session's own switch, live, exactly as danmaku does: a
+  // presenter who turns anonymity off expects the names to appear, on what is
+  // already on the wall as well as on what comes next. The flag stored on each
+  // card records what the class was shown at the time, which is what the
+  // report reads; it is deliberately not what the screen obeys.
+  const author = anonymous && !mine
     ? participantText(locale, 'boardAnonymous')
     : card.participant_name
 
@@ -474,7 +496,7 @@ function BoardCard(props: {
         <ul className="board-replies">
           {replies.map((reply) => (
             <li key={reply.id}>
-              <strong>{reply.anonymous_at_display && reply.participant_id !== viewerId
+              <strong>{anonymous && reply.participant_id !== viewerId
                 ? participantText(locale, 'boardAnonymous')
                 : reply.participant_name}</strong>
               {reply.body}

@@ -38,7 +38,10 @@ export async function boardAction(sessionId: string, body: Record<string, unknow
     body: { sessionId, presenterToken, ...body },
   })
   if (error) throw error
-  if (data?.message && !data?.ok && !data?.post && !data?.revealedAt) throw new Error(data.message)
+  // Several of these legitimately answer with a field rather than ok, and
+  // one of them answers with revealedAt: null when the board is closed again.
+  if (data?.message && !('ok' in data) && !data?.post && !data?.question
+    && !('revealedAt' in data) && !('status' in data)) throw new Error(data.message)
   return data
 }
 

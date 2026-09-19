@@ -40,7 +40,9 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
 
   // file_upload has its own panel further up the page, carrying the same prompt
   // and the screenshot; rendering here as well would print the question twice.
-  if (!question || ['send_screen', 'custom_quiz', 'file_upload'].includes(question.type)) return null
+  // 'board' draws itself, lower down the page and with its own composer, so
+  // rendering it here as well showed the class the same topic twice.
+  if (!question || ['send_screen', 'custom_quiz', 'file_upload', 'board'].includes(question.type)) return null
   const isAudioQuestion = question.type === 'pronunciation' || question.type === 'oral_response'
   // The clock running out and the teacher stopping the question are separate
   // things and the student is told which happened: "it closed" and "the teacher

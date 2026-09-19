@@ -888,6 +888,12 @@ Deno.serve(async (req) => {
       const boardMaxPosts = type === 'board' && rawMaxPosts !== null && rawMaxPosts !== undefined
         ? Math.min(50, Math.max(1, Number(rawMaxPosts) || 1))
         : null
+      // Shared from the start, because a wall the class cannot see is not a
+      // wall. 自行作答 is the exception the presenter asks for when they want
+      // everyone to think alone before looking.
+      const boardRevealedAt = type === 'board' && !input.boardSelfPaced
+        ? new Date().toISOString()
+        : null
       // The sequence, or the right-hand item for each prompt in order. Empty
       // for an ordering question the presenter dispatched without an answer.
       const correctValues = ['ordering', 'matching'].includes(type) ? normalizedOptions(input.correctValues) : []
@@ -981,6 +987,7 @@ Deno.serve(async (req) => {
           share_screenshot: shareScreenshot,
           board_formats: boardFormats,
           board_max_posts: boardMaxPosts,
+          board_revealed_at: boardRevealedAt,
         })
         .select('*')
         .single()
@@ -1251,41 +1258,88 @@ Deno.serve(async (req) => {
       return jsonResponse({ posts: attachBoardUrls(supabase, data || []) })
     }
 
-    // Opening the wall to the class. Everyone writes before anyone reads, so
-    // this is the moment the board becomes a discussion rather than a pile of
-    // private notes. It is one-way: un-revealing would take back something the
-    // class has already seen, which is not a state the room can return to.
-    if (action === 'reveal_board') {
+    // Whether the class can see each other's cards, in both directions. A
+    // presenter may want everyone to think alone and then look together, or to
+    // share from the start and then close the wall again to settle the room.
+    if (action === 'set_board_visibility') {
       const questionId = input.questionId
       if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const shared = Boolean(input.shared)
       const { data, error } = await supabase.from('questions')
-        .update({ board_revealed_at: new Date().toISOString() })
+        .update({ board_revealed_at: shared ? new Date().toISOString() : null })
         .eq('id', questionId).eq('session_id', sessionId).eq('type', 'board')
-        .is('board_revealed_at', null)
         .select('id, board_revealed_at').maybeSingle()
       if (error) throw error
-      if (!data) {
-        const { data: already } = await supabase.from('questions')
-          .select('board_revealed_at').eq('id', questionId).eq('session_id', sessionId).maybeSingle()
-        if (already?.board_revealed_at) return jsonResponse({ revealedAt: already.board_revealed_at })
-        return jsonResponse({ message: '找不到這個討論板。' }, 404)
-      }
+      if (!data) return jsonResponse({ message: '找不到這個討論板。' }, 404)
       return jsonResponse({ revealedAt: data.board_revealed_at })
     }
 
-    // Closing it. The cards stay and stay readable; what stops is posting.
-    if (action === 'close_board') {
+    // Closing and reopening. The cards stay and stay readable either way; what
+    // stops and starts is posting. Reopening also makes it the session's board
+    // again, so it comes back to the class's page.
+    if (action === 'set_board_open') {
       const questionId = input.questionId
       if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
-      const { error } = await supabase.from('questions')
-        .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+      const open = Boolean(input.open)
+      const { data, error } = await supabase.from('questions')
+        .update(open
+          ? { status: 'active', stopped_at: null }
+          : { status: 'stopped', stopped_at: new Date().toISOString() })
         .eq('id', questionId).eq('session_id', sessionId).eq('type', 'board')
+        .select('id, status').maybeSingle()
       if (error) throw error
-      const { error: sessionError } = await supabase.from('sessions')
-        .update({ board_question_id: null })
-        .eq('id', sessionId).eq('board_question_id', questionId)
-      if (sessionError) throw sessionError
-      return jsonResponse({ ok: true })
+      if (!data) return jsonResponse({ message: '找不到這個討論板。' }, 404)
+
+      if (open) {
+        // Reopening one board puts away whichever other one was out, for the
+        // same reason opening one does: two walls at once is a filing problem
+        // the class should not be handed mid-lesson.
+        const { data: previous } = await supabase
+          .from('sessions').select('board_question_id').eq('id', sessionId).maybeSingle()
+        const previousBoardId = previous?.board_question_id as string | null | undefined
+        if (previousBoardId && previousBoardId !== questionId) {
+          await supabase.from('questions')
+            .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+            .eq('id', previousBoardId).eq('session_id', sessionId)
+        }
+        const { error: sessionError } = await supabase.from('sessions')
+          .update({ board_question_id: questionId }).eq('id', sessionId)
+        if (sessionError) throw sessionError
+      } else {
+        const { error: sessionError } = await supabase.from('sessions')
+          .update({ board_question_id: null })
+          .eq('id', sessionId).eq('board_question_id', questionId)
+        if (sessionError) throw sessionError
+      }
+      return jsonResponse({ status: data.status })
+    }
+
+    // Changing what the board accepts while it is running. A discussion that
+    // has started is exactly when a presenter finds out that words were not
+    // enough, or that one card each was too few.
+    if (action === 'update_board_settings') {
+      const questionId = input.questionId
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const patch: Record<string, unknown> = {}
+      if (Array.isArray(input.boardFormats)) {
+        const formats = [...new Set(
+          input.boardFormats.filter((kind: unknown): kind is string => typeof kind === 'string' && boardKinds.has(kind)),
+        )]
+        if (!formats.length) return jsonResponse({ message: '討論板至少要開放一種答題方式。' }, 400)
+        patch.board_formats = formats
+      }
+      if ('boardMaxPosts' in input) {
+        patch.board_max_posts = input.boardMaxPosts === null || input.boardMaxPosts === undefined
+          ? null
+          : Math.min(50, Math.max(1, Number(input.boardMaxPosts) || 1))
+      }
+      if (!Object.keys(patch).length) return jsonResponse({ message: '沒有要變更的設定。' }, 400)
+      const { data, error } = await supabase.from('questions')
+        .update(patch).eq('id', questionId).eq('session_id', sessionId).eq('type', 'board')
+        .select('id, board_formats, board_max_posts').maybeSingle()
+      if (error) throw error
+      if (!data) return jsonResponse({ message: '找不到這個討論板。' }, 404)
+      return jsonResponse({ question: data })
     }
 
     // Moderation. Hiding is reversible and keeps the card in the report;

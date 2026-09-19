@@ -52,6 +52,8 @@ export type DispatchRequest = {
   boardFormats: BoardPostKind[]
   // How many cards one student may put up; null is ∞.
   boardMaxPosts: number | null
+  // Whether the class starts out unable to see each other's cards.
+  boardSelfPaced: boolean
   quizSettings?: CustomQuizSettings
 }
 
@@ -109,6 +111,10 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
   // is the other way round: a board was captured from something worth
   // discussing, so the picture goes with it unless the presenter says not to.
   const [boardShareScreenshot, setBoardShareScreenshot] = useState(true)
+  // Off by default: a wall the class cannot see is not a wall. Ticking it is
+  // the presenter asking for everyone to think alone first, and they can turn
+  // it on and off from the board itself once the class is going.
+  const [boardSelfPaced, setBoardSelfPaced] = useState(false)
   const isBoard = type === 'send_screen' && boardFormats.length > 0
 
   useEffect(() => {
@@ -133,6 +139,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     setBoardFormats([])
     setBoardMaxPosts(1)
     setBoardShareScreenshot(true)
+    setBoardSelfPaced(false)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -213,6 +220,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               shareScreenshot: false,
               boardFormats: [],
               boardMaxPosts: null,
+              boardSelfPaced: false,
               quizSettings: quizSettingsFrom(quizCount, quizType, direction),
             })
             return
@@ -242,6 +250,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             shareScreenshot: isBoard ? boardShareScreenshot : shareScreenshot,
             boardFormats: isBoard ? boardFormats : [],
             boardMaxPosts: isBoard ? boardMaxPosts : null,
+            boardSelfPaced: isBoard && boardSelfPaced,
           })
         }}
       >
@@ -352,7 +361,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                 type="checkbox"
                 onChange={(event) => setBoardShareScreenshot(event.target.checked)}
               />
-              附上目前畫面
+              附上截圖
             </label>
             <p className="muted question-type-hint">
               {boardShareScreenshot
@@ -364,7 +373,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                 ticked is the plain 派送畫面 it has always been, which is why
                 there is no separate type to choose on the way in. */}
             <fieldset className="board-formats">
-              <legend>開放學生回應（不勾就是單純派送）</legend>
+              <legend>開放答題方式（不勾就是單純派送）</legend>
               <div className="board-format-grid">
                 {boardFormatChoices.map((choice) => {
                   const on = boardFormats.includes(choice.kind)
@@ -401,8 +410,20 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               </div>
             )}
             {isBoard && (
+              <label className="multi-select-setting">
+                <input
+                  checked={boardSelfPaced}
+                  type="checkbox"
+                  onChange={(event) => setBoardSelfPaced(event.target.checked)}
+                />
+                自行作答（先看不到別人的，你再決定何時開放）
+              </label>
+            )}
+            {isBoard && (
               <p className="muted question-type-hint">
-                學生貼的時候只看得見自己的，你按「開放瀏覽」才整面翻開。
+                {boardSelfPaced
+                  ? '學生只看得到自己貼的，你在討論板上按一下就整面翻開。'
+                  : '全班互相看得到。隨時可以改成自行作答。'}
                 討論板會一直開著，你可以繼續派別的題目，學生隨時回來加。
               </p>
             )}
