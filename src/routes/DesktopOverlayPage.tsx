@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { resolvedCaptionLanguage } from '../lib/captionLanguages'
 import { DanmakuLayer } from '../components/DanmakuLayer'
+import { useSessionPresence } from '../lib/useSessionPresence'
 import { BuzzerOverlay } from '../components/BuzzerOverlay'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { LiveCaptionOverlay } from '../components/LiveCaptionOverlay'
@@ -21,6 +22,11 @@ export function DesktopOverlayPage() {
   const messageCutoffRef = useRef(new Date().toISOString())
   const loadingRef = useRef(false)
   const captionHideTimersRef = useRef<Map<string, number>>(new Map())
+
+  // The overlay counts as the teacher being present, and it is the window that
+  // is certainly awake while a class is running — the controls are collapsed
+  // behind it, so it is the one to be sure of.
+  useSessionPresence(sessionId, { role: 'presenter' })
 
   const showCaption = useCallback((language: string, text: string) => {
     setLiveCaptions((current) => ({ ...current, [language]: text }))

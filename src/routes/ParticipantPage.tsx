@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { BookOpen, PartyPopper, Send, Sparkles, Waves } from 'lucide-react'
+import { BookOpen, Coffee, PartyPopper, Send, Sparkles, Waves } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
 import { ParticipantQuestionHistory } from '../components/ParticipantQuestionHistory'
@@ -79,7 +79,14 @@ export function ParticipantPage() {
   const loadedQuizQuestionId = useRef('')
   const navigate = useNavigate()
   const location = useLocation()
-  useSessionPresence(sessionId, session?.status === 'active' ? participant : null)
+  // Also tells the class whether anyone is at the front of the room.
+  const { presenterOnline } = useSessionPresence(sessionId, {
+    role: 'participant',
+    participant: session?.status === 'active' ? participant : null,
+  })
+  // Only once it is known. Until then nothing is said, so a page that has just
+  // opened never flashes 下課中 at a class that is running.
+  const onBreak = presenterOnline === false
 
   // Presence in the channel is live-only; this is what the report reads later.
   useEffect(() => {
@@ -331,6 +338,7 @@ export function ParticipantPage() {
     event.preventDefault()
     const content = message.trim()
     if (!participant || session?.status !== 'active' || !content) return
+    if (onBreak) return
     if (!messageFitsLimit(content)) {
       setError(`彈幕上限為 ${MESSAGE_MAX_CJK_CHARACTERS} 個中文字或 ${MESSAGE_MAX_ENGLISH_WORDS} 個英文單字。`)
       return
@@ -639,6 +647,15 @@ export function ParticipantPage() {
           <strong>{participant?.name || participantText(locale, 'attendee')}</strong>{locale === 'en' ? participantText(locale, 'welcome') : `，${participantText(locale, 'welcome')}`}{session?.title || participantText(locale, 'session')}
         </h1>
       </header>
+      {onBreak && (
+        <section className="panel participant-break" aria-live="polite">
+          <span className="participant-break-icon"><Coffee size={26} /></span>
+          <div>
+            <h2>{participantText(locale, 'onBreak')}</h2>
+            <p>{participantText(locale, 'teacherAway')}</p>
+          </div>
+        </section>
+      )}
       {session && (
         <ParticipantInterpretationAudio
           enabled={session.interpretation_enabled && session.interpretation_audio_enabled}
@@ -707,7 +724,11 @@ export function ParticipantPage() {
         screenshots={historyScreenshots}
         onLoadDetails={loadHistoryDetails}
       />
-      <form className="panel message-form" onSubmit={sendMessage}>
+      {/* The field goes away rather than being disabled. A disabled box still
+          invites a student to type a question into it that nobody will ever
+          read, and a class left alone with a live text field is how the message
+          table fills up with an hour of chatter aimed at an empty room. */}
+      {!onBreak && <form className="panel message-form" onSubmit={sendMessage}>
         <label>
           {participantText(locale, 'sendFeedback')}
           <textarea
@@ -726,7 +747,7 @@ export function ParticipantPage() {
         </p>
         {error && <p className="error">{error}</p>}
         <button disabled={!message.trim() || !messageFitsLimit(message)} type="submit"><Send size={18} />{participantText(locale, 'send')}</button>
-      </form>
+      </form>}
       <LotteryOverlay event={lotteryEvent} participantId={participant?.id} />
       <BuzzerOverlay
         busy={buzzerBusy}

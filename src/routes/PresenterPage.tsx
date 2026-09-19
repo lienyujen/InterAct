@@ -154,7 +154,7 @@ export function PresenterPage() {
     [session?.code, sessionId],
   )
   const [joinUrl, setJoinUrl] = useState(fallbackJoinUrl)
-  const onlineParticipantIds = useSessionPresence(sessionId)
+  const { onlineParticipantIds } = useSessionPresence(sessionId, { role: 'presenter' })
   const onlineParticipants = useMemo(
     () => participants.filter((participant) => onlineParticipantIds.includes(participant.id)),
     [onlineParticipantIds, participants],

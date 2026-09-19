@@ -2,7 +2,7 @@ export type ParticipantLocale = 'zh-TW' | 'en'
 
 const messages = {
   'zh-TW': {
-    language: '語言', chinese: '繁體中文', english: 'English', courseEnded: '課程已結束', classDismissed: '下課啦！',
+    language: '語言', chinese: '繁體中文', english: 'English', courseEnded: '課程已結束', classDismissed: '下課啦！', onBreak: '下課中', teacherAway: '老師目前不在線上，回來後這裡會自動恢復。',
     thankYou: '謝謝你的參與。', aiSummary: 'AI 課程總結', todayHighlights: '今天的課程重點', lessonKeyPoints: '課堂重點整理',
     learningReview: '學習整理', strengths: '本次掌握的重點', reviewMore: '可以再複習', sharedResources: '課堂文字與連結',
     attendee: '與會者', welcome: '歡迎加入', session: 'InterAct 場次', sendFeedback: '送出問題或回饋',
@@ -27,7 +27,7 @@ const messages = {
     uploadFailed: '檔案上傳失敗，請再試一次。', uploadClosed: '教師已停止收件。', fileFeedback: 'AI 檔案回饋', yourMark: '老師的 AI 批改', marking: '批改中，請稍候', didWell: '做得好', canImprove: '可改進', points: '分',
   },
   en: {
-    language: 'Language', chinese: '繁體中文', english: 'English', courseEnded: 'Class ended', classDismissed: 'That’s a wrap!',
+    language: 'Language', chinese: '繁體中文', english: 'English', courseEnded: 'Class ended', classDismissed: 'That’s a wrap!', onBreak: 'Class is on a break', teacherAway: 'Your teacher is offline right now. This page comes back by itself when they return.',
     thankYou: 'Thank you for participating.', aiSummary: 'AI class summary', todayHighlights: 'Today’s class highlights', lessonKeyPoints: 'Key takeaways',
     learningReview: 'Learning review', strengths: 'What the class understood', reviewMore: 'Worth reviewing', sharedResources: 'Class text and links',
     attendee: 'Participant', welcome: ', welcome to ', session: 'InterAct session', sendFeedback: 'Send a question or feedback',

@@ -152,6 +152,12 @@ function createWindow() {
     icon: APP_WINDOW_ICON_PATH,
     backgroundColor: '#00000000',
     webPreferences: {
+      // The controls spend most of a class collapsed to a corner or hidden
+      // behind the overlay, and Chromium throttles a hidden window's timers
+      // down to about one a minute. That is below the rate the realtime
+      // connection has to be serviced at, so the socket would be dropped and
+      // the class told their teacher had left while the teacher was mid-lesson.
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,

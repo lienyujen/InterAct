@@ -1238,6 +1238,40 @@ h2 {
   border-color: rgb(199 139 32 / 35%);
 }
 
+/* Shown to the class while nobody is at the front of the room. It is a notice
+   rather than a takeover of the page: the lesson so far, the answers already
+   given and any file the teacher shared all stay where the student left them,
+   and the notice simply goes away by itself when the teacher comes back. */
+.participant-break {
+  align-items: center;
+  background: var(--energy-soft);
+  border-color: var(--energy);
+  display: flex;
+  gap: 14px;
+}
+
+.participant-break-icon {
+  align-items: center;
+  background: var(--energy-dark);
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  flex: 0 0 auto;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.participant-break h2 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.participant-break p {
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
 .danmaku-layer {
   inset: 0;
   overflow: hidden;

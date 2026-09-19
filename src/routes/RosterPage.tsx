@@ -58,7 +58,7 @@ export function RosterPage() {
   const [busyId, setBusyId] = useState('')
   const [pendingRemoval, setPendingRemoval] = useState<{ id: string; name: string } | null>(null)
   const [error, setError] = useState('')
-  const onlineParticipantIds = useSessionPresence(sessionId)
+  const { onlineParticipantIds } = useSessionPresence(sessionId, { role: 'presenter' })
 
   // Read from this computer rather than the database; see lib/classRoster.ts.
   const readRoster = useCallback(() => {
