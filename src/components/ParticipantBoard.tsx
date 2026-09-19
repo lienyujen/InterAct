@@ -482,6 +482,16 @@ function BoardCard(props: {
             {REACTIONS.map((emoji) => {
               const count = reactions.filter((entry) => entry.emoji === emoji).length
               const own = reactions.some((entry) => entry.emoji === emoji && entry.participant_id === viewerId)
+              // You cannot like your own card. On your own it stops being a
+              // reaction and becomes a vote for yourself, and the counts are
+              // what the class reads the wall by. The tally still shows —
+              // seeing that four people liked what you wrote is the point —
+              // it just is not a button any more.
+              if (mine) {
+                return count > 0
+                  ? <span className="board-reaction is-static" key={emoji}>{emoji}<span>{count}</span></span>
+                  : null
+              }
               return (
                 <button
                   className={`board-reaction${own ? ' is-own' : ''}`}

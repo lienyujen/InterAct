@@ -6443,3 +6443,30 @@ h2 {
   object-fit: contain;
   width: 100%;
 }
+
+/* A tally on your own card: the same shape as the button, without being one. */
+.board-reaction.is-static {
+  background: none;
+  color: var(--muted);
+  cursor: default;
+  padding-left: 0;
+}
+
+/* Shown in a detail window whose page threw while rendering. */
+.window-error {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 28px;
+}
+
+.window-error h1 { margin: 0; }
+
+.window-error pre {
+  background: var(--surface-subtle);
+  border-radius: var(--radius-sm);
+  max-width: 100%;
+  overflow: auto;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+}

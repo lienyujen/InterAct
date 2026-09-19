@@ -1223,9 +1223,11 @@ function BoardResults({ question }: { question: Question }) {
   }
 
   function enlarge() {
-    if (window.interactDesktop?.openBoardReview) {
-      void window.interactDesktop.openBoardReview(question.session_id, question.id)
-    }
+    if (!window.interactDesktop?.openBoardReview) return
+    window.interactDesktop.openBoardReview(question.session_id, question.id)
+      .catch((caught: unknown) => {
+        setError(`放大檢視開啟失敗：${caught instanceof Error ? caught.message : '請稍後再試。'}`)
+      })
   }
 
   return (

@@ -417,9 +417,15 @@ Deno.serve(async (req) => {
       const emoji = typeof input.emoji === 'string' ? input.emoji.trim().slice(0, 8) : ''
       if (!emoji) return jsonResponse({ message: '沒有指定反應。' }, 400)
       const { data: post, error: postError } = await supabase.from('board_posts')
-        .select('id, question_id').eq('id', postId).eq('session_id', sessionId).maybeSingle()
+        .select('id, question_id, participant_id').eq('id', postId).eq('session_id', sessionId).maybeSingle()
       if (postError) throw postError
       if (!post) return jsonResponse({ message: '找不到這則貼文。' }, 404)
+      // Not your own. Hiding the button on the page is a courtesy; this is the
+      // rule. The counts are what the class reads the wall by, so a vote for
+      // yourself is worth refusing rather than merely discouraging.
+      if (post.participant_id === participantId) {
+        return jsonResponse({ message: '不能對自己的貼文按讚。' }, 409)
+      }
       const { data: board } = await supabase.from('questions')
         .select('board_revealed_at').eq('id', post.question_id).maybeSingle()
       if (!board?.board_revealed_at) return jsonResponse({ message: '討論板還沒有開放瀏覽。' }, 409)

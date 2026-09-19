@@ -542,6 +542,27 @@ function createQuestionDetailWindow(route, title) {
   configureWebContents(nextQuizReviewWindow)
   nextQuizReviewWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, QUIZ_REVIEW_RELATIVE_LEVEL)
   loadAppRoute(nextQuizReviewWindow, route)
+  // A detail window that dies takes the presenter's controls with it, because
+  // they were hidden to make room for it — so the presenter is left with no
+  // window at all and calls it a crash. None of this should ever fire; if it
+  // does, it says which of the three things went wrong and puts the controls
+  // back rather than leaving the room staring at nothing.
+  nextQuizReviewWindow.webContents.on('did-fail-load', (_event, code, description, url) => {
+    console.error('detail window failed to load', { route, code, description, url })
+  })
+  nextQuizReviewWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('detail window renderer gone', { route, ...details })
+    if (!nextQuizReviewWindow.isDestroyed()) nextQuizReviewWindow.close()
+  })
+  nextQuizReviewWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    console.error('detail window preload failed', { route, preloadPath, message: error?.message })
+  })
+  // Anything the page itself throws. Without this a blank window is the only
+  // symptom of an error the renderer printed to a console nobody can open.
+  nextQuizReviewWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level >= 2) console.error('detail window console', { route, message, line, sourceId })
+  })
+
   nextQuizReviewWindow.once('ready-to-show', () => {
     nextQuizReviewWindow.show()
     nextQuizReviewWindow.moveTop()

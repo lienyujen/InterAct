@@ -12,6 +12,7 @@ import { PresenterNewPage } from './routes/PresenterNewPage'
 import { PresenterPage } from './routes/PresenterPage'
 import { SessionReportPage } from './routes/SessionReportPage'
 import { BoardReviewPage } from './routes/BoardReviewPage'
+import { WindowErrorBoundary } from './components/WindowErrorBoundary'
 import { WordCloudPage } from './routes/WordCloudPage'
 import { BackendSetup } from './components/BackendSetup'
 import { isSupabaseConfigured } from './lib/supabase'
@@ -54,9 +55,9 @@ function AppRoutes() {
         <Route path="/presenter/new" element={isDesktop ? <PresenterNewPage /> : <Navigate to="/" replace />} />
         <Route path="/presenter/:sessionId" element={isDesktop ? <PresenterPage /> : <Navigate to="/" replace />} />
         <Route path="/desktop-overlay/:sessionId" element={isDesktop ? <DesktopOverlayPage /> : <Navigate to="/" replace />} />
-        <Route path="/custom-quiz-review/:sessionId/:questionId" element={isDesktop ? <CustomQuizReviewPage /> : <Navigate to="/" replace />} />
-        <Route path="/hotspot-review/:sessionId/:questionId" element={isDesktop ? <HotspotReviewPage /> : <Navigate to="/" replace />} />
-        <Route path="/board-review/:sessionId/:questionId" element={isDesktop ? <BoardReviewPage /> : <Navigate to="/" replace />} />
+        <Route path="/custom-quiz-review/:sessionId/:questionId" element={isDesktop ? <WindowErrorBoundary><CustomQuizReviewPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
+        <Route path="/hotspot-review/:sessionId/:questionId" element={isDesktop ? <WindowErrorBoundary><HotspotReviewPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
+        <Route path="/board-review/:sessionId/:questionId" element={isDesktop ? <WindowErrorBoundary><BoardReviewPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
         <Route path="/session-report/:sessionId" element={isDesktop ? <SessionReportPage /> : <Navigate to="/" replace />} />
         <Route path="/roster/:sessionId" element={isDesktop ? <RosterPage /> : <Navigate to="/" replace />} />
         <Route path="/word-cloud/:sessionId" element={isDesktop ? <WordCloudPage /> : <Navigate to="/" replace />} />
