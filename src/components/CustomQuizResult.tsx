@@ -10,6 +10,7 @@ type Props = {
   results: PresenterQuizResults | null
   onlineCount: number
   isCurrentQuestion: boolean
+  onRecallQuestion: (questionId: string) => Promise<void>
   onStopQuestion: () => Promise<void>
   onResumeQuestion: () => Promise<void>
   onUpdateAnswer: (itemId: string, acceptedAnswers: string[]) => Promise<void>
@@ -85,7 +86,7 @@ export function QuizAnswerEditor({ showAnswers, busyItemId, draftAnswers, result
   )
 }
 
-export function CustomQuizResult({ anonymousEnabled, question, results, onlineCount, isCurrentQuestion, onStopQuestion, onResumeQuestion, onUpdateAnswer }: Props) {
+export function CustomQuizResult({ anonymousEnabled, question, results, onlineCount, isCurrentQuestion, onRecallQuestion, onStopQuestion, onResumeQuestion, onUpdateAnswer }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [busyItemId, setBusyItemId] = useState('')
   const [error, setError] = useState('')
@@ -155,6 +156,7 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
             question={question}
             canRepeat={false}
             onNextRound={async () => {}}
+            onRecall={() => onRecallQuestion(question.id)}
             onResume={onResumeQuestion}
             onStop={onStopQuestion}
           />

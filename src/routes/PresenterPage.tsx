@@ -1168,6 +1168,23 @@ export function PresenterPage() {
     if (!data?.question) throw new Error(data?.message || '恢復作答失敗。')
   }
 
+  // Putting an earlier question back in front of the class. Everything else
+  // here acts on session.current_question_id, so a question that scrolled into
+  // the history had no controls at all — including one left 'active' behind a
+  // newer one, which no student could see and no button could reach.
+  async function recallQuestion(questionId: string) {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
+    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'recall_question', sessionId, presenterToken, questionId },
+    })
+    if (error) throw new Error(await edgeFunctionErrorMessage(error, '重新派送失敗。'))
+    if (!data?.question) throw new Error(data?.message || '重新派送失敗。')
+    // The class is on it again, so the panel should be too.
+    setSelectedQuestionId(questionId)
+    await loadAll()
+  }
+
   // The same question asked again after the class has argued about it. The
   // first round stays put; the comparison is the point.
   async function nextRound() {
@@ -1846,6 +1863,7 @@ export function PresenterPage() {
             question={question}
             results={quizResults}
             isCurrentQuestion={question?.id === session.current_question_id}
+            onRecallQuestion={recallQuestion}
             onStopQuestion={stopQuestion}
             onResumeQuestion={resumeQuestion}
             onUpdateAnswer={updateCustomQuizAnswer}
@@ -1873,6 +1891,7 @@ export function PresenterPage() {
           })}
           onDrawUnanswered={drawUnanswered}
           onNextRound={nextRound}
+          onRecallQuestion={recallQuestion}
           onSetCorrectAnswer={setCorrectAnswer}
           orderingKey={orderingKey}
           onSetOrderingKey={setOrderingAnswer}

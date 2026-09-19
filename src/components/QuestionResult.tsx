@@ -44,6 +44,9 @@ type Props = {
   onStopQuestion: () => Promise<void>
   onResumeQuestion: () => Promise<void>
   onNextRound: () => Promise<void>
+  // Any question, not just the current one: this is what makes an older one
+  // current again.
+  onRecallQuestion: (questionId: string) => Promise<void>
   // The dispatched screenshot, which the class's taps are drawn back onto.
   screenshotUrl: string | null
   onDrawUnanswered: (questionId: string) => void
@@ -82,8 +85,9 @@ function QuestionStatusActions({
   onStopQuestion,
   onResumeQuestion,
   onNextRound,
+  onRecallQuestion,
   question,
-}: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered' | 'onStopQuestion' | 'onResumeQuestion' | 'onNextRound'> & { question: Question }) {
+}: Pick<Props, 'busy' | 'isCurrentQuestion' | 'onlineCount' | 'onDrawUnanswered' | 'onStopQuestion' | 'onResumeQuestion' | 'onNextRound' | 'onRecallQuestion'> & { question: Question }) {
   // The presenter has to see the clock the class is watching, or they are
   // deciding when to move on blind — which is the whole reason a timed
   // question was set. Same function as the student's, so the two agree.
@@ -117,6 +121,7 @@ function QuestionStatusActions({
         question={question}
         canRepeat={['poll', 'multiple_choice', 'true_false', 'short_answer', 'hotspot', 'ordering', 'matching'].includes(question.type)}
         onNextRound={onNextRound}
+        onRecall={() => onRecallQuestion(question.id)}
         onResume={onResumeQuestion}
         onStop={onStopQuestion}
       />

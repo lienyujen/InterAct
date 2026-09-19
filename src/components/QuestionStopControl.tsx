@@ -1,4 +1,4 @@
-import { Play, RotateCcw, Square } from 'lucide-react'
+import { Play, RotateCcw, Send, Square } from 'lucide-react'
 import { useState } from 'react'
 import type { Question } from '../types'
 
@@ -11,6 +11,10 @@ type Props = {
   onStop: () => Promise<void>
   onResume: () => Promise<void>
   onNextRound: () => Promise<void>
+  // Puts an earlier question back in front of the class. Every other control
+  // here needs the question to be the current one, and this is how one that is
+  // not gets there.
+  onRecall: () => Promise<void>
   // A second round only makes sense where the class picks from the same
   // options again; a recording or an upload is not asked twice this way.
   canRepeat: boolean
@@ -19,13 +23,17 @@ type Props = {
 // One button that changes its mind rather than two that each go one way. The
 // title says the stop is reversible, because a teacher who does not know that
 // will not press it in the middle of an activity.
-export function QuestionStopControl({ question, isCurrentQuestion, busy, canRepeat, onStop, onResume, onNextRound }: Props) {
+export function QuestionStopControl({ question, isCurrentQuestion, busy, canRepeat, onStop, onResume, onNextRound, onRecall }: Props) {
   const [toggling, setToggling] = useState(false)
   const [error, setError] = useState('')
 
   const stoppable = isCurrentQuestion && question.status === 'active'
   const resumable = isCurrentQuestion && question.status === 'stopped'
-  if (!stoppable && !resumable) return null
+  // An older question used to be a record with no controls at all, which left
+  // a class that never got to answer it with no way back — and a question left
+  // 'active' behind a newer one stuck in a state nothing could reach.
+  const recallable = !isCurrentQuestion
+  if (!stoppable && !resumable && !recallable) return null
 
   async function run(action: () => Promise<void>) {
     setToggling(true)
@@ -44,6 +52,24 @@ export function QuestionStopControl({ question, isCurrentQuestion, busy, canRepe
   // Icons only. These sit in the panel heading beside the question title and
   // the status badge, and three labelled buttons there wrap onto their own
   // lines and crowd out the title. The name moves into the tooltip.
+  if (recallable) {
+    return (
+      <span className="question-stop-control">
+        <button
+          aria-label="重新派送"
+          className="question-stop-button is-resume"
+          disabled={busy || toggling}
+          title="重新派送 —— 把這一題再送到學生面前。已經作答的人保留原本的作答，沒作答的可以補作答"
+          type="button"
+          onClick={() => void run(onRecall)}
+        >
+          <Send size={17} />
+        </button>
+        {error && <span className="error question-stop-error">{error}</span>}
+      </span>
+    )
+  }
+
   return (
     <span className="question-stop-control">
       <button

@@ -398,6 +398,12 @@ Deno.serve(async (req) => {
 
     if (action === 'create_file_request') {
       const promptText = typeof input.promptText === 'string' ? input.promptText.trim().slice(0, 1000) : ''
+      const { error: stopPreviousError } = await supabase.from('questions')
+        .update({ status: 'stopped', stopped_at: new Date().toISOString() })
+        .eq('session_id', sessionId)
+        .eq('status', 'active')
+        .neq('type', 'board')
+      if (stopPreviousError) throw stopPreviousError
       const { data: question, error } = await supabase.from('questions').insert({
         session_id: sessionId,
         type: 'file_upload',
@@ -1047,6 +1053,53 @@ Deno.serve(async (req) => {
         .maybeSingle()
       if (error) throw error
       if (!data) return jsonResponse({ message: '題目已停止或不存在。' }, 409)
+      return jsonResponse({ question: data })
+    }
+
+    if (action === 'recall_question') {
+      const questionId = input.questionId
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      const { data: current, error: currentError } = await supabase
+        .from('sessions').select('status').eq('id', sessionId).maybeSingle()
+      if (currentError) throw currentError
+      if (!current || current.status !== 'active') return jsonResponse({ message: '課堂已結束。' }, 409)
+      const { data: target, error: targetError } = await supabase
+        .from('questions').select('id, type').eq('id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (targetError) throw targetError
+      if (!target) return jsonResponse({ message: '找不到題目。' }, 404)
+
+      const recalledAt = new Date().toISOString()
+      const { error: stopError } = await supabase.from('questions')
+        .update({ status: 'stopped', stopped_at: recalledAt })
+        .eq('session_id', sessionId)
+        .eq('status', 'active')
+        .neq('type', 'board')
+        .neq('id', questionId)
+      if (stopError) throw stopError
+
+      // started_at moves to now for the same reason reopening does it: a timed
+      // question sent back with its old start would arrive already expired.
+      // The round is deliberately left alone — this is "answer the one you
+      // missed", and the students who already answered keep their answer.
+      // 再做一次 is the button for a fresh round, and it becomes available the
+      // moment this question is the current one again.
+      const { data, error } = await supabase.from('questions')
+        .update({ status: 'active', stopped_at: null, started_at: recalledAt })
+        .eq('id', questionId)
+        .eq('session_id', sessionId)
+        .select('*')
+        .maybeSingle()
+      if (error) throw error
+      if (!data) return jsonResponse({ message: '找不到題目。' }, 404)
+
+      const { error: sessionError } = await supabase.from('sessions')
+        .update({
+          current_question_id: questionId,
+          ...(target.type === 'board' ? { board_question_id: questionId } : {}),
+        })
+        .eq('id', sessionId)
+        .eq('status', 'active')
+      if (sessionError) throw sessionError
       return jsonResponse({ question: data })
     }
 
