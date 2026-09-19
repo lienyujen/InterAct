@@ -4942,10 +4942,11 @@ h2 {
   height: 26px;
   justify-content: center;
   line-height: 1;
-  /* Nearly solid. It was translucent so a crowd on one spot would read as a
-     crowd, but now every student has their own colour the crowd shows in the
-     colours instead, and translucency only stirred them into one muddy violet. */
-  opacity: 0.92;
+  /* Translucent, so that a crowd on one spot reads as a crowd: pins stacked
+     three deep are visibly darker than one. This used to muddy everything into
+     a single violet because every pin was the same colour; with a colour per
+     student the overlap now says how many, not just that there were some. */
+  opacity: 0.82;
   width: 26px;
 }
 
@@ -4957,7 +4958,7 @@ h2 {
   bottom: 0;
   content: '';
   left: 50%;
-  opacity: 0.92;
+  opacity: 0.82;
   position: absolute;
   transform: translateX(-50%);
 }
