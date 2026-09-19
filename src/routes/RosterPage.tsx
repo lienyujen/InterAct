@@ -146,6 +146,8 @@ export function RosterPage() {
 
   const rows = useMemo(() => {
     const computed = participationRows({
+      // The class is running, so the absence clock runs to now.
+      endedAt: null,
       participants,
       questions,
       answers,
@@ -320,7 +322,7 @@ export function RosterPage() {
             const pending = Boolean(activeQuestion) && row.online
               && !participation?.answeredQuestionIds.has(activeQuestion?.id || '')
             // Away for a stretch rather than a moment between tabs.
-            const distracted = row.online && (participation?.unfocusedMs || 0) >= 2 * 60_000
+            const distracted = row.online && (participation?.awayMs || 0) >= 2 * 60_000
             const classes = ['roster-row']
             if (!participation) classes.push('is-absent')
             else if (!row.online) classes.push('is-offline')
@@ -349,7 +351,7 @@ export function RosterPage() {
                   {!row.onRoster && roster && <span className="roster-tag is-unlisted">不在名單</span>}
                   {!participation && <span className="roster-tag is-absent">未到</span>}
                   {pending && <span className="roster-tag is-pending">未作答</span>}
-                  {distracted && <span className="roster-tag is-distracted">離開 {minutes(participation?.unfocusedMs || 0)} 分</span>}
+                  {distracted && <span className="roster-tag is-distracted">{minutes(participation?.awayMs || 0)} 分</span>}
                 </span>
 
                 {/* Nothing below this point applies to a name nobody has joined

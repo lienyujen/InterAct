@@ -224,6 +224,9 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
 
   const participationByParticipant = new Map(
     participationRows({
+      // A report is read after the class, so the absence clock has to stop at
+      // the end of it rather than at the moment the file is opened.
+      endedAt: data.session.ended_at,
       participants: data.participants,
       questions: data.questions,
       answers: data.answers,
@@ -273,7 +276,11 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       joinedAt: formatDate(participant.joined_at),
       lastSeenAt: formatDate(participant.last_seen_at),
       presentMinutes: minutes(new Date(participant.last_seen_at).getTime() - new Date(participant.joined_at).getTime()),
-      unfocusedMinutes: minutes(participant.unfocused_ms),
+      // Same figure the roster shows: background time plus time with no page
+      // there to report any. The heading still says 離開畫面 because that is
+      // what it is — the screen not being in front of them, however it got that
+      // way.
+      unfocusedMinutes: participation ? minutes(participation.awayMs) : '',
       messageCount: messageCountByParticipant.get(participant.id) || 0,
       answerCount: answerCountByParticipant.get(participant.id) || 0,
       // Blank rather than 0 when nothing was marked, so an empty cell always
