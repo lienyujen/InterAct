@@ -3,12 +3,12 @@ import { MousePointerClick, X } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { HotspotImage } from '../components/HotspotImage'
 import { getPresenterToken } from '../lib/presenterAuth'
-import { parsePins, pinLabel } from '../lib/hotspot'
+import { parsePins, pinColor, pinLabel } from '../lib/hotspot'
 import { requireSupabase } from '../lib/supabase'
 
 type HotspotResult = {
   question: { id: string; title: string; prompt_text: string | null; max_pins: number | null; answer_round: number }
-  answers: Array<{ participant_name: string; answer_values: string[] | null; round: number }>
+  answers: Array<{ participant_id: string; participant_name: string; answer_values: string[] | null; round: number }>
   imageUrl: string | null
 }
 
@@ -49,6 +49,7 @@ export function HotspotReviewPage() {
   const pins = current.flatMap((entry, index) => parsePins(entry.answer_values).map((point) => ({
     ...point,
     label: pinLabel(entry.participant_name, anonymous, index),
+    color: pinColor(entry.participant_id),
   })))
 
   return (

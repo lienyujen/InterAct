@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 
-export type Pin = { x: number; y: number; label: string; own?: boolean }
+export type Pin = { x: number; y: number; label: string; own?: boolean; color?: string }
 
 type Props = {
   imageUrl: string
@@ -44,7 +44,13 @@ export function HotspotImage({ imageUrl, alt, pins, onPlace, onRemove }: Props) 
           className={`hotspot-pin${pin.own ? ' is-own' : ''}`}
           disabled={!onRemove}
           key={`${index}-${pin.x}-${pin.y}`}
-          style={{ left: `${pin.x * 100}%`, top: `${pin.y * 100}%` }}
+          // The colour reaches the point of the pin as well as its head, and the
+          // point is drawn by a pseudo-element, so it travels as a variable.
+          style={{
+            left: `${pin.x * 100}%`,
+            top: `${pin.y * 100}%`,
+            ...(pin.color ? { '--pin-color': pin.color } as React.CSSProperties : {}),
+          }}
           title={pin.label}
           type="button"
           onClick={(event) => {

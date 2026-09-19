@@ -1141,7 +1141,7 @@ Deno.serve(async (req) => {
       if (!question || question.type !== 'hotspot') return jsonResponse({ message: '這一題不是圖上點選。' }, 404)
 
       const [{ data: answers, error: answerError }, { data: shot }] = await Promise.all([
-        supabase.from('answers').select('participant_name, answer_values, round')
+        supabase.from('answers').select('participant_id, participant_name, answer_values, round')
           .eq('question_id', questionId).eq('session_id', sessionId).order('submitted_at'),
         question.screenshot_id
           ? supabase.from('screenshots').select('public_url').eq('id', question.screenshot_id).maybeSingle()

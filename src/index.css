@@ -4904,35 +4904,72 @@ h2 {
   width: 100%;
 }
 
+/* A round head with a point below it, both upright.
+   It used to be a square with one sharp corner, rotated -45deg to bring that
+   corner downwards — but rotation happens about the element's centre, so it
+   carried the corner 5.4px past the spot the student actually tapped. Every
+   mark in every class was low by that much, and on a diagram where the answer
+   is a millimetre wide that is the difference between right and wrong.
+
+   The element is the whole pin, head and point together, so its bottom edge IS
+   the point. translate(-50%, -100%) puts that edge on the tap and there is no
+   offset to get wrong — an earlier attempt kept the element as just the head and
+   subtracted the point's height, which left the tip two pixels low because the
+   border and the padding box do not agree about where 100% starts. */
 .hotspot-pin {
+  background: none;
+  border: 0;
+  height: 35px;
+  min-height: 0;
+  padding: 0;
+  position: absolute;
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
+  width: 26px;
+}
+
+/* The head. */
+.hotspot-pin > span {
   align-items: center;
-  background: var(--primary, #5b5ce2);
+  background: var(--pin-color, var(--primary, #5b5ce2));
   border: 2px solid #fff;
-  border-radius: 50% 50% 50% 2px;
+  border-radius: 50%;
   box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
   color: #fff;
-  /* Translucent so a cluster reads as a cluster. Eighteen students tapping the
-     same spot is the finding; opaque pins would show it as one. */
-  opacity: 0.82;
   display: flex;
   font-size: 12px;
   font-weight: 700;
   height: 26px;
   justify-content: center;
   line-height: 1;
-  padding: 0;
-  position: absolute;
-  /* The point of the teardrop sits on what was tapped, not the middle of it. */
-  transform: translate(-50%, -100%) rotate(-45deg);
+  /* Nearly solid. It was translucent so a crowd on one spot would read as a
+     crowd, but now every student has their own colour the crowd shows in the
+     colours instead, and translucency only stirred them into one muddy violet. */
+  opacity: 0.92;
   width: 26px;
 }
 
-.hotspot-pin span {
-  transform: rotate(45deg);
+/* The point, ending exactly on the element's bottom edge. */
+.hotspot-pin::after {
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 10px solid var(--pin-color, var(--primary, #5b5ce2));
+  bottom: 0;
+  content: '';
+  left: 50%;
+  opacity: 0.92;
+  position: absolute;
+  transform: translateX(-50%);
 }
 
-.hotspot-pin.is-own {
+/* The student's own marks on their own phone, where every pin belongs to them
+   and a colour per student would say nothing. */
+.hotspot-pin.is-own > span {
   background: var(--danger, #c62828);
+}
+
+.hotspot-pin.is-own::after {
+  border-top-color: var(--danger, #c62828);
 }
 
 /* The global button:active rule sets transform: translateY(1px), and it beats
@@ -4942,7 +4979,7 @@ h2 {
    click ever reached the handler: the mark could not be taken back. Press
    feedback has to compose with the positioning, not replace it. */
 .hotspot-pin:active {
-  transform: translate(-50%, -100%) rotate(-45deg) scale(0.9);
+  transform: translate(-50%, -100%) scale(0.9);
 }
 
 .hotspot-frame.is-answerable .hotspot-pin {
@@ -5943,4 +5980,28 @@ h2 {
 .danmaku-timeline-scale strong {
   color: #dbe6ff;
   font-weight: 600;
+}
+
+/* A bigger circle on a touch display. The blanket min-height for touch targets
+   was stretching the head into an ellipse — it did this to the old rotated shape
+   too, which is part of why that one looked askew — so the pin sets its own size
+   and gets a target larger than the rule it opts out of. Only the student taps a
+   pin, to take their own mark back; on the presenter's copy they are disabled. */
+@media (any-pointer: coarse) {
+  .hotspot-pin {
+    height: 46px;
+    width: 34px;
+  }
+
+  .hotspot-pin > span {
+    font-size: 14px;
+    height: 34px;
+    width: 34px;
+  }
+
+  .hotspot-pin::after {
+    border-left-width: 7px;
+    border-right-width: 7px;
+    border-top-width: 13px;
+  }
 }

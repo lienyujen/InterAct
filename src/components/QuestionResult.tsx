@@ -8,7 +8,7 @@ import { createZip, safeFileName, uniqueName } from '../lib/zip'
 import type { ZipEntry } from '../lib/zip'
 import { formatSeconds, presenterDeadline, useSecondsLeft } from '../lib/questionTiming'
 import { HotspotImage } from './HotspotImage'
-import { parsePins, pinLabel } from '../lib/hotspot'
+import { parsePins, pinColor, pinLabel } from '../lib/hotspot'
 import { isImageValue } from '../lib/sliceImage'
 import { QuestionStopControl } from './QuestionStopControl'
 import { MatchingBoard } from './MatchingBoard'
@@ -846,6 +846,7 @@ function HotspotResults(props: Props & { question: Question }) {
   const pins = current.flatMap((entry, index) => parsePins(entry.answer_values).map((point) => ({
     ...point,
     label: pinLabel(entry.participant_name, anonymousEnabled, index),
+    color: pinColor(entry.participant_id),
   })))
 
   // The panel is a column beside the class list, so the picture in it is a
