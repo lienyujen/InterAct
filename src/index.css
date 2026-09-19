@@ -6619,3 +6619,61 @@ h2 {
   padding-right: 8px;
   white-space: nowrap;
 }
+
+/* ---- what a student sees about a closed question ---- */
+
+.participant-review {
+  display: grid;
+  gap: 10px;
+}
+
+.participant-review-line {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.participant-review-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.participant-review-verdict {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 6px;
+  justify-self: start;
+  margin: 0;
+  padding: 4px 12px;
+}
+
+.participant-review-verdict.is-correct {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.participant-review-verdict.is-wrong {
+  background: var(--danger-soft);
+  color: var(--danger-dark);
+}
+
+.participant-review-sequence {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.participant-review-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.participant-review-tiles img {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  max-height: 72px;
+}

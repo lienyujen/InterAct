@@ -70,6 +70,9 @@ export function ParticipantPage() {
   const [historyScreenshots, setHistoryScreenshots] = useState<Record<string, Screenshot>>({})
   const [historyAudioResponses, setHistoryAudioResponses] = useState<Record<string, AudioResponse | null>>({})
   const [historyQuizData, setHistoryQuizData] = useState<Record<string, ParticipantQuizData | null>>({})
+  // 排序題 and 配對題 keep their answer off the question row so the class
+  // cannot read it before answering; this is how it comes back afterwards.
+  const [historyKeys, setHistoryKeys] = useState<Record<string, string[]>>({})
   const [historyLoadingQuestionIds, setHistoryLoadingQuestionIds] = useState<Set<string>>(new Set())
   const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
   const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
@@ -259,7 +262,22 @@ export function ParticipantPage() {
   }, [locale, participantId, participantToken, sessionId])
 
   const loadHistoryDetails = useCallback(async (historyQuestion: Question) => {
-    if (!participantId || !participantToken || !['custom_quiz', 'pronunciation', 'oral_response'].includes(historyQuestion.type)) return
+    if (!participantId || !participantToken) return
+    // 排序題 and 配對題 need only the answer, which is kept off the question
+    // row so the class cannot read it before answering.
+    if (historyQuestion.type === 'ordering' || historyQuestion.type === 'matching') {
+      if (historyKeys[historyQuestion.id] !== undefined) return
+      try {
+        const { data } = await requireSupabase().functions.invoke('participant-action', {
+          body: { action: 'get_question_key', sessionId, participantId, participantToken, questionId: historyQuestion.id },
+        })
+        setHistoryKeys((current) => ({ ...current, [historyQuestion.id]: (data?.correctValues || []) as string[] }))
+      } catch {
+        // Not knowing the answer makes a poorer history entry, not a broken page.
+      }
+      return
+    }
+    if (!['custom_quiz', 'pronunciation', 'oral_response'].includes(historyQuestion.type)) return
     if (historyQuizData[historyQuestion.id] !== undefined || historyAudioResponses[historyQuestion.id] !== undefined) return
     setHistoryLoadingQuestionIds((current) => new Set(current).add(historyQuestion.id))
     try {
@@ -283,7 +301,7 @@ export function ParticipantPage() {
         return next
       })
     }
-  }, [historyAudioResponses, historyQuizData, participantId, participantToken, sessionId])
+  }, [historyAudioResponses, historyKeys, historyQuizData, participantId, participantToken, sessionId])
 
   useEffect(() => {
     if (!participantId) navigate(`/join/${sessionId}${location.search}`)
@@ -656,7 +674,8 @@ export function ParticipantPage() {
           questions={historyQuestions}
           quizData={historyQuizData}
           screenshots={historyScreenshots}
-          onLoadDetails={loadHistoryDetails}
+          questionKeys={historyKeys}
+        onLoadDetails={loadHistoryDetails}
         />
       </main>
     )
@@ -775,6 +794,7 @@ export function ParticipantPage() {
         questions={historyQuestions}
         quizData={historyQuizData}
         screenshots={historyScreenshots}
+        questionKeys={historyKeys}
         onLoadDetails={loadHistoryDetails}
       />
       {/* The field goes away rather than being disabled. A disabled box still

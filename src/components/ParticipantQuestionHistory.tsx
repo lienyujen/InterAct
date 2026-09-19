@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, History, Mic2 } from 'lucide-react'
 import type { ParticipantLocale } from '../lib/participantI18n'
-import { isImageValue } from '../lib/sliceImage'
+import { ParticipantAnswerReview } from './ParticipantAnswerReview'
 import type { Answer, AudioResponse, ParticipantQuizData, Question, Screenshot } from '../types'
 
 type Props = {
@@ -13,27 +13,11 @@ type Props = {
   onLoadDetails: (question: Question) => Promise<void>
   questions: Question[]
   quizData: Record<string, ParticipantQuizData | null>
+  // The answer to a 排序題 or 配對題, which is only readable once the
+  // question has closed and so has to be fetched rather than read off the
+  // question row.
+  questionKeys: Record<string, string[]>
   screenshots: Record<string, Screenshot>
-}
-
-function answerText(question: Question, answer: Answer, locale: ParticipantLocale) {
-  const translatedOptions = locale === 'en' && question.translations?.en?.options?.length === question.options.length
-    ? question.translations.en.options
-    : question.options
-  const display = (value: string) => {
-    const index = question.options.indexOf(value)
-    return index >= 0 ? translatedOptions[index] : value
-  }
-  if (answer.answer_values?.length) {
-    // Tiles cut out of a screenshot have no text to read back; the student saw
-    // the pieces, and a list of storage paths tells them nothing.
-    if (answer.answer_values.some(isImageValue)) {
-      return locale === 'en' ? `${answer.answer_values.length} pieces, in the order you set` : `${answer.answer_values.length} 塊，依你排的順序`
-    }
-    return answer.answer_values.map(display).join(locale === 'en' ? ', ' : '、')
-  }
-  if (answer.answer_value) return display(answer.answer_value)
-  return answer.answer_text || ''
 }
 
 function questionTitle(question: Question, locale: ParticipantLocale) {
@@ -49,6 +33,7 @@ export function ParticipantQuestionHistory({
   locale,
   onLoadDetails,
   questions,
+  questionKeys,
   quizData,
   screenshots,
 }: Props) {
@@ -103,7 +88,9 @@ export function ParticipantQuestionHistory({
                 </button>
                 {open && (
                   <div className="participant-history-body">
-                    {screenshot && <img alt={english ? 'Dispatched question' : '派送題目'} src={screenshot.public_url} />}
+                    {/* 圖上點選 draws the same picture with the taps on it, so
+                        showing it here as well would print it twice. */}
+                    {screenshot && question.type !== 'hotspot' && <img alt={english ? 'Dispatched question' : '派送題目'} src={screenshot.public_url} />}
                     {loading && <p className="muted"><Clock3 size={16} />{english ? 'Loading your answer…' : '正在載入你的作答…'}</p>}
                     {question.type === 'custom_quiz' && quiz?.attempt ? (
                       <div className="participant-history-quiz">
@@ -124,7 +111,13 @@ export function ParticipantQuestionHistory({
                         {audio.transcript && <small>{english ? 'Transcript' : '逐字稿'}：{audio.transcript}</small>}
                       </div>
                     ) : answer ? (
-                      <p className="participant-history-answer"><CheckCircle2 size={17} />{english ? 'Your answer' : '你的答案'}：<strong>{answerText(question, answer, locale)}</strong></p>
+                      <ParticipantAnswerReview
+                        answer={answer}
+                        correctValues={questionKeys[question.id] || []}
+                        locale={locale}
+                        question={question}
+                        screenshot={screenshot || null}
+                      />
                     ) : null}
                   </div>
                 )}

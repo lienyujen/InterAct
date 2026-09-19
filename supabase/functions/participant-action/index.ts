@@ -444,6 +444,29 @@ Deno.serve(async (req) => {
       return jsonResponse({ reacted: true })
     }
 
+    // The answer to a 排序題 or 配對題, once it can no longer be used to
+    // answer with. The key is denied to the class outright, so that nobody can
+    // read it out of devtools before answering — which also meant that
+    // afterwards a student had no way of finding out what the right order was.
+    // Being told your sequence was wrong, and not what right looked like, is
+    // the least useful thing a question can do.
+    if (action === 'get_question_key') {
+      const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
+      if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)
+      const questionId = typeof input.questionId === 'string' ? input.questionId : ''
+      if (!validUuid(questionId)) return jsonResponse({ message: '題目資料不正確。' }, 400)
+      const { data: question, error: questionError } = await supabase.from('questions')
+        .select('id, type, status').eq('id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (questionError) throw questionError
+      if (!question) return jsonResponse({ message: '找不到這一題。' }, 404)
+      // While it is still open the key is still the answer.
+      if (question.status === 'active') return jsonResponse({ correctValues: [] })
+      const { data, error } = await supabase.from('question_keys')
+        .select('correct_values').eq('question_id', questionId).eq('session_id', sessionId).maybeSingle()
+      if (error) throw error
+      return jsonResponse({ correctValues: data?.correct_values || [] })
+    }
+
     if (action === 'get_file_result') {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)
