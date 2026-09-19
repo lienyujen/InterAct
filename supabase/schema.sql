@@ -718,20 +718,30 @@ with check (
       and q.type = 'board'
       and q.status = 'active'
       and s.status = 'active'
-      -- Only the kinds of card this board was opened for.
-      and board_posts.kind = any (q.board_formats)
-      -- A reply is a reply to a card on this same board, and only once the
-      -- board has been revealed — there is nothing to answer before that.
+      -- Only the kinds of card this board was opened for — and only for cards.
+      -- The format list says how a student may ANSWER the topic; answering a
+      -- classmate is a different act and is always words. Applying it to both
+      -- meant that on a board opened for 電繪 alone, every reply was refused:
+      -- a reply is text, text was not on the list, and the class was told
+      -- 貼文失敗 with nothing to do about it.
+      and (
+        board_posts.reply_to is not null
+        or board_posts.kind = any (q.board_formats)
+      )
+      -- A reply is text, on a card on this same board, and only once the board
+      -- has been revealed — there is nothing to answer before that.
       and (
         board_posts.reply_to is null
         or (
-          q.board_revealed_at is not null
+          board_posts.kind = 'text'
+          and q.board_revealed_at is not null
           and public.board_parent_exists(board_posts.question_id, board_posts.reply_to)
         )
       )
       -- The per-student limit, counted here rather than trusted from the page.
-      -- Withdrawn cards still count, so taking one down and posting again is
-      -- not a way around the limit. Replies are not counted; see the column.
+      -- Deleting frees a slot; see board_card_count. Replies are not counted,
+      -- because a class where answering someone costs you your own card is not
+      -- a discussion.
       and (
         board_posts.reply_to is not null
         or q.board_max_posts is null

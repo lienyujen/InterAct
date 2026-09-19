@@ -4,7 +4,7 @@ const messages = {
   'zh-TW': {
     language: '語言', chinese: '繁體中文', english: 'English', courseEnded: '課程已結束', classDismissed: '下課啦！', onBreak: '下課中', teacherAway: '老師目前不在線上，回來後這裡會自動恢復。',
     board: '討論板', boardWrite: '文字回應', boardLink: '貼連結', boardImage: '圖片', boardFile: '檔案', boardAudio: '錄音',
-    boardPlaceholder: '寫下你的想法', boardLinkPlaceholder: 'https://', boardPost: '貼上去', boardPosting: '張貼中…',
+    boardPlaceholder: '寫下你的想法', boardLinkPlaceholder: 'https://', boardPost: '送出', boardPosting: '張貼中…',
     boardYoursOnly: '這一題自行作答，只有你看得到自己貼的。', boardRevealed: '全班的討論',
     boardCount: '你已經貼了 {used} 則，可貼 {limit} 則', boardUnlimited: '可貼則數不限', boardWithdraw: '刪除',
     boardWithdrawn: '已刪除', boardHidden: '已被老師收起', boardEmpty: '還沒有人貼東西。',
