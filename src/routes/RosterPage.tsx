@@ -219,7 +219,10 @@ export function RosterPage() {
       .map((row) => toRow(row, row.participant.name, '', '', false, row.participant.id))
 
     return [...listed, ...unlisted]
-  }, [answers, events, messages, onlineParticipantIds, participants, pointsByParticipant, questions, quiz, roster, uploadMarks])
+  // boardPosts belongs here: the cards arrive from their own call, so a memo
+  // that did not watch them left 未作答 wrong until something else happened to
+  // change and force a recompute.
+  }, [answers, boardPosts, events, messages, onlineParticipantIds, participants, pointsByParticipant, questions, quiz, roster, uploadMarks])
 
   const sortedRows = useMemo(() => {
     const scored = rows.some((row) => (row.participation?.score || 0) > 0)

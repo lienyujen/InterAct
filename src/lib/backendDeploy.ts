@@ -136,13 +136,15 @@ export async function runSchema(ref: string, token: string) {
 // Confirms the project really has what the app needs. Without this a schema that
 // silently did nothing would only surface later as an unexplained failure the
 // first time someone tries to dispatch a screenshot.
+type Counts = { tables?: number; buckets?: number; columns?: number; routines?: number }
+
 export async function verifyBackend(ref: string, token: string) {
   const body = await query(
     ref,
     token,
     `select
        (select count(*) from information_schema.tables
-          where table_schema = 'public' and table_name in ('sessions','questions','participants','shared_files')) as tables,
+          where table_schema = 'public' and table_name in ('sessions','questions','participants','shared_files','board_posts','board_reactions')) as tables,
        (select count(*) from storage.buckets
           where id in ('interact-screenshots','interact-recordings','interact-files')) as buckets,
        (select count(*) from information_schema.columns
@@ -152,27 +154,38 @@ export async function verifyBackend(ref: string, token: string) {
               ('questions','allow_multiple'),
               ('sessions','exit_ticket_prompt_en'),
               ('sessions','interpretation_languages'),
-              ('sessions','caption_position')
-            )) as columns`,
+              ('sessions','caption_position'),
+              ('sessions','board_question_id'),
+              ('questions','board_formats')
+            )) as columns,
+       -- The insert policy on board_posts calls these. If the policy was
+       -- created but the functions were not, every card a student tries to
+       -- put up is refused, and the only clue is a row-level-security error
+       -- in front of a class.
+       (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public' and p.proname in ('board_card_count','board_parent_exists')) as routines`,
     '檢查部署結果失敗',
   )
 
   const first = (() => {
     try {
       const parsed = JSON.parse(body) as unknown
-      if (Array.isArray(parsed)) return parsed[0] as { tables?: number; buckets?: number; columns?: number }
+      if (Array.isArray(parsed)) return parsed[0] as Counts
       const wrapped = parsed as { rows?: unknown[]; result?: unknown[]; data?: unknown[] }
       const rows = wrapped.rows || wrapped.result || wrapped.data
-      return rows?.[0] as { tables?: number; buckets?: number; columns?: number } | undefined
+      return rows?.[0] as Counts | undefined
     } catch {
       return undefined
     }
   })()
 
   if (!first) throw new Error('無法讀取部署結果，請到 Supabase 後台確認資料表與 Storage 是否建立。')
-  if (Number(first.tables) < 4) throw new Error(`資料表未建立完整（找到 ${first.tables ?? 0}/4），請重新執行部署。`)
-  if (Number(first.columns) < 5) {
-    throw new Error(`資料表缺少必要欄位（找到 ${first.columns ?? 0}/5）。這通常表示專案是用舊版建立的 —— 再按一次自動部署即可補齊。`)
+  if (Number(first.tables) < 6) throw new Error(`資料表未建立完整（找到 ${first.tables ?? 0}/6），請重新執行部署。`)
+  if (Number(first.routines) < 2) {
+    throw new Error(`討論板的資料庫函式未建立（找到 ${first.routines ?? 0}/2），學生會無法貼文。請重新執行部署。`)
+  }
+  if (Number(first.columns) < 7) {
+    throw new Error(`資料表缺少必要欄位（找到 ${first.columns ?? 0}/7）。這通常表示專案是用舊版建立的 —— 再按一次自動部署即可補齊。`)
   }
   if (Number(first.buckets) < 3) {
     throw new Error(`Storage bucket 未建立完整（找到 ${first.buckets ?? 0}/3）。請到 Supabase 後台 → Storage 手動建立 interact-screenshots（公開）、interact-files（公開）與 interact-recordings（非公開）。`)

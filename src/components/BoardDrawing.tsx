@@ -2,6 +2,8 @@ import { Check, Eraser, MousePointer2, Pen, RotateCcw, Trash2, Type as TypeIcon,
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
+import { centerOf, IDENTITY, corners, isInside } from '../lib/boardGeometry'
+import type { Box, Point, Transform } from '../lib/boardGeometry'
 
 type Props = {
   busy: boolean
@@ -26,32 +28,20 @@ type Props = {
 // already knows — and Pointer Events give mouse, finger and stylus in one code
 // path, including the presenter's touch display.
 
-type Point = { x: number; y: number }
-// Where a mark has been moved, turned and resized to since it was drawn. Kept
-// beside the mark rather than baked into its points, so the original stroke is
-// never degraded by being transformed over and over.
-type Transform = { x: number; y: number; scale: number; angle: number }
 type Stroke = { id: number; tool: 'pen' | 'eraser'; color: string; width: number; points: Point[]; transform: Transform }
 type Label = { id: number; tool: 'text'; color: string; size: number; at: Point; text: string; transform: Transform }
 type Mark = Stroke | Label
-type Box = { left: number; top: number; right: number; bottom: number }
-
 const COLORS = ['#18223a', '#d4584e', '#1463ff', '#288a62', '#c78b20']
 const WIDTHS = [3, 7, 16]
 // Big enough that a finger-drawn line is not a staircase, small enough that a
 // class of thirty is not uploading megabytes each.
 const CANVAS = { width: 1280, height: 960 }
-const IDENTITY: Transform = { x: 0, y: 0, scale: 1, angle: 0 }
 // The corner grip, in canvas units. Generous, because it is aimed at with a
 // fingertip on a phone.
 const HANDLE = 34
 
-function centerOf(box: Box): Point {
-  return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 }
-}
-
 // Where a mark sits before it was moved or turned.
-export function baseBox(mark: Mark, measure: CanvasRenderingContext2D): Box {
+function baseBox(mark: Mark, measure: CanvasRenderingContext2D): Box {
   if (mark.tool === 'text') {
     measure.font = `600 ${mark.size}px system-ui, "Noto Sans TC", sans-serif`
     const lines = mark.text.split('\n')
@@ -74,36 +64,7 @@ export function baseBox(mark: Mark, measure: CanvasRenderingContext2D): Box {
   }
 }
 
-// The four corners after the mark has been moved, turned and resized.
-export function corners(box: Box, transform: Transform): Point[] {
-  const middle = centerOf(box)
-  const cos = Math.cos(transform.angle)
-  const sin = Math.sin(transform.angle)
-  return [
-    { x: box.left, y: box.top }, { x: box.right, y: box.top },
-    { x: box.right, y: box.bottom }, { x: box.left, y: box.bottom },
-  ].map((corner) => {
-    const dx = (corner.x - middle.x) * transform.scale
-    const dy = (corner.y - middle.y) * transform.scale
-    return {
-      x: middle.x + transform.x + dx * cos - dy * sin,
-      y: middle.y + transform.y + dx * sin + dy * cos,
-    }
-  })
-}
 
-// Undo the transform so the hit test can be done against the plain box.
-export function toLocal(point: Point, box: Box, transform: Transform): Point {
-  const middle = centerOf(box)
-  const dx = point.x - (middle.x + transform.x)
-  const dy = point.y - (middle.y + transform.y)
-  const cos = Math.cos(-transform.angle)
-  const sin = Math.sin(-transform.angle)
-  return {
-    x: middle.x + (dx * cos - dy * sin) / transform.scale,
-    y: middle.y + (dx * sin + dy * cos) / transform.scale,
-  }
-}
 
 export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -271,9 +232,7 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
     // Topmost first, so the thing drawn last is the thing picked up.
     for (let index = marksRef.current.length - 1; index >= 0; index -= 1) {
       const mark = marksRef.current[index]
-      const box = baseBox(mark, context)
-      const local = toLocal(at, box, mark.transform)
-      if (local.x >= box.left && local.x <= box.right && local.y >= box.top && local.y <= box.bottom) return mark
+      if (isInside(at, baseBox(mark, context), mark.transform)) return mark
     }
     return undefined
   }

@@ -118,10 +118,10 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
     const channel = supabase
       .channel(`board:${question.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'board_posts', filter: `question_id=eq.${question.id}` }, () => { void loadWall() })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'board_reactions' }, () => { void loadWall() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'board_reactions', filter: `session_id=eq.${session.id}` }, () => { void loadWall() })
       .subscribe()
     return () => { void supabase.removeChannel(channel) }
-  }, [loadWall, question.id, revealed])
+  }, [loadWall, question.id, revealed, session.id])
 
   // A card is written straight to the table, the way a danmaku message is, so
   // it is on the wall the moment it is sent rather than after a round trip
@@ -392,8 +392,13 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
                 try {
                   await upload('drawing', file)
                   setComposing(null)
-                } catch {
+                } catch (caught) {
                   setError(full ? participantText(locale, 'boardFull') : participantText(locale, 'boardOpenFailed'))
+                  // Rethrown so the board keeps the drawing. It clears its
+                  // canvas when this resolves, and swallowing the failure
+                  // here threw away the very thing the error message asks
+                  // the student to send again.
+                  throw caught
                 } finally {
                   setBusy(false)
                 }
@@ -479,6 +484,9 @@ function BoardCard(props: {
   onWithdraw: () => void
 }) {
   const { anonymous, busy, canReact, canReply, card, locale, mine, reactions, replies, viewerId, replying, replyDraft } = props
+  // The row appears whenever the board is open to the class: as buttons when
+  // reacting is allowed, and as a plain tally when it is not.
+  const showReactions = canReact || reactions.length > 0
   // Follows the session's own switch, live, exactly as danmaku does: a
   // presenter who turns anonymity off expects the names to appear, on what is
   // already on the wall as well as on what comes next. The flag stored on each
@@ -516,17 +524,17 @@ function BoardCard(props: {
       )}
 
       <footer>
-        {canReact && (
+        {showReactions && (
           <div className="board-card-reactions">
             {REACTIONS.map((emoji) => {
               const count = reactions.filter((entry) => entry.emoji === emoji).length
               const own = reactions.some((entry) => entry.emoji === emoji && entry.participant_id === viewerId)
-              // You cannot like your own card. On your own it stops being a
-              // reaction and becomes a vote for yourself, and the counts are
-              // what the class reads the wall by. The tally still shows —
-              // seeing that four people liked what you wrote is the point —
-              // it just is not a button any more.
-              if (mine) {
+              // Not a button when it is your own card — liking yourself is a
+              // vote, not a reaction — nor when the board is read-only. The
+              // tally still shows in both cases: seeing that four people
+              // liked what you wrote is the whole point, and after class it
+              // is most of what there is to come back for.
+              if (mine || !canReact) {
                 return count > 0
                   ? <span className="board-reaction is-static" key={emoji}>{emoji}<span>{count}</span></span>
                   : null
