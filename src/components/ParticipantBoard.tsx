@@ -269,7 +269,9 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
         <span className="participant-board-count">
           {limit === null
             ? participantText(locale, 'boardUnlimited')
-            : `${participantText(locale, 'boardUsed')}${usedCount}${participantText(locale, 'boardOf')}${limit}`}
+            : participantText(locale, 'boardCount')
+              .replace('{used}', String(usedCount))
+              .replace('{limit}', String(limit))}
         </span>
       </div>
       {question.prompt_text && <p className="participant-board-topic">{question.prompt_text}</p>}
