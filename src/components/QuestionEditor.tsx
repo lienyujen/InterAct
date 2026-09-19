@@ -66,7 +66,7 @@ const boardFormatChoices: Array<{ kind: BoardPostKind; label: string; hint: stri
 ]
 
 const questionTypes: Array<{ type: QuestionType; label: string }> = [
-  { type: 'send_screen', label: '派送畫面' },
+  { type: 'send_screen', label: '派題討論' },
   { type: 'hotspot', label: '圖上點選' },
   { type: 'custom_quiz', label: '自訂測驗' },
   { type: 'poll', label: '投票題' },
