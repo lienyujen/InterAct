@@ -60,7 +60,13 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
   const [replyDraft, setReplyDraft] = useState('')
 
   const revealed = Boolean(question.board_revealed_at)
+  // Whether anything new may be written. Closing discussion and the teacher
+  // going offline both stop it.
   const open = question.status === 'active' && !locked
+  // Reactions outlive the discussion. A closed board is still worth reading,
+  // and saying so with a tap costs the database one tiny row — it is the
+  // writing of new cards and replies that closing is meant to stop.
+  const canReact = revealed && !locked
   const formats = question.board_formats || []
   const limit = question.board_max_posts
   // Deleted cards do not count, and replies never did. This has to match
@@ -426,7 +432,8 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
             mine={card.participant_id === participant.id}
             reactions={reactions.filter((entry) => entry.post_id === card.id)}
             replies={repliesOf.get(card.id) || []}
-            revealed={revealed && !locked}
+            canReact={canReact}
+            canReply={canReact && open}
             viewerId={participant.id}
             onReact={(emoji) => void react(card.id, emoji)}
             onReply={() => { setReplyTo(replyTo === card.id ? null : card.id); setReplyDraft('') }}
@@ -446,6 +453,9 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
 function BoardCard(props: {
   anonymous: boolean
   busy: boolean
+  // Liking is still allowed; adding words to the wall is not.
+  canReact: boolean
+  canReply: boolean
   // Nothing on this card may be changed: the teacher is away.
   readOnly?: boolean
   card: BoardPost
@@ -453,7 +463,6 @@ function BoardCard(props: {
   mine: boolean
   reactions: BoardReaction[]
   replies: BoardPost[]
-  revealed: boolean
   viewerId: string
   replying: boolean
   replyDraft: string
@@ -463,7 +472,7 @@ function BoardCard(props: {
   onReplySubmit: () => void
   onWithdraw: () => void
 }) {
-  const { anonymous, busy, card, locale, mine, reactions, replies, revealed, viewerId, replying, replyDraft } = props
+  const { anonymous, busy, canReact, canReply, card, locale, mine, reactions, replies, viewerId, replying, replyDraft } = props
   // Follows the session's own switch, live, exactly as danmaku does: a
   // presenter who turns anonymity off expects the names to appear, on what is
   // already on the wall as well as on what comes next. The flag stored on each
@@ -501,7 +510,7 @@ function BoardCard(props: {
       )}
 
       <footer>
-        {revealed && (
+        {canReact && (
           <div className="board-card-reactions">
             {REACTIONS.map((emoji) => {
               const count = reactions.filter((entry) => entry.emoji === emoji).length
@@ -527,9 +536,11 @@ function BoardCard(props: {
                 </button>
               )
             })}
-            <button className="board-card-action" type="button" onClick={props.onReply}>
-              {participantText(locale, 'boardReply')}
-            </button>
+            {canReply && (
+              <button className="board-card-action" type="button" onClick={props.onReply}>
+                {participantText(locale, 'boardReply')}
+              </button>
+            )}
           </div>
         )}
         {mine && !card.deleted_at && !props.readOnly && (

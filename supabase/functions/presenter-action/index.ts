@@ -1305,12 +1305,12 @@ Deno.serve(async (req) => {
         const { error: sessionError } = await supabase.from('sessions')
           .update({ board_question_id: questionId }).eq('id', sessionId)
         if (sessionError) throw sessionError
-      } else {
-        const { error: sessionError } = await supabase.from('sessions')
-          .update({ board_question_id: null })
-          .eq('id', sessionId).eq('board_question_id', questionId)
-        if (sessionError) throw sessionError
       }
+      // Closing deliberately does NOT clear board_question_id. The wall stays
+      // on the class's page with everything on it; what stops is writing to
+      // it. Clearing it took the whole discussion off their screens, which is
+      // the opposite of what closing a discussion should do — the reading is
+      // the part worth keeping.
       return jsonResponse({ status: data.status })
     }
 

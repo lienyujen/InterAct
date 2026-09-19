@@ -1273,7 +1273,7 @@ function BoardResults(props: Props & { question: Question }) {
           type="button"
           onClick={() => void run({ action: 'set_board_visibility', questionId: question.id, shared: !revealed })}
         >
-          {revealed ? <><EyeOff size={16} />改為自行作答</> : <><Eye size={16} />開放全班瀏覽</>}
+          {revealed ? <><EyeOff size={16} />自行作答</> : <><Eye size={16} />開放瀏覽</>}
         </button>
         <button
           className="ghost-button"
@@ -1281,10 +1281,10 @@ function BoardResults(props: Props & { question: Question }) {
           type="button"
           onClick={() => void run({ action: 'set_board_open', questionId: question.id, open: !open })}
         >
-          {open ? <><SquareX size={16} />結束討論板</> : <><RotateCcw size={16} />重新開啟</>}
+          {open ? <><SquareX size={16} />結束討論</> : <><RotateCcw size={16} />恢復討論</>}
         </button>
         <button className="ghost-button" disabled={busy} type="button" onClick={() => setEditing((current) => !current)}>
-          <Settings2 size={16} />調整答題方式
+          <Settings2 size={16} />調整題型
         </button>
       </div>
       {editing && (
@@ -1324,7 +1324,7 @@ function BoardResults(props: Props & { question: Question }) {
         </div>
       )}
       {!revealed && <p className="muted">學生現在只看得到自己貼的。</p>}
-      {!open && <p className="muted">討論板已結束，學生看得到但不能再貼。</p>}
+      {!open && <p className="muted">已結束討論：學生看得到整面牆，也還能按心情，但不能再貼或回覆。</p>}
 
       <BoardWall
         anonymous={Boolean(snapshot?.posts.some((post) => post.anonymous_at_display))}

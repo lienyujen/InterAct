@@ -132,7 +132,13 @@ Deno.serve(async (req) => {
       .eq('session_id', sessionId)
       .single()
     if (questionError || !question) return jsonResponse({ message: '找不到題目。' }, 404)
-    if (question.status === 'active') return jsonResponse({ message: '請先停止作答再執行分析。' }, 409)
+    // A board is meant to stay open for the whole lesson, so waiting for it to
+    // stop would mean never analysing it. Every other type keeps the rule:
+    // analysing while answers are still arriving describes a moment that has
+    // already passed by the time it is read.
+    if (question.status === 'active' && question.type !== 'board') {
+      return jsonResponse({ message: '請先停止作答再執行分析。' }, 409)
+    }
     // An upload question collected through the file panel has no screenshot; it
     // is analysed from what the marker already wrote about each submission.
     const isFileUpload = question.type === 'file_upload'

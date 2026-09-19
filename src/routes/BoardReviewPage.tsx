@@ -61,7 +61,7 @@ export function BoardReviewPage() {
             type="button"
             onClick={() => void run({ action: 'set_board_visibility', questionId, shared: !revealed })}
           >
-            {revealed ? <><EyeOff size={16} />改為自行作答</> : <><Eye size={16} />開放全班瀏覽</>}
+            {revealed ? <><EyeOff size={16} />自行作答</> : <><Eye size={16} />開放瀏覽</>}
           </button>
           {/* This window draws its own frame, so it draws its own way out. */}
           <button

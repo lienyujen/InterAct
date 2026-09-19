@@ -6604,3 +6604,18 @@ h2 {
   min-height: 0;
   padding: 6px 8px;
 }
+
+/* The three board controls belong on one line: they are one decision each
+   about the same wall, and wrapping them made the panel look like a form. */
+.board-results-actions {
+  flex-wrap: nowrap;
+}
+
+.board-results-actions button {
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
+}
