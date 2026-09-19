@@ -662,22 +662,22 @@ do $$ begin
     alter publication supabase_realtime add table public.sessions;
   end if;
 end $$;
-do $ begin
+do $$ begin
   if not exists (
     select 1 from pg_publication_tables
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'participants'
   ) then
     alter publication supabase_realtime add table public.participants;
   end if;
-end $;
-do $ begin
+end $$;
+do $$ begin
   if not exists (
     select 1 from pg_publication_tables
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'participant_points'
   ) then
     alter publication supabase_realtime add table public.participant_points;
   end if;
-end $;
+end $$;
 do $$ begin
   if not exists (
     select 1 from pg_publication_tables

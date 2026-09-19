@@ -86,6 +86,37 @@ jobs:
           fi
           echo "No Supabase project embedded."
 
+      # The whole of schema.sql is handed to Postgres as a single statement, so
+      # one syntax error anywhere in it leaves a new project with no tables at
+      # all, and the only sign of it is 建立資料表失敗 on the setup screen. That
+      # has happened: an editing pass turned two dollar-quoted blocks from the
+      # doubled delimiter into a single character, which Postgres rejects
+      # outright, and four releases went out unable to create a database.
+      #
+      # A shell check cannot parse SQL, but it can catch the one class of damage
+      # that editing this file actually causes. Written without a single
+      # backslash, using character classes instead, because a mangled backslash
+      # in a quoted string is exactly what broke the schema in the first place.
+      - name: Verify the schema's dollar-quoted blocks
+        shell: bash
+        run: |
+          stray=$(grep -nE '[$]' supabase/schema.sql | grep -vE '[$][$]|[$][a-zA-Z_][a-zA-Z0-9_]*[$]' || true)
+          if [ -n "$stray" ]; then
+            echo "::error::schema.sql has a malformed dollar-quote delimiter."
+            echo "$stray"
+            exit 1
+          fi
+          fail=0
+          for tag in $(grep -oE '[$][$]|[$][a-zA-Z_][a-zA-Z0-9_]*[$]' supabase/schema.sql | sort -u); do
+            n=$(grep -oF "$tag" supabase/schema.sql | wc -l)
+            if [ $((n % 2)) -ne 0 ]; then
+              echo "::error::schema.sql: $tag appears $n times, so a block is left open."
+              fail=1
+            fi
+          done
+          [ $fail -eq 0 ] && echo "schema.sql: dollar-quoted blocks are well formed and balanced."
+          exit $fail
+
       - name: Package
         run: pnpm exec electron-builder ${{ matrix.package }} --publish never
 
