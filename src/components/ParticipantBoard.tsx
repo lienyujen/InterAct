@@ -350,7 +350,7 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
                   type="file"
                   onChange={(event) => void pickFile('image', event.target.files?.[0])}
                 />
-                <span>{busy ? participantText(locale, 'boardUploading') : participantText(locale, 'boardImage')}</span>
+                <span>{busy ? participantText(locale, 'boardUploading') : participantText(locale, 'boardPickImage')}</span>
               </label>
             </div>
           )}
@@ -359,7 +359,7 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
             <div className="board-composer-body">
               <label className="board-file-pick">
                 <input type="file" onChange={(event) => void pickFile('file', event.target.files?.[0])} />
-                <span>{busy ? participantText(locale, 'boardUploading') : participantText(locale, 'boardFile')}</span>
+                <span>{busy ? participantText(locale, 'boardUploading') : participantText(locale, 'boardPickFile')}</span>
               </label>
             </div>
           )}
