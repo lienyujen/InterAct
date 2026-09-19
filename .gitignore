@@ -31,3 +31,8 @@ supabase/.temp/
 *.njsproj
 *.sln
 *.sw?
+
+# electron-builder stages here before renaming into place. On this machine the
+# rename sometimes fails while Dropbox is watching the folder, leaving 350MB of
+# Electron binaries at the repository root for `git add -A` to sweep up.
+/win-unpacked.tmp/
