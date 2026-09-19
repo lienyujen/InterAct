@@ -235,6 +235,7 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       quizAttempts: data.customQuizResults.attempts,
       buzzerWins: buzzerWinsFrom(data.buzzerEvents),
       uploadMarks: data.fileResponses,
+      boardPosts: data.boardPosts,
     }).map((row) => [row.participant.id, row]),
   )
 

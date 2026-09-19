@@ -10,7 +10,7 @@ import { buzzerWinsFrom, participationRows } from '../lib/participation'
 import { getRoster, getSessionRosterId, matchRoster } from '../lib/classRoster'
 import type { ClassRoster } from '../lib/classRoster'
 import type { ParticipationRow } from '../lib/participation'
-import type { Answer, FileResponse, Message, Participant, ParticipantPoint, Question, SessionCustomQuizResults, SessionEvent } from '../types'
+import type { Answer, BoardPost, FileResponse, Message, Participant, ParticipantPoint, Question, Session, SessionCustomQuizResults, SessionEvent } from '../types'
 
 type SortMode = 'engagement' | 'name' | 'joined'
 
@@ -50,6 +50,11 @@ export function RosterPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [points, setPoints] = useState<ParticipantPoint[]>([])
   const [quiz, setQuiz] = useState<SessionCustomQuizResults | null>(null)
+  const [boardPosts, setBoardPosts] = useState<BoardPost[]>([])
+  // Only for current_question_id: with a board staying open alongside the
+  // lesson, the session is the only thing that knows which question the class
+  // is actually on.
+  const [session, setSession] = useState<Session | null>(null)
   const [uploadMarks, setUploadMarks] = useState<FileResponse[]>([])
   const [events, setEvents] = useState<SessionEvent[]>([])
   const [sort, setSort] = useState<SortMode>('engagement')
@@ -71,13 +76,14 @@ export function RosterPage() {
   const load = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId) return
     const supabase = requireSupabase()
-    const [p, q, a, m, e, pt] = await Promise.all([
+    const [p, q, a, m, e, pt, s] = await Promise.all([
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at').limit(5000),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
       supabase.from('answers').select('*').eq('session_id', sessionId).limit(10000),
       supabase.from('messages').select('*').eq('session_id', sessionId).limit(5000),
       supabase.from('session_events').select('*').eq('session_id', sessionId).eq('event_type', 'buzzer').limit(2000),
       supabase.from('participant_points').select('*').eq('session_id', sessionId).limit(5000),
+      supabase.from('sessions').select('*').eq('id', sessionId).maybeSingle(),
     ])
     // Someone the presenter removed keeps their row, because everything they
     // answered hangs off it, but they are no longer in the class.
@@ -87,6 +93,7 @@ export function RosterPage() {
     setMessages((m.data || []) as Message[])
     setEvents((e.data || []) as SessionEvent[])
     setPoints((pt.data || []) as ParticipantPoint[])
+    setSession((s.data || null) as Session | null)
     // Say so rather than showing a zero. A missing grant on this table comes back
     // as an error here and an empty array, so the + button appeared to do nothing
     // while every tap was in fact being recorded — the failure looked like a
@@ -101,16 +108,20 @@ export function RosterPage() {
     // would be wrong without them.
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) return
-    const [quizResult, uploadResult] = await Promise.all([
+    const [quizResult, uploadResult, boardResult] = await Promise.all([
       supabase.functions.invoke('presenter-action', {
         body: { action: 'get_session_custom_quiz_results', sessionId, presenterToken },
       }),
       supabase.functions.invoke('presenter-action', {
         body: { action: 'get_file_responses', sessionId, presenterToken },
       }),
+      supabase.functions.invoke('presenter-action', {
+        body: { action: 'get_session_board_posts', sessionId, presenterToken },
+      }),
     ])
     if (quizResult.data) setQuiz(quizResult.data as SessionCustomQuizResults)
     setUploadMarks((uploadResult.data?.responses || []) as FileResponse[])
+    setBoardPosts((boardResult.data?.posts || []) as BoardPost[])
   }, [sessionId])
 
   useEffect(() => {
@@ -118,7 +129,7 @@ export function RosterPage() {
     if (!isSupabaseConfigured || !sessionId) return
     const supabase = requireSupabase()
     const channel = supabase.channel(`roster:${sessionId}`)
-    for (const table of ['participants', 'answers', 'messages', 'questions', 'session_events', 'participant_points']) {
+    for (const table of ['participants', 'answers', 'messages', 'questions', 'session_events', 'participant_points', 'board_posts']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `session_id=eq.${sessionId}` }, () => void load())
     }
     channel.subscribe()
@@ -131,10 +142,16 @@ export function RosterPage() {
     }
   }, [load, sessionId])
 
-  const activeQuestion = useMemo(
-    () => questions.find((question) => question.status === 'active') || null,
-    [questions],
-  )
+  const activeQuestion = useMemo(() => {
+    const current = session?.current_question_id
+      ? questions.find((question) => question.id === session.current_question_id && question.status === 'active')
+      : null
+    if (current) return current
+    // Nothing current, or it has been stopped: fall back to an open question
+    // that is not the board, and only then to the board itself.
+    const openOnes = questions.filter((question) => question.status === 'active')
+    return openOnes.find((question) => question.type !== 'board') || openOnes[0] || null
+  }, [questions, session?.current_question_id])
 
   const pointsByParticipant = useMemo(() => {
     const totals = new Map<string, number>()
@@ -155,6 +172,7 @@ export function RosterPage() {
       quizAttempts: quiz?.attempts || [],
       buzzerWins: buzzerWinsFrom(events),
       uploadMarks,
+      boardPosts,
     })
     const byParticipantId = new Map(computed.map((row) => [row.participant.id, row]))
     const online = (participantId: string | null) => Boolean(participantId) && onlineParticipantIds.includes(participantId as string)

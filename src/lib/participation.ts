@@ -1,4 +1,4 @@
-import type { Answer, FileResponse, Message, Participant, Question, QuizAttempt } from '../types'
+import type { Answer, BoardPost, FileResponse, Message, Participant, Question, QuizAttempt } from '../types'
 
 // One definition of "how involved was this student", shared by the live roster
 // and the exported report so the two can never disagree.
@@ -59,6 +59,11 @@ type Input = {
   // Marked uploads. Only rows the presenter actually paid to mark carry a
   // score, so an unmarked class simply scores as it did before.
   uploadMarks?: FileResponse[]
+  // Cards on a 討論板. They are answers — a student who put three things on the
+  // wall has taken part in that question — but they live in their own table, so
+  // without them the roster reported everyone as 未作答 no matter how much they
+  // had written.
+  boardPosts?: BoardPost[]
   // When the class finished. The absence clock stops here, so a report opened
   // next week does not count the intervening week as time away. Null while the
   // class is still running, which is what the live roster passes.
@@ -67,7 +72,7 @@ type Input = {
 
 // Questions a student could actually have answered. A screen that was only
 // pushed out asks nothing, so counting it would punish everyone equally.
-const answerableTypes = new Set(['poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload'])
+const answerableTypes = new Set(['poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'board'])
 
 export function answerableQuestions(questions: Question[]) {
   return questions.filter((question) => answerableTypes.has(question.type))
@@ -128,6 +133,16 @@ export function participationRows(input: Input): ParticipationRow[] {
     const answeredQuestionIds = new Set(own.map((answer) => answer.question_id))
     for (const attempt of input.quizAttempts) {
       if (attempt.participant_id === participant.id) answeredQuestionIds.add(attempt.question_id)
+    }
+    // A card on the wall counts as having taken part, and one they deleted does
+    // not — the same rule the posting limit uses, so what the roster says and
+    // what the student's own page says about their allowance always agree.
+    // Replies are excluded for the same reason they do not count against the
+    // limit: answering someone else is not answering the question.
+    for (const post of input.boardPosts || []) {
+      if (post.participant_id !== participant.id) continue
+      if (post.deleted_at || post.reply_to) continue
+      answeredQuestionIds.add(post.question_id)
     }
     const gradedCount = own.filter((answer) => answer.is_correct !== null).length
     const correctCount = own.filter((answer) => answer.is_correct === true).length
