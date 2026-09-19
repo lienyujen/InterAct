@@ -3404,8 +3404,8 @@ h2 {
 .word-cloud-page {
   background: var(--surface-strong);
   color: #f7f8fc;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
   padding: 58px 34px 26px;
@@ -3470,6 +3470,9 @@ h2 {
 }
 
 .word-cloud-canvas {
+  /* Takes the space the blocks above it did not, and min-height: 0 is what lets
+     it actually shrink rather than pushing the page past the viewport. */
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
   position: relative;
@@ -5802,4 +5805,38 @@ h2 {
   font-size: 0.85rem;
   padding: 5px 8px;
   width: 100%;
+}
+
+/* 文字雲的自訂詞彙。Opened from the header, above the cloud rather than over it,
+   so the presenter can see the words they are trying to fix while they type. */
+.word-cloud-terms {
+  background: rgb(255 255 255 / 6%);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 24px;
+  padding: 14px 16px;
+}
+
+.word-cloud-terms p {
+  font-size: 0.8rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.word-cloud-terms textarea {
+  font-family: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+  width: 100%;
+}
+
+.word-cloud-terms-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.word-cloud-terms-toggle {
+  white-space: nowrap;
 }

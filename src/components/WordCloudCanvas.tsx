@@ -1,5 +1,7 @@
 import cloud from 'd3-cloud'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { buildTermIndex, mergeTerms } from '../lib/wordCloudTerms'
+import type { TermIndex } from '../lib/wordCloudTerms'
 import type { Message } from '../types'
 
 type CloudWord = {
@@ -40,27 +42,43 @@ function seededRandom(seed: number) {
   }
 }
 
-function wordCounts(messages: Message[]) {
+function wordCounts(messages: Message[], index: TermIndex) {
   const segmenter = new Intl.Segmenter('zh-TW', { granularity: 'word' })
   const counts = new Map<string, number>()
   for (const message of messages) {
-    for (const segment of segmenter.segment(message.content)) {
-      if (!segment.isWordLike) continue
-      const word = segment.segment.trim().toLocaleLowerCase('zh-TW')
-      if (!word || stopWords.has(word) || (/^[a-z\d]$/i.test(word))) continue
-      counts.set(word, (counts.get(word) || 0) + 1)
+    // Terms are rejoined only inside an unbroken run of words. 「教學，設計」is
+    // two things a student wrote with a comma between them, not the term
+    // 教學設計, and the same goes for two English words either side of a space.
+    let run: string[] = []
+    const tally = () => {
+      if (!run.length) return
+      for (const merged of mergeTerms(run, index)) {
+        const word = merged.trim().toLocaleLowerCase('zh-TW')
+        if (!word || stopWords.has(word) || (/^[a-z\d]$/i.test(word))) continue
+        counts.set(word, (counts.get(word) || 0) + 1)
+      }
+      run = []
     }
+    for (const segment of segmenter.segment(message.content)) {
+      if (segment.isWordLike) run.push(segment.segment)
+      else tally()
+    }
+    tally()
   }
   return [...counts.entries()]
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-TW'))
     .slice(0, 90)
 }
 
-export function WordCloudCanvas({ messages }: { messages: Message[] }) {
+export function WordCloudCanvas({ messages, customTerms }: { messages: Message[]; customTerms: string[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [layoutWords, setLayoutWords] = useState<CloudWord[]>([])
-  const counts = useMemo(() => wordCounts(messages), [messages])
+  // The terms are passed in rather than read here, so this depends on the data
+   // it actually uses: the array identity changes only when the presenter saves,
+   // and a word added mid-class takes effect on the next message.
+  const termIndex = useMemo(() => buildTermIndex(customTerms), [customTerms])
+  const counts = useMemo(() => wordCounts(messages, termIndex), [messages, termIndex])
 
   useEffect(() => {
     if (!containerRef.current) return

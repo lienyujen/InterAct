@@ -1,5 +1,6 @@
 import { Cloud, MessageSquareText } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BUILT_IN_TERMS, parseTermInput, readCustomTerms, writeCustomTerms } from '../lib/wordCloudTerms'
 import { useParams } from 'react-router-dom'
 import { WordCloudCanvas } from '../components/WordCloudCanvas'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
@@ -23,6 +24,9 @@ export function WordCloudPage() {
   const { sessionId = '' } = useParams()
   const [session, setSession] = useState<Session | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [termsOpen, setTermsOpen] = useState(false)
+  const [termText, setTermText] = useState('')
+  const [customTerms, setCustomTerms] = useState<string[]>(readCustomTerms)
   const [range, setRange] = useState<CloudRange>('all')
   const [now, setNow] = useState(Date.now())
   const [loadError, setLoadError] = useState('')
@@ -152,6 +156,13 @@ export function WordCloudPage() {
         </div>
         <div className="word-cloud-tools">
           <span><MessageSquareText size={16} />{visibleMessages.length} 則彈幕</span>
+          <button
+            className="ghost-button word-cloud-terms-toggle"
+            type="button"
+            onClick={() => { setTermText(customTerms.join('\n')); setTermsOpen((open) => !open) }}
+          >
+            自訂詞彙
+          </button>
           <div className="segmented-control" aria-label="文字雲統計範圍">
             {rangeOptions.map((option) => (
               <button
@@ -168,7 +179,36 @@ export function WordCloudPage() {
         </div>
       </header>
       {loadError && <p className="word-cloud-error" role="alert">文字雲更新失敗：{loadError}</p>}
-      <WordCloudCanvas messages={visibleMessages} />
+      {termsOpen && (
+        <section className="word-cloud-terms" aria-label="自訂詞彙">
+          <p className="muted">
+            一行一個詞，用逗號或頓號分隔也可以。內建 {BUILT_IN_TERMS.length} 個領域詞
+            （人工智慧、華語教學、語言學、教學設計、企業管理等），這裡加的是你自己課上的說法。
+          </p>
+          <textarea
+            aria-label="自訂詞彙"
+            placeholder={'例如：\n教學實踐研究\n數位人文'}
+            rows={5}
+            value={termText}
+            onChange={(event) => setTermText(event.target.value)}
+          />
+          <div className="word-cloud-terms-actions">
+            <button
+              type="button"
+              onClick={() => {
+                const saved = writeCustomTerms(parseTermInput(termText))
+                setTermText(saved.join('\n'))
+                setCustomTerms(saved)
+                setTermsOpen(false)
+              }}
+            >
+              儲存並套用
+            </button>
+            <button className="ghost-button" type="button" onClick={() => setTermsOpen(false)}>取消</button>
+          </div>
+        </section>
+      )}
+      <WordCloudCanvas customTerms={customTerms} messages={visibleMessages} />
     </main>
   )
 }
