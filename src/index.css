@@ -1266,6 +1266,16 @@ h2 {
   width: max-content;
 }
 
+/* The hidden item the scheduler measures against. It has to be a real
+   .danmaku-item to carry the same font and padding, so it is taken out of the
+   flow and stopped from animating instead of being styled differently. */
+.danmaku-measure {
+  animation: none;
+  left: 0;
+  top: 0;
+  visibility: hidden;
+}
+
 @keyframes danmaku-move {
   from {
     transform: translateX(0);
