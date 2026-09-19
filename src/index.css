@@ -6281,15 +6281,26 @@ h2 {
   background: var(--surface-subtle);
   border: 1px solid transparent;
   border-radius: 999px;
+  /* Set here rather than inherited. A button in this app is normally filled
+     and its text is white, so the tally came out white on a near-white pill —
+     a contrast of 1.14 to 1, which is to say invisible. */
+  color: var(--text);
   display: inline-flex;
-  gap: 4px;
+  gap: 5px;
   min-height: 0;
   padding: 4px 10px;
+}
+
+.board-reaction span {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
 }
 
 .board-reaction.is-own {
   background: var(--primary-soft);
   border-color: var(--primary);
+  color: var(--primary-dark);
 }
 
 .board-card-action {
@@ -6375,9 +6386,11 @@ h2 {
 }
 
 .board-wall-reactions {
-  color: var(--muted);
+  color: var(--text);
   display: flex;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
   gap: 10px;
 }
 
