@@ -65,7 +65,15 @@ export function useSessionPresence(sessionId: string, options: Options): Session
         if (presence.role === 'participant' && presence.participant_id) ids.add(presence.participant_id)
         if (presence.role === 'presenter') presenterHere = true
       })
-      setOnlineParticipantIds([...ids])
+      // A new array on every sync re-rendered whoever is listening, and in a
+      // room of 145 every join, leave and reconnection is a sync for all 145
+      // of them. On the presenter that re-render recomputes participation for
+      // the whole class, so an unchanged list has to stay the same array.
+      setOnlineParticipantIds((current) => (
+        current.length === ids.size && current.every((id) => ids.has(id))
+          ? current
+          : [...ids]
+      ))
       if (presenterHere) {
         clearGrace()
         setPresenterOnline(true)

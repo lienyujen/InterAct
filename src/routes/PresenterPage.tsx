@@ -200,6 +200,37 @@ export function PresenterPage() {
     }, 180))
   }, [])
 
+  // Every student's page reports "still here" every 30 seconds, and that
+  // writes last_seen_at on their participants row. With the class list
+  // subscribed to every change on that table, a room of 145 produced 4.8 full
+  // reloads a second — 40 queries and 700 rows a second, none of it because
+  // anybody had done anything. Dispatching a screenshot then had to queue
+  // behind all of it, which is what the room actually noticed.
+  //
+  // The row we need is in the payload, so apply it and ask for nothing.
+  const applyParticipantChange = useCallback((payload: {
+    eventType: string
+    new: Record<string, unknown>
+    old: Record<string, unknown>
+  }) => {
+    setParticipants((current) => {
+      if (payload.eventType === 'DELETE') {
+        const goneId = payload.old?.id as string | undefined
+        return goneId ? current.filter((entry) => entry.id !== goneId) : current
+      }
+      const row = payload.new as unknown as Participant
+      if (!row?.id) return current
+      const at = current.findIndex((entry) => entry.id === row.id)
+      if (at < 0) {
+        // A new arrival keeps the joined_at order the reload used.
+        return [...current, row].sort((left, right) => left.joined_at.localeCompare(right.joined_at))
+      }
+      const next = [...current]
+      next[at] = row
+      return next
+    })
+  }, [])
+
   const loadAll = useCallback(async () => {
     if (!isSupabaseConfigured || !sessionId) return
 
@@ -289,6 +320,22 @@ export function PresenterPage() {
     }
   }, [selectedQuestionId, sessionId])
 
+  // A whole class answering at once is 145 INSERTs in a couple of seconds, and
+  // every one of them used to mean another full reload. They all want the same
+  // thing, so the first one waits a moment and the rest join it.
+  const reloadTimer = useRef<number | null>(null)
+  const scheduleReload = useCallback(() => {
+    if (reloadTimer.current !== null) return
+    reloadTimer.current = window.setTimeout(() => {
+      reloadTimer.current = null
+      void loadAll()
+    }, 400)
+  }, [loadAll])
+
+  useEffect(() => () => {
+    if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current)
+  }, [])
+
   useEffect(() => {
     loadAll()
   }, [loadAll])
@@ -359,12 +406,12 @@ export function PresenterPage() {
     const supabase = requireSupabase()
     const channel = supabase
       .channel(`presenter:${sessionId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${sessionId}` }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `session_id=eq.${sessionId}` }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `session_id=eq.${sessionId}` }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, loadAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `session_id=eq.${sessionId}` }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${sessionId}` }, applyParticipantChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `session_id=eq.${sessionId}` }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `session_id=eq.${sessionId}` }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, scheduleReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `session_id=eq.${sessionId}` }, scheduleReload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
         const event = payload.new as SessionEvent
         if (event.event_type === 'buzzer') {
@@ -379,7 +426,7 @@ export function PresenterPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadAll, sessionId])
+  }, [applyParticipantChange, loadAll, scheduleReload, sessionId])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !sessionId) return

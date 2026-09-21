@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { ArrowDownWideNarrow, CircleCheck, ClipboardList, Plus, UserMinus, Users, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -124,13 +124,54 @@ export function RosterPage() {
     setBoardPosts((boardResult.data?.posts || []) as BoardPost[])
   }, [sessionId])
 
+  // A class of 145 writes last_seen_at 4.8 times a second between them, and
+  // every one of those used to pull the whole session back — participants,
+  // answers, up to 5000 messages, questions, events, points and board posts —
+  // and then recompute participation for everyone. The changed row is already
+  // in the payload, so it is applied straight to the list instead.
+  const applyParticipant = useCallback((payload: {
+    eventType: string
+    new: Record<string, unknown>
+    old: Record<string, unknown>
+  }) => {
+    setParticipants((current) => {
+      if (payload.eventType === 'DELETE') {
+        const goneId = payload.old?.id as string | undefined
+        return goneId ? current.filter((entry) => entry.id !== goneId) : current
+      }
+      const row = payload.new as unknown as Participant
+      if (!row?.id) return current
+      // Removing someone is an UPDATE that sets removed_at, and this list is
+      // built with those filtered out — so applying the row verbatim would put
+      // them straight back.
+      if (row.removed_at) return current.filter((entry) => entry.id !== row.id)
+      const at = current.findIndex((entry) => entry.id === row.id)
+      if (at < 0) return [...current, row].sort((left, right) => left.joined_at.localeCompare(right.joined_at))
+      const next = [...current]
+      next[at] = row
+      return next
+    })
+  }, [])
+
+  // Answers, points and board posts arrive in bursts — a whole class at once —
+  // and they all want the same reload.
+  const reloadTimer = useRef<number | null>(null)
+  const scheduleLoad = useCallback(() => {
+    if (reloadTimer.current !== null) return
+    reloadTimer.current = window.setTimeout(() => {
+      reloadTimer.current = null
+      void load()
+    }, 400)
+  }, [load])
+
   useEffect(() => {
     void load()
     if (!isSupabaseConfigured || !sessionId) return
     const supabase = requireSupabase()
     const channel = supabase.channel(`roster:${sessionId}`)
-    for (const table of ['participants', 'answers', 'messages', 'questions', 'session_events', 'participant_points', 'board_posts']) {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `session_id=eq.${sessionId}` }, () => void load())
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `session_id=eq.${sessionId}` }, applyParticipant)
+    for (const table of ['answers', 'messages', 'questions', 'session_events', 'participant_points', 'board_posts']) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `session_id=eq.${sessionId}` }, scheduleLoad)
     }
     channel.subscribe()
     // Attention is reported on a heartbeat rather than as a row change, so the
@@ -138,9 +179,10 @@ export function RosterPage() {
     const timer = window.setInterval(() => void load(), 20_000)
     return () => {
       window.clearInterval(timer)
+      if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current)
       void supabase.removeChannel(channel)
     }
-  }, [load, sessionId])
+  }, [applyParticipant, load, scheduleLoad, sessionId])
 
   const activeQuestion = useMemo(() => {
     const current = session?.current_question_id
