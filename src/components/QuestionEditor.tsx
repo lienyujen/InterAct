@@ -1,5 +1,5 @@
-import { Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { Maximize2, Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { BoardPostKind, QuestionType, QuizRequestedType } from '../types'
 import { CustomQuizFields } from './CustomQuizFields'
 import { TimingRow } from './TimingRow'
@@ -116,7 +116,12 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
   // the presenter asking for everyone to think alone first, and they can turn
   // it on and off from the board itself once the class is going.
   const [boardSelfPaced, setBoardSelfPaced] = useState(false)
+  // A screen capture shown at the width of this dialog is around a sixth of
+  // its real size, which is legible for a diagram and not for a page of text.
+  // This is the capture at 1:1, pannable, for when it has to be read.
+  const [previewZoomed, setPreviewZoomed] = useState(false)
   const isBoard = type === 'send_screen' && boardFormats.length > 0
+  const zoomScrollRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -141,6 +146,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     setBoardMaxPosts(1)
     setBoardShareScreenshot(true)
     setBoardSelfPaced(false)
+    setPreviewZoomed(false)
   }, [open])
 
   const editableOptions = type === 'multiple_choice' || type === 'poll'
@@ -183,6 +189,39 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     } finally {
       setGenerating(false)
     }
+  }
+
+  // Escape closes the zoom rather than the whole dialog: the presenter who
+  // opened the capture to read it has not decided to abandon the question.
+  useEffect(() => {
+    if (!previewZoomed) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.stopPropagation()
+      setPreviewZoomed(false)
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [previewZoomed])
+
+  // Drag to pan. Scrollbars alone are a poor way to read across a capture
+  // twice the width of the window, and the cursor already promises this.
+  function startPan(event: React.PointerEvent<HTMLDivElement>) {
+    const scroller = zoomScrollRef.current
+    if (!scroller || event.button !== 0) return
+    const from = { x: event.clientX, y: event.clientY, left: scroller.scrollLeft, top: scroller.scrollTop }
+    const onMove = (move: PointerEvent) => {
+      scroller.scrollLeft = from.left - (move.clientX - from.x)
+      scroller.scrollTop = from.top - (move.clientY - from.y)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      scroller.classList.remove('is-panning')
+    }
+    scroller.classList.add('is-panning')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
   }
 
   function moveItem(index: number, delta: number) {
@@ -255,7 +294,42 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
         }}
       >
         <h2>截圖派題</h2>
-        {previewUrl && <img alt="截圖預覽" className="capture-preview" src={previewUrl} />}
+        {previewUrl && (
+          <button
+            aria-label="放大檢視截圖"
+            className="capture-preview-button"
+            title="放大檢視截圖（原尺寸）"
+            type="button"
+            onClick={() => setPreviewZoomed(true)}
+          >
+            <img alt="截圖預覽" className="capture-preview" src={previewUrl} />
+            <span className="capture-preview-zoom"><Maximize2 size={15} />放大</span>
+          </button>
+        )}
+        {previewUrl && previewZoomed && (
+          // Inside the dialog rather than in a window of its own: the capture
+          // has not been uploaded yet, so it exists only here.
+          <div
+            className="capture-zoom"
+            role="dialog"
+            aria-label="截圖原尺寸"
+            onClick={() => setPreviewZoomed(false)}
+          >
+            <button aria-label="關閉" className="capture-zoom-close" type="button" onClick={() => setPreviewZoomed(false)}>
+              <X size={20} />
+            </button>
+            <div
+              className="capture-zoom-scroll"
+              ref={zoomScrollRef}
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={startPan}
+            >
+              {/* Dragging an image is a browser drag-and-drop by default, which
+                  cancels the pan the moment it starts. */}
+              <img alt="截圖原尺寸" draggable={false} src={previewUrl} />
+            </div>
+          </div>
+        )}
         {error && <p className="error">{error}</p>}
         <div className="type-grid">
           {questionTypes.map((item) => (

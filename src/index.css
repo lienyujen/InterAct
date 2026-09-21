@@ -1620,16 +1620,94 @@ h2 {
   color: var(--muted);
 }
 
+/* Wider than the other dialogs because it carries the capture the question is
+   being made from, and the presenter is deciding against that picture. The
+   window it sits in widens to match while it is open. */
 .question-modal {
-  max-width: 560px;
+  max-width: 900px;
+}
+
+.capture-preview-button {
+  background: none;
+  border: none;
+  cursor: zoom-in;
+  display: block;
+  padding: 0;
+  position: relative;
+  width: 100%;
 }
 
 .capture-preview {
   background: var(--surface-strong);
   border-radius: var(--radius-md);
-  max-height: 280px;
+  display: block;
+  /* Vertical room as well as horizontal: on a tall capture the old 280px cap
+     was what made it unreadable, not the width. */
+  max-height: min(48svh, 460px);
   object-fit: contain;
   width: 100%;
+}
+
+.capture-preview-zoom {
+  align-items: center;
+  background: rgb(24 34 58 / 74%);
+  border-radius: 999px;
+  bottom: 8px;
+  color: #fff;
+  display: flex;
+  font-size: 0.78rem;
+  gap: 5px;
+  padding: 4px 10px;
+  position: absolute;
+  right: 8px;
+}
+
+/* 1:1, and pannable, because a capture of a textbook page is only readable at
+   the size it was captured. */
+.capture-zoom {
+  background: rgb(14 20 36 / 92%);
+  display: flex;
+  inset: 0;
+  padding: 44px 12px 12px;
+  position: fixed;
+  z-index: 60;
+}
+
+.capture-zoom-scroll {
+  cursor: grab;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
+
+.capture-zoom-scroll.is-panning {
+  cursor: grabbing;
+}
+
+.capture-zoom-scroll img {
+  background: #fff;
+  border-radius: var(--radius-sm);
+  display: block;
+  max-width: none;
+}
+
+.capture-zoom-close {
+  align-items: center;
+  background: rgb(255 255 255 / 14%);
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  height: 32px;
+  justify-content: center;
+  position: absolute;
+  right: 12px;
+  top: 8px;
+  width: 32px;
 }
 
 .type-grid {
@@ -1640,6 +1718,14 @@ h2 {
 
 .type-grid .send-screen-type {
   grid-column: auto;
+}
+
+/* The dialog widens to fit the capture, and twelve buttons stretched across
+   that width read as a row of banners rather than as a list to pick from. */
+@media (min-width: 720px) {
+  .type-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .selected-type {
