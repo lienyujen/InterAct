@@ -211,12 +211,20 @@ export function DanmakuLayer({ messages, session }: Props) {
     if (placed) redraw()
   }, [visible, layerWidth, anonymous, enabled])
 
-  if (!enabled) return null
-
+  // The layer itself stays mounted whether or not the danmaku is on, and only
+  // its contents come and go.
+  //
+  // Returning null here took the element out of the page, and a ResizeObserver
+  // reports 0x0 when the element it is watching is detached — so the measured
+  // width went to zero, and since the observer was still watching that dead
+  // node it never came back. Switching on gave the scheduler a width of zero,
+  // which it reads as "not measured yet" and returns; nothing was ever placed
+  // again for the rest of the class. It is empty and pointer-events: none, so
+  // leaving it there costs nothing.
   return (
     <div className="danmaku-layer" aria-live="polite" ref={layerRef}>
       <div aria-hidden="true" className="danmaku-item danmaku-measure" ref={measureRef} />
-      {visible.map((message) => {
+      {enabled && visible.map((message) => {
         const placement = placements.current.get(message.id)
         // Not scheduled yet — the effect runs on the next tick and brings it in.
         if (!placement) return null
