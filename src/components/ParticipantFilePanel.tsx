@@ -143,6 +143,14 @@ export function ParticipantFileUpload({
     && window.matchMedia('(pointer: coarse)').matches
   ))
 
+  // A new question is a new sheet of paper.
+  useEffect(() => {
+    setUploaded([])
+    setMarks([])
+    setRedrawing(false)
+    setError('')
+  }, [questionId])
+
   // The mark lands minutes after the upload, whenever the teacher gets to it,
   // and file_responses is revoked from anon and kept out of the realtime
   // publication so a student cannot read the table. So the page asks for its

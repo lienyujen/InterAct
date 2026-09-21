@@ -783,6 +783,7 @@ export function ParticipantPage() {
         <ParticipantFileUpload
           active={question.status === 'active'}
           imageUrl={screenshot?.public_url || null}
+          key={question.id}
           locale={locale}
           mode={question.type === 'drawing' ? 'drawing' : 'upload'}
           participantId={participant.id}
