@@ -794,6 +794,12 @@ ipcMain.handle('window:open-submission-review', (_event, sessionId, questionId) 
   createQuestionDetailWindow(`/submission-review/${sessionId}/${questionId}`, 'InterAct 作答檢視')
 })
 
+ipcMain.handle('window:open-ordering-review', (_event, sessionId, questionId) => {
+  requireUuid(sessionId)
+  requireUuid(questionId, 'question')
+  createQuestionDetailWindow(`/ordering-review/${sessionId}/${questionId}`, 'InterAct 排序題檢視')
+})
+
 ipcMain.handle('capture:list', listCaptureSources)
 
 ipcMain.handle('capture:start-selection', async () => {

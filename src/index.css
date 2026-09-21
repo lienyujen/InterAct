@@ -5657,6 +5657,64 @@ h2 {
 .hotspot-review-window .hotspot-review-stage .hotspot-image {
   max-height: calc(100vh - 160px);
 }
+/* 排序題 in its own window. The panel caps the tiles hard because it also has
+   to hold the question, the rate, the key editor and every submission in a
+   column a few hundred pixels wide; here the same tiles get the width to be
+   read, which is the only way to tell whether the class put them in order. */
+.ordering-review-window {
+  background: var(--surface);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.ordering-review-window > header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  padding: 14px 20px;
+  -webkit-app-region: drag;
+}
+
+.ordering-review-window > header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ordering-review-window > header .show-answers-toggle,
+.ordering-review-window > header .icon-button {
+  -webkit-app-region: no-drag;
+}
+
+.ordering-review-window > .error {
+  margin: 16px 20px 0;
+}
+
+.ordering-review-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px 28px;
+}
+
+/* The whole point of the window. A slice of a screen capture is wide and
+   short, so height is what it needs; 260px shows a line of a textbook at a
+   size a teacher can read across the room. */
+.ordering-review-body .ordering-tiles img {
+  max-height: 260px;
+}
+
+.ordering-review-body .ordering-ranked-image {
+  max-height: 200px;
+}
+
+/* Deliberately one column. Two would halve the width every tile gets, and
+   width is the whole reason to open this window. A long scroll is the right
+   trade for being able to read what the pieces say. */
+
 /* 電寫題 / 上傳作答 in its own window: the page big enough to read the
    handwriting, the marking beside it, and every submission along the bottom so
    a class of thirty is not thirty presses of an arrow away. */

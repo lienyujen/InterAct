@@ -31,6 +31,7 @@ declare global {
       openHotspotReview: (sessionId: string, questionId: string) => Promise<void>
       openBoardReview: (sessionId: string, questionId: string) => Promise<void>
       openSubmissionReview: (sessionId: string, questionId: string) => Promise<void>
+      openOrderingReview: (sessionId: string, questionId: string) => Promise<void>
       minimize: () => Promise<void>
       close: () => Promise<void>
       listCaptureSources: () => Promise<InterActCaptureSource[]>
