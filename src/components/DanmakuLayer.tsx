@@ -131,18 +131,24 @@ export function DanmakuLayer({ messages, session }: Props) {
   // So switching on draws a line: everything already collected belongs to the
   // run that was switched off. The line is the newest message's own timestamp
   // rather than the clock here, because the two clocks are not the same one.
-  const messagesRef = useRef(messages)
-  messagesRef.current = messages
+  //
+  // Drawn during the render that sees the switch, not in an effect. An effect
+  // runs after the scheduling one below has already been handed the old line —
+  // which means the whole backlog gets placed, and although those placements
+  // are then cleaned up, the lane tails they left behind are not. Every
+  // message after that queued behind a crowd that was never drawn: the first
+  // one measured a four second delay after a backlog of 24, and a real class
+  // backlog is far longer than that. It looked like the danmaku had stopped.
+  const [lastEnabled, setLastEnabled] = useState(enabled)
   const [liveSince, setLiveSince] = useState('')
-  useEffect(() => {
-    if (!enabled) return
-    const collected = messagesRef.current
-    setLiveSince(collected.length ? collected[collected.length - 1].created_at : '')
-    placements.current.clear()
-    lanes.current = Array.from({ length: LANES }, () => null)
-    // Deliberately only on the switch: this is a snapshot of what had already
-    // been collected at that moment, not something to redo as more arrives.
-  }, [enabled])
+  if (enabled !== lastEnabled) {
+    setLastEnabled(enabled)
+    if (enabled) {
+      setLiveSince(messages.length ? messages[messages.length - 1].created_at : '')
+      placements.current.clear()
+      lanes.current = Array.from({ length: LANES }, () => null)
+    }
+  }
 
   // Memoised on the list itself, so the scheduling effect below can depend on it
   // directly rather than on a stringified stand-in.
