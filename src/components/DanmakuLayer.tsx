@@ -118,10 +118,38 @@ export function DanmakuLayer({ messages, session }: Props) {
   const lanes = useRef<Array<LaneTail | null>>(Array.from({ length: LANES }, () => null))
   const [, redraw] = useReducer((count: number) => count + 1, 0)
 
+  const enabled = session.danmaku_enabled
+  const anonymous = session.anonymous_enabled
+
+  // Switching the danmaku off only stopped it being drawn. The overlay keeps
+  // collecting messages either way, and the placements here are a delay
+  // measured from the moment each one was scheduled — so switching back on
+  // rebuilt the same elements and every animation started again from its own
+  // beginning. The class watched the last two dozen messages fly past a second
+  // time.
+  //
+  // So switching on draws a line: everything already collected belongs to the
+  // run that was switched off. The line is the newest message's own timestamp
+  // rather than the clock here, because the two clocks are not the same one.
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+  const [liveSince, setLiveSince] = useState('')
+  useEffect(() => {
+    if (!enabled) return
+    const collected = messagesRef.current
+    setLiveSince(collected.length ? collected[collected.length - 1].created_at : '')
+    placements.current.clear()
+    lanes.current = Array.from({ length: LANES }, () => null)
+    // Deliberately only on the switch: this is a snapshot of what had already
+    // been collected at that moment, not something to redo as more arrives.
+  }, [enabled])
+
   // Memoised on the list itself, so the scheduling effect below can depend on it
   // directly rather than on a stringified stand-in.
-  const visible = useMemo(() => messages.slice(-24), [messages])
-  const anonymous = session.anonymous_enabled
+  const visible = useMemo(
+    () => messages.filter((message) => message.created_at > liveSince).slice(-24),
+    [liveSince, messages],
+  )
 
   useEffect(() => {
     const element = layerRef.current
@@ -132,7 +160,7 @@ export function DanmakuLayer({ messages, session }: Props) {
   }, [])
 
   useEffect(() => {
-    if (!layerWidth) return
+    if (!enabled || !layerWidth) return
     const now = performance.now()
     let placed = false
 
@@ -175,9 +203,9 @@ export function DanmakuLayer({ messages, session }: Props) {
     }
 
     if (placed) redraw()
-  }, [visible, layerWidth, anonymous])
+  }, [visible, layerWidth, anonymous, enabled])
 
-  if (!session.danmaku_enabled) return null
+  if (!enabled) return null
 
   return (
     <div className="danmaku-layer" aria-live="polite" ref={layerRef}>

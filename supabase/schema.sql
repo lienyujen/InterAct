@@ -634,6 +634,10 @@ with check (
   exists (
     select 1 from public.sessions
     where sessions.id = messages.session_id and sessions.status = 'active'
+      -- Switched off means switched off. A page left open on a phone, or one
+      -- that missed the change, would otherwise keep writing into a table
+      -- nobody is watching.
+      and sessions.danmaku_enabled
   )
   and exists (
     select 1 from public.participants

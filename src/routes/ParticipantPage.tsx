@@ -93,6 +93,12 @@ export function ParticipantPage() {
     role: 'participant',
     participant: session?.status === 'active' ? participant : null,
   })
+  // The teacher's danmaku switch. Off means the field greys out rather than
+  // disappearing — a student who has just typed something should see why it
+  // will not send, which is not the same situation as 下課中, where there is
+  // nobody there at all and the field goes away.
+  const danmakuOpen = session?.danmaku_enabled !== false
+
   // Only once it is known. Until then nothing is said, so a page that has just
   // opened never flashes 下課中 at a class that is running.
   const onBreak = presenterOnline === false
@@ -432,7 +438,7 @@ export function ParticipantPage() {
     event.preventDefault()
     const content = message.trim()
     if (!participant || session?.status !== 'active' || !content) return
-    if (onBreak) return
+    if (onBreak || !danmakuOpen) return
     if (!messageFitsLimit(content)) {
       setError(`彈幕上限為 ${MESSAGE_MAX_CJK_CHARACTERS} 個中文字或 ${MESSAGE_MAX_ENGLISH_WORDS} 個英文單字。`)
       return
@@ -853,25 +859,26 @@ export function ParticipantPage() {
           invites a student to type a question into it that nobody will ever
           read, and a class left alone with a live text field is how the message
           table fills up with an hour of chatter aimed at an empty room. */}
-      {!onBreak && <form className="panel message-form" onSubmit={sendMessage}>
+      {!onBreak && <form className={`panel message-form${danmakuOpen ? '' : ' is-closed'}`} onSubmit={sendMessage}>
         <label>
           {participantText(locale, 'sendFeedback')}
           <textarea
+            disabled={!danmakuOpen}
             value={message}
             maxLength={MESSAGE_MAX_RAW_CHARACTERS}
             onChange={(event) => {
               setMessage(event.target.value)
               if (error) setError('')
             }}
-            placeholder={participantText(locale, 'messagePlaceholder')}
+            placeholder={participantText(locale, danmakuOpen ? 'messagePlaceholder' : 'danmakuClosed')}
           />
         </label>
         <p className={`message-limit${message && !messageFitsLimit(message) ? ' over-limit' : ''}`}>
-          {participantText(locale, 'limit')}
-          {message && ` · ${participantText(locale, 'used')} ${Math.ceil(messageUsage(message).units)}/${MESSAGE_MAX_CJK_CHARACTERS}`}
+          {danmakuOpen ? participantText(locale, 'limit') : participantText(locale, 'danmakuClosed')}
+          {danmakuOpen && message && ` · ${participantText(locale, 'used')} ${Math.ceil(messageUsage(message).units)}/${MESSAGE_MAX_CJK_CHARACTERS}`}
         </p>
         {error && <p className="error">{error}</p>}
-        <button disabled={!message.trim() || !messageFitsLimit(message)} type="submit"><Send size={18} />{participantText(locale, 'send')}</button>
+        <button disabled={!danmakuOpen || !message.trim() || !messageFitsLimit(message)} type="submit"><Send size={18} />{participantText(locale, 'send')}</button>
       </form>}
       <LotteryOverlay event={lotteryEvent} participantId={participant?.id} />
       <BuzzerOverlay
