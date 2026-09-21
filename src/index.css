@@ -6093,17 +6093,31 @@ h2 {
   object-fit: contain;
   width: 100%;
 }
-/* A tile in the weighted ranking. It has to share the row with the weight, so
-   it is capped shorter than a tile shown on its own. */
+/* A tile in the weighted ranking.
+//
+   It had no width of its own, so its size came from the aspect ratio against
+   max-height: a 1500x260 slice capped to 72 tall is 415 wide, which is wider
+   than the column it sits in — measured at 408px inside a 396px panel, running
+   off the right edge with the last words of every piece cut off. Every other
+   tile in this file sets width: 100%; this one was the exception.
+
+   It also stops sharing the row with the weight, which is what made it shrink
+   further the moment answers arrived. The weight goes underneath instead. */
+.ordering-ranked li.has-image {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .ordering-ranked-image {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   display: block;
-  flex: 1 1 auto;
-  max-height: 72px;
+  max-height: 120px;
   min-width: 0;
   object-fit: contain;
+  width: 100%;
 }
 /* Said in words rather than as a percentage: what a teacher would point at and
    read out, with the exact count on hover for anyone who wants it. */

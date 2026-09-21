@@ -152,7 +152,7 @@ export function OrderingSpread({ items, answers }: { items: string[]; answers: A
       <h3 className="ordering-subheading">平均排序結果</h3>
       <ol className="ordering-ranked" ref={listRef}>
         {ranked.map((entry, index) => (
-          <li data-rank-key={entry.item} key={entry.item}>
+          <li className={isImageValue(entry.item) ? 'has-image' : undefined} data-rank-key={entry.item} key={entry.item}>
             {isImageValue(entry.item)
               ? <img alt={`第 ${index + 1} 個區塊`} className="ordering-ranked-image" src={entry.item} />
               : <span className="ordering-ranked-item">{entry.item}</span>}
