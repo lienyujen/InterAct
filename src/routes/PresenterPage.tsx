@@ -351,7 +351,6 @@ export function PresenterPage() {
       controlsOpen || editorOpen || textDispatchOpen || settingsOpen || endClassConfirmOpen || closeConfirmOpen || fileTransferOpen,
       settingsOpen,
       editorOpen || fileTransferOpen,
-      editorOpen,
     )
   }, [closeConfirmOpen, controlsOpen, editorOpen, endClassConfirmOpen, fileTransferOpen, selectionMode, settingsOpen, textDispatchOpen])
 

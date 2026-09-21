@@ -48,10 +48,6 @@ const APP_RELAUNCH_ICON_PATH = isDesktopDev ? APP_WINDOW_ICON_PATH : APP_EXECUTA
 const CONTROL_COLLAPSED = { width: 194, height: 242 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
 const CONTROL_WITH_SETTINGS = { width: 1100, height: 760 }
-// 截圖派題 has to show the capture the question is being made from, and at 420
-// wide a screen capture renders at about a sixth of its size — the presenter is
-// choosing a question type against a picture they cannot read.
-const CONTROL_WITH_EDITOR = { width: 960, height: 800 }
 const WINDOW_MARGIN = 12
 const TOPMOST_LEVEL = 'screen-saver'
 const CONTROL_RELATIVE_LEVEL = 6
@@ -599,18 +595,15 @@ function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(value, maximum))
 }
 
-function setControlBounds(expanded, snapToTopRight = false, settingsOpen = false, editorOpen = false) {
+function setControlBounds(expanded, snapToTopRight = false, settingsOpen = false) {
   if (!mainWindow || mainWindow.isDestroyed()) return
 
-  const size = settingsOpen ? CONTROL_WITH_SETTINGS
-    : editorOpen ? CONTROL_WITH_EDITOR
-    : expanded ? CONTROL_EXPANDED
-    : CONTROL_COLLAPSED
+  const size = settingsOpen ? CONTROL_WITH_SETTINGS : expanded ? CONTROL_EXPANDED : CONTROL_COLLAPSED
   const current = lastControlBounds || safeBounds(mainWindow) || screen.getPrimaryDisplay().workArea
   const display = displayForBounds(current)
   const workArea = display.workArea
-  // 截圖派題 asks for a window taller and wider than a small laptop has, and a
-  // dialog that does not fit is one whose 派送 button is off the bottom edge.
+  // A window bigger than the screen has room for is one whose buttons are off
+  // the bottom edge: 設定 asks for 760 and a 1366x768 laptop has 728.
   const width = Math.min(size.width, workArea.width - WINDOW_MARGIN * 2)
   const height = Math.min(size.height, workArea.height - WINDOW_MARGIN * 2)
   const right = snapToTopRight ? workArea.x + workArea.width - WINDOW_MARGIN : current.x + current.width
@@ -694,11 +687,11 @@ ipcMain.handle('supabase:management', async (_event, request) => {
   }
 })
 
-ipcMain.handle('window:set-expanded', (_event, expanded, settingsOpen = false, interactiveOpen = false, editorOpen = false) => {
+ipcMain.handle('window:set-expanded', (_event, expanded, settingsOpen = false, interactiveOpen = false) => {
   // Reapplying always-on-top closes native Windows select popups. Temporarily
   // suspend the presenter topmost reinforcement while settings are interactive.
   setPresenterTopmost(!(settingsOpen || interactiveOpen))
-  setControlBounds(Boolean(expanded), false, settingsOpen, editorOpen)
+  setControlBounds(Boolean(expanded), false, settingsOpen)
   setTimeout(() => bringControlToFront(false), 30)
 })
 

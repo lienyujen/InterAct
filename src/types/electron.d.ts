@@ -18,7 +18,7 @@ declare global {
       isDesktop: boolean
       platform: string
       enterPresenterMode: (sessionId: string) => Promise<void>
-      setPresenterExpanded: (expanded: boolean, settingsOpen?: boolean, interactiveOpen?: boolean, editorOpen?: boolean) => Promise<void>
+      setPresenterExpanded: (expanded: boolean, settingsOpen?: boolean, interactiveOpen?: boolean) => Promise<void>
       setLotteryInteraction: (enabled: boolean) => Promise<void>
       showLottery: (event: SessionEvent) => Promise<void>
       getLatestLottery: () => Promise<SessionEvent | null>
