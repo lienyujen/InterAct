@@ -221,9 +221,20 @@ export function PresenterPage() {
       const row = payload.new as unknown as Participant
       if (!row?.id) return current
       const at = current.findIndex((entry) => entry.id === row.id)
+      // Appended, not sorted. The list arrives ordered by joined_at and someone
+      // we have not seen before joined last, so the order holds — and sorting
+      // read joined_at off every row in the list to achieve nothing. One row
+      // somewhere had no joined_at, and the whole presenter screen died on it
+      // mid-dispatch. Which row is still unknown, hence the note below.
       if (at < 0) {
-        // A new arrival keeps the joined_at order the reload used.
-        return [...current, row].sort((left, right) => left.joined_at.localeCompare(right.joined_at))
+        if (!row.joined_at) {
+          void window.interactDesktop?.logDiagnostic?.({
+            event: 'participant_without_joined_at',
+            eventType: payload.eventType,
+            keys: Object.keys(payload.new || {}).sort().join(','),
+          })
+        }
+        return [...current, row]
       }
       const next = [...current]
       next[at] = row

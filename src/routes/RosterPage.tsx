@@ -145,8 +145,11 @@ export function RosterPage() {
       // built with those filtered out — so applying the row verbatim would put
       // them straight back.
       if (row.removed_at) return current.filter((entry) => entry.id !== row.id)
+      // Appended rather than sorted, for the reason given on the presenter's
+      // copy of this: the list is already in joined_at order and the sort read
+      // that field off every row to achieve nothing, which is what crashed.
       const at = current.findIndex((entry) => entry.id === row.id)
-      if (at < 0) return [...current, row].sort((left, right) => left.joined_at.localeCompare(right.joined_at))
+      if (at < 0) return [...current, row]
       const next = [...current]
       next[at] = row
       return next
