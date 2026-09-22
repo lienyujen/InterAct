@@ -1,5 +1,5 @@
 const { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell, systemPreferences } = require('electron')
-const { overlayBoundsFor } = require('./overlayFollow.cjs')
+const { fitAndCentre, overlayBoundsFor } = require('./windowPlacement.cjs')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -359,9 +359,9 @@ function createReportWindow(sessionId, generate = false) {
   overlayVisibilitySuppressed = true
   overlayWindow?.hide()
 
+  const reportPlacement = fitAndCentre(displayForBounds(safeBounds(mainWindow)).workArea, 1120, 820, 12)
   reportWindow = new BrowserWindow({
-    width: 1120,
-    height: 820,
+    ...reportPlacement,
     minWidth: 840,
     minHeight: 620,
     frame: false,
@@ -477,11 +477,16 @@ function createWordCloudWindow(sessionId) {
   }
 
   const targetDisplay = displayForBounds(safeBounds(mainWindow))
-  const width = Math.min(1180, Math.max(860, targetDisplay.workArea.width - 120))
-  const height = Math.min(780, Math.max(600, targetDisplay.workArea.height - 120))
+  // Capped as it always was: a word cloud stretched across a 2560 wide
+  // projector is mostly whitespace.
+  const placement = fitAndCentre(
+    targetDisplay.workArea,
+    Math.min(1180, Math.max(860, targetDisplay.workArea.width - 120)),
+    Math.min(780, Math.max(600, targetDisplay.workArea.height - 120)),
+    12,
+  )
   wordCloudWindow = new BrowserWindow({
-    width,
-    height,
+    ...placement,
     minWidth: 760,
     minHeight: 520,
     frame: false,
@@ -534,12 +539,13 @@ function createQuestionDetailWindow(route, title) {
     return
   }
 
-  const targetDisplay = displayForBounds(safeBounds(mainWindow))
-  const workArea = targetDisplay.workArea
-  const width = Math.max(800, Math.round(workArea.width * 0.8))
-  const height = Math.max(600, Math.round(workArea.height * 0.8))
-  const x = workArea.x + Math.round((workArea.width - width) / 2)
-  const y = workArea.y + Math.round((workArea.height - height) / 2)
+  const workArea = displayForBounds(safeBounds(mainWindow)).workArea
+  const { x, y, width, height } = fitAndCentre(
+    workArea,
+    Math.max(800, Math.round(workArea.width * 0.8)),
+    Math.max(600, Math.round(workArea.height * 0.8)),
+    12,
+  )
 
   overlayVisibilitySuppressed = true
   overlayWindow?.hide()
