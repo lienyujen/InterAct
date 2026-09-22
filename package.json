@@ -14,6 +14,7 @@
     "desktop:package": "pnpm build && electron-builder --win portable --x64",
     "desktop:package:plus": "pnpm build:plus && cross-env APP_EDITION=plus electron-builder --win portable --x64",
     "desktop:package:mac": "pnpm build && electron-builder --mac dmg --universal",
+    "desktop:package:plus:mac": "pnpm build:plus && cross-env APP_EDITION=plus electron-builder --mac dmg --universal",
     "build": "tsc -b && vite build",
     "build:plus": "tsc -b && cross-env VITE_APP_EDITION=plus vite build",
     "lint": "oxlint",

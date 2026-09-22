@@ -1,8 +1,8 @@
-// APP_EDITION picks the Windows app to build. It only renames the artifact and
-// its product name; both editions ship the same code, and the caption controls
-// are gated at runtime by VITE_APP_EDITION (see src/lib/edition.ts).
-//   unset / standard -> InterAct.exe
-//   plus             -> InterActPlus.exe
+// APP_EDITION picks which edition to build, on either platform. It only renames
+// the artifact and its product name; both editions ship the same code, and the
+// caption controls are gated at runtime by VITE_APP_EDITION (see src/lib/edition.ts).
+//   unset / standard -> InterAct.exe      / InterAct.dmg
+//   plus             -> InterActPlus.exe  / InterActPlus.dmg
 const productName = process.env.APP_EDITION === 'plus' ? 'InterActPlus' : 'InterAct'
 
 module.exports = {
