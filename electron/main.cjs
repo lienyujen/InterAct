@@ -1,4 +1,5 @@
 const { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell, systemPreferences } = require('electron')
+const { overlayBoundsFor } = require('./overlayFollow.cjs')
 const path = require('node:path')
 const fs = require('node:fs')
 
@@ -186,6 +187,7 @@ function createWindow() {
 
   mainWindow.on('move', () => {
     if (lastControlBounds) lastControlBounds = mainWindow.getBounds()
+    scheduleFollowControlDisplay()
   })
 
   mainWindow.on('will-resize', (event) => {
@@ -268,6 +270,34 @@ function closeOverlayWindow() {
   const target = overlayWindow
   overlayWindow = null
   if (target && !target.isDestroyed()) target.close()
+}
+
+// The danmaku belongs on whichever screen the class is watching, and that is
+// whichever screen the teacher has dragged the controls to. The overlay used to
+// take the display the session started on and stay there for the rest of the
+// lesson: move the controls to the projector and the danmaku carried on flying
+// across the laptop, where nobody was looking. Capture never had this problem
+// because it works the target display out afresh every time.
+//
+// Compares bounds rather than display ids, so a resolution change on the screen
+// it is already on moves it too.
+function followControlDisplay() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return
+  const targetDisplay = displayForBounds(safeBounds(mainWindow))
+  if (!targetDisplay) return
+  const wanted = overlayBoundsFor(targetDisplay.bounds, safeBounds(overlayWindow))
+  if (wanted) overlayWindow.setBounds(wanted)
+}
+
+// 'move' fires continuously while a window is dragged, and setBounds on another
+// window during that is both wasteful and visibly jittery. Settle first.
+let followTimer = null
+function scheduleFollowControlDisplay() {
+  if (followTimer) clearTimeout(followTimer)
+  followTimer = setTimeout(() => {
+    followTimer = null
+    followControlDisplay()
+  }, 150)
 }
 
 function createOverlayWindow(sessionId) {
@@ -841,7 +871,12 @@ app.whenReady().then(() => {
   createWindow()
 
   for (const eventName of ['display-added', 'display-removed', 'display-metrics-changed']) {
-    screen.on(eventName, () => showOverlayInactive())
+    screen.on(eventName, () => {
+      // A screen that has just appeared, gone, or changed resolution can leave
+      // the overlay sized for a layout that no longer exists.
+      followControlDisplay()
+      showOverlayInactive()
+    })
   }
 
   app.on('activate', () => {
