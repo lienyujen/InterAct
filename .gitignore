@@ -36,3 +36,8 @@ supabase/.temp/
 # rename sometimes fails while Dropbox is watching the folder, leaving 350MB of
 # Electron binaries at the repository root for `git add -A` to sweep up.
 /win-unpacked.tmp/
+
+# Personal handover notes kept beside the checkout. They carry machine
+# paths and the maintainer's own Supabase project ref — not secrets, but not
+# for a public repository either.
+InterAct-交接筆記.md
