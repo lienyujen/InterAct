@@ -159,7 +159,15 @@ export async function testBackendConfig(ref: string, key: string) {
     return { ok: false as const, message: '金鑰無效或權限不足，請確認貼上的是 publishable key。' }
   }
   if (response.status === 404) {
-    return { ok: false as const, message: '連得上專案，但找不到 sessions 資料表 —— 請先在 Supabase 執行 schema.sql。' }
+    // The one failure with a button for it on the same screen. Telling people
+    // to go and run schema.sql by hand sent them off to do the very thing the
+    // 自動部署 section below does for them, which most never opened because
+    // nothing pointed at it.
+    return {
+      ok: false as const,
+      needsSchema: true,
+      message: '連得上專案，但這個專案還沒有 InterAct 的資料表。請展開下面的「還沒建立後端？讓 InterAct 幫你部署」自動建立。',
+    }
   }
   return { ok: false as const, message: `連線失敗（HTTP ${response.status}）。` }
 }

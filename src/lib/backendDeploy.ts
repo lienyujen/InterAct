@@ -6,6 +6,8 @@
 // The Management API sends no CORS headers, so every call goes through the
 // Electron main process. That also means this only works in the desktop app.
 
+import { testBackendConfig } from './supabase'
+
 // Vite inlines these at build time, so the sources travel inside the app.
 const functionSources = import.meta.glob('/supabase/functions/**/*.ts', {
   query: '?raw',
@@ -189,6 +191,25 @@ export async function verifyBackend(ref: string, token: string) {
   }
   if (Number(first.buckets) < 3) {
     throw new Error(`Storage bucket 未建立完整（找到 ${first.buckets ?? 0}/3）。請到 Supabase 後台 → Storage 手動建立 interact-screenshots（公開）、interact-files（公開）與 interact-recordings（非公開）。`)
+  }
+}
+
+// The check above proves the tables are there. It does not prove the class can
+// read them, because it asks through the Management API, which answers with the
+// project's own authority and sees everything regardless of who has been
+// granted what. The publishable key is the only key a student's browser ever
+// holds, so it is the one that has to be able to read a row — and PostgREST
+// answers a table the key cannot see with a 404, which the setup screen then
+// reported as "run schema.sql", sending people off to do by hand what had just
+// been done for them. Asking with the real key turns that into a sentence here,
+// where the deployment is still on screen.
+export async function verifyPublicAccess(ref: string, key: string) {
+  if (!key) {
+    throw new Error('請先在上面填入 publishable key —— 部署完要用它確認學生端讀得到資料。')
+  }
+  const result = await testBackendConfig(ref, key)
+  if (!result.ok) {
+    throw new Error(`資料表建好了，但用 publishable key 讀不到：${result.message}`)
   }
 }
 

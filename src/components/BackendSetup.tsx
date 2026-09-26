@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { CheckCircle2, CircleDashed, ExternalLink, KeyRound, LoaderCircle, Rocket, Save, Server, XCircle } from 'lucide-react'
 import { backendConfig, clearBackendConfig, requireSupabase, saveBackendConfig, testBackendConfig } from '../lib/supabase'
-import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setOwnerKey, setSecrets, verifyBackend } from '../lib/backendDeploy'
+import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setOwnerKey, setSecrets, verifyBackend, verifyPublicAccess } from '../lib/backendDeploy'
 import { generateOwnerKey, getOwnerKey, saveOwnerKey } from '../lib/ownerKey'
 import type { DeployStep } from '../lib/backendDeploy'
 
@@ -26,6 +26,9 @@ export function BackendSetup({ onCancel }: Props) {
   const [token, setToken] = useState('')
   const [geminiKey, setGeminiKey] = useState('')
   const [openaiKey, setOpenaiKey] = useState('')
+  // Opened by the screen itself when the project turns out to be empty, which
+  // is exactly what this section exists to fix.
+  const [helpOpen, setHelpOpen] = useState(false)
   const [reurlKey, setReurlKey] = useState('')
   const [steps, setSteps] = useState<DeployStep[]>([])
   const [deploying, setDeploying] = useState(false)
@@ -52,6 +55,7 @@ export function BackendSetup({ onCancel }: Props) {
       { slug: '設定 API 金鑰', status: 'pending' },
       { slug: '產生管理金鑰', status: 'pending' },
       { slug: '檢查部署結果', status: 'pending' },
+      { slug: '確認學生端讀得到', status: 'pending' },
     ]
     setSteps(plan)
     setDeploying(true)
@@ -94,6 +98,7 @@ export function BackendSetup({ onCancel }: Props) {
           setOwnerKeyState(key)
         },
         () => verifyBackend(cleanRef, token.trim()),
+        () => verifyPublicAccess(cleanRef, key.trim()),
       ]
 
       let failed = false
@@ -176,6 +181,9 @@ export function BackendSetup({ onCancel }: Props) {
         setNotice('連線成功，可以儲存了。')
       } else {
         setError(result.message)
+        // An empty project is the one failure the screen can fix by itself, so
+        // the section that fixes it opens rather than waiting to be found.
+        if ('needsSchema' in result && result.needsSchema) setHelpOpen(true)
       }
     } catch {
       setError('連線失敗，請確認網路與專案識別碼。')
@@ -294,7 +302,7 @@ export function BackendSetup({ onCancel }: Props) {
           </button>
         </div>
 
-        <details className="backend-setup-help">
+        <details className="backend-setup-help" open={helpOpen} onToggle={(event) => setHelpOpen((event.target as HTMLDetailsElement).open)}>
           <summary>還沒建立後端？讓 InterAct 幫你部署</summary>
           <p className="muted">
             在 <a href="https://supabase.com/dashboard" rel="noreferrer" target="_blank">
