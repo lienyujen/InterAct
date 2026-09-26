@@ -142,6 +142,21 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true })
     }
 
+    // Asking to be called on. A toggle rather than a one-way set, because a
+    // student who puts a hand up and thinks better of it should be able to take
+    // it down without waiting for the presenter to notice.
+    if (action === 'set_hand') {
+      const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
+      if (!participant) return jsonResponse({ message: '學員權限失效。' }, 403)
+      const raised = input.raised !== false
+      const { error } = await supabase.from('participants')
+        .update({ hand_raised_at: raised ? new Date().toISOString() : null })
+        .eq('id', participantId)
+        .eq('session_id', sessionId)
+      if (error) throw error
+      return jsonResponse({ ok: true })
+    }
+
     if (['get_custom_quiz', 'submit_custom_quiz', 'retry_custom_quiz_grading'].includes(action)) {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限失效，請重新掃描 QR Code 加入場次。' }, 403)
@@ -409,6 +424,46 @@ Deno.serve(async (req) => {
         // and the per-student limit cannot be reset by deleting and reposting.
         const { data, error } = await supabase.from('board_posts')
           .update({ deleted_at: new Date().toISOString() })
+          .eq('id', postId)
+          .eq('session_id', sessionId)
+          .eq('participant_id', participantId)
+          .is('deleted_at', null)
+          .select('id').maybeSingle()
+        if (error) throw error
+        if (!data) return jsonResponse({ message: '找不到這則貼文，或它已經收回了。' }, 404)
+        return jsonResponse({ ok: true })
+      }
+
+      // Fixing a typo without losing the card. Withdrawing and reposting was
+      // the only way before, and it costs the student one of their allotted
+      // cards — the count deliberately does not come back — so a spelling
+      // mistake was effectively permanent.
+      if (action === 'edit_board_post') {
+        const postId = typeof input.postId === 'string' ? input.postId : ''
+        if (!validUuid(postId)) return jsonResponse({ message: '貼文資料不正確。' }, 400)
+
+        const { data: existing, error: readError } = await supabase.from('board_posts')
+          .select('id, kind')
+          .eq('id', postId)
+          .eq('session_id', sessionId)
+          .eq('participant_id', participantId)
+          .is('deleted_at', null)
+          .maybeSingle()
+        if (readError) throw readError
+        if (!existing) return jsonResponse({ message: '找不到這則貼文，或它已經收回了。' }, 404)
+
+        const text = typeof input.body === 'string' ? input.body.trim().slice(0, 1000) : ''
+        if (!text) return jsonResponse({ message: '內容不能是空的。' }, 400)
+
+        // A link card carries its address in url and nothing in body, so that
+        // is the field the student is actually looking at. Same scheme repair
+        // the compose box does, for the same reason.
+        const patch = existing.kind === 'link'
+          ? { url: /^https?:\/\//i.test(text) ? text : `https://${text}` }
+          : { body: text }
+
+        const { data, error } = await supabase.from('board_posts')
+          .update({ ...patch, edited_at: new Date().toISOString() })
           .eq('id', postId)
           .eq('session_id', sessionId)
           .eq('participant_id', participantId)

@@ -1542,6 +1542,24 @@ Deno.serve(async (req) => {
     // score beside it is arithmetic over what the class did and has to stay
     // reproducible, so the teacher's own judgement is kept in its own column
     // rather than folded into a number they would then have to defend.
+    // Acknowledging a raised hand — one student, or the whole class at once
+    // when the presenter has finished taking questions and does not want to
+    // clear a dozen of them one at a time.
+    if (action === 'lower_hands') {
+      const participantId = typeof input.participantId === 'string' ? input.participantId : ''
+      let query = supabase.from('participants')
+        .update({ hand_raised_at: null })
+        .eq('session_id', sessionId)
+        .not('hand_raised_at', 'is', null)
+      if (participantId) {
+        if (!validUuid(participantId)) return jsonResponse({ message: '學員資料格式不正確。' }, 400)
+        query = query.eq('id', participantId)
+      }
+      const { error } = await query
+      if (error) throw error
+      return jsonResponse({ ok: true })
+    }
+
     if (action === 'award_participant_point') {
       const participantId = input.participantId
       if (!validUuid(participantId)) return jsonResponse({ message: '學員資料格式不正確。' }, 400)
@@ -1846,6 +1864,31 @@ Deno.serve(async (req) => {
         .single()
       if (insertError) throw insertError
       return jsonResponse({ event })
+    }
+
+    // Calling the round off. Starting a new one already does this to whatever
+    // came before it, but that left the presenter with no way out of a round
+    // nobody buzzed on except starting another one on top of the lesson.
+    if (action === 'cancel_buzzer') {
+      const { data: liveEvents, error: liveError } = await supabase
+        .from('session_events')
+        .select('id, payload')
+        .eq('session_id', sessionId)
+        .eq('event_type', 'buzzer')
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (liveError) throw liveError
+
+      const finalizedAt = new Date().toISOString()
+      await Promise.all(
+        (liveEvents || [])
+          .filter((event) => event.payload?.finalized !== true)
+          .map((event) => supabase
+            .from('session_events')
+            .update({ payload: { ...event.payload, accepting: false, finalized: true, cancelled: true, finalized_at: finalizedAt } })
+            .eq('id', event.id)),
+      )
+      return jsonResponse({ ok: true })
     }
 
     if (action === 'activate_buzzer') {

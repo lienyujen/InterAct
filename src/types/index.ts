@@ -54,6 +54,8 @@ export type Participant = {
   // Set when the presenter removed them. The row and everything hanging off it
   // stays; it simply drops out of the live roster and lets that device rejoin.
   removed_at?: string | null
+  // When they asked to be called on. Null once the presenter acknowledges it.
+  hand_raised_at?: string | null
 }
 
 // One tap of the + beside a name. Kept per award rather than as a total so the
@@ -108,6 +110,8 @@ export type BoardPost = {
   // Set on a reply; null on a card of its own.
   reply_to: string | null
   anonymous_at_display: boolean
+  // The student corrected it after posting.
+  edited_at?: string | null
   // The student took it back down.
   deleted_at: string | null
   // The presenter took it down for everyone.

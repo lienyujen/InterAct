@@ -31,6 +31,7 @@ import { logDiagnostic } from '../lib/diagnostics'
 import { createCaptionTextNormalizer } from '../lib/traditionalChinese'
 import { SOURCE_CAPTION_LANGUAGE, resolvedCaptionLanguage } from '../lib/captionLanguages'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
+import { useStandingsBroadcast } from '../lib/standings'
 import { useSessionPresence } from '../lib/useSessionPresence'
 import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, FileResponse, SharedFile, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, Session, SessionEvent } from '../types'
 import { useParams } from 'react-router-dom'
@@ -155,6 +156,13 @@ export function PresenterPage() {
   )
   const [joinUrl, setJoinUrl] = useState(fallbackJoinUrl)
   const { onlineParticipantIds } = useSessionPresence(sessionId, { role: 'presenter' })
+  // Worked out here rather than in the roster window, which is only open when
+  // the teacher opens it, and sent to each student as their own line.
+  useStandingsBroadcast(sessionId, participants.length)
+  const raisedCount = useMemo(
+    () => participants.filter((participant) => participant.hand_raised_at && !participant.removed_at).length,
+    [participants],
+  )
   const onlineParticipants = useMemo(
     () => participants.filter((participant) => onlineParticipantIds.includes(participant.id)),
     [onlineParticipantIds, participants],
@@ -1467,6 +1475,29 @@ export function PresenterPage() {
     await window.interactDesktop?.showLottery(nextEvent)
   }
 
+  // Clearing every raised hand at once, from the count in the panel. Lowering
+  // them one at a time lives in the roster, beside the name being answered.
+  async function lowerHands() {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者操作權限。')
+    const { error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'lower_hands', sessionId, presenterToken },
+    })
+    if (error) throw error
+  }
+
+  // Calling off a round nobody buzzed on. Without this the only way past the
+  // overlay is to start another one.
+  async function cancelBuzzer() {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者操作權限。')
+    const { error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'cancel_buzzer', sessionId, presenterToken },
+    })
+    if (error) throw error
+    setBuzzerEvent(null)
+  }
+
   async function drawUnanswered(questionId: string) {
     if (!onlineParticipants.length) {
       setAnalysisError('目前沒有線上學生。')
@@ -1885,6 +1916,8 @@ export function PresenterPage() {
           buzzerActive={isBuzzerPending(buzzerEvent)}
           captionError={captionError}
           onlineCount={onlineParticipants.length}
+          raisedCount={raisedCount}
+          onLowerHands={() => void lowerHands()}
           session={session}
           onDrawLottery={drawLottery}
           onStartBuzzer={startBuzzer}
@@ -2074,6 +2107,7 @@ export function PresenterPage() {
       {!window.interactDesktop && (
         <BuzzerOverlay
           event={buzzerEvent}
+          onClose={cancelBuzzer}
           onStart={buzzerEvent ? () => activateBuzzer(buzzerEvent.id) : undefined}
         />
       )}

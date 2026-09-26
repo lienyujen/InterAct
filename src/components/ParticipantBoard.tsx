@@ -1,4 +1,4 @@
-import { Download, Link2, Mic, Paperclip, PenTool, Square, Trash2, Type as TypeIcon, Image as ImageIcon } from 'lucide-react'
+import { Download, Link2, Mic, Paperclip, PenTool, Pencil, Square, Trash2, Type as TypeIcon, Image as ImageIcon } from 'lucide-react'
 import { BoardDrawing } from './BoardDrawing'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { boardFileName, isImageCard } from '../lib/boardCards'
@@ -58,6 +58,9 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
   const [error, setError] = useState('')
   const [replyTo, setReplyTo] = useState<string | null>(null)
   const [replyDraft, setReplyDraft] = useState('')
+  // Which card or reply is open for correction, and what it currently says.
+  const [editing, setEditing] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState('')
 
   const revealed = Boolean(question.board_revealed_at)
   // Whether anything new may be written. Closing discussion and the teacher
@@ -206,6 +209,30 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
       setComposing(null)
     } catch {
       setError(full ? participantText(locale, 'boardFull') : participantText(locale, 'boardOpenFailed'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function startEdit(post: BoardPost) {
+    setEditing(post.id)
+    // A link card keeps its address in url and nothing in body, so that is the
+    // text the student is looking at and the text they mean to change.
+    setEditDraft(post.kind === 'link' ? post.url || '' : post.body || '')
+  }
+
+  async function submitEdit(postId: string) {
+    const body = editDraft.trim()
+    if (!body) return
+    setBusy(true)
+    try {
+      await invoke({ action: 'edit_board_post', postId, body })
+      setEditing(null)
+      setEditDraft('')
+      await loadMine()
+      await loadWall()
+    } catch {
+      setError(participantText(locale, 'boardOpenFailed'))
     } finally {
       setBusy(false)
     }
@@ -449,6 +476,12 @@ export function ParticipantBoard({ locale, locked, participant, participantToken
             onReact={(emoji) => void react(card.id, emoji)}
             onReply={() => { setReplyTo(replyTo === card.id ? null : card.id); setReplyDraft('') }}
             onWithdraw={() => void withdraw(card.id)}
+            editingId={editing}
+            editDraft={editDraft}
+            onEditStart={startEdit}
+            onEditDraft={setEditDraft}
+            onEditCancel={() => { setEditing(null); setEditDraft('') }}
+            onEditSubmit={(postId) => void submitEdit(postId)}
             replying={replyTo === card.id}
             replyDraft={replyDraft}
             onReplyDraft={setReplyDraft}
@@ -482,8 +515,20 @@ function BoardCard(props: {
   onReplyDraft: (value: string) => void
   onReplySubmit: () => void
   onWithdraw: () => void
+  // Correcting a card or a reply. One draft is enough for the whole wall:
+  // only one thing can be open for editing at a time.
+  editingId: string | null
+  editDraft: string
+  onEditStart: (post: BoardPost) => void
+  onEditDraft: (value: string) => void
+  onEditCancel: () => void
+  onEditSubmit: (postId: string) => void
 }) {
   const { anonymous, busy, canReact, canReply, card, locale, mine, reactions, replies, viewerId, replying, replyDraft } = props
+  const { editingId, editDraft } = props
+  // Only the words can be corrected. A photograph or a recording is replaced by
+  // taking it down and sending another, which is what the buttons already do.
+  const editable = mine && !card.deleted_at && !props.readOnly && (card.kind === 'text' || card.kind === 'link')
   // The row appears whenever the board is open to the class: as buttons when
   // reacting is allowed, and as a plain tally when it is not.
   const showReactions = canReact || reactions.length > 0
@@ -501,11 +546,36 @@ function BoardCard(props: {
       <header>
         <strong>{author}</strong>
         {card.deleted_at && <span className="board-card-tag">{participantText(locale, 'boardWithdrawn')}</span>}
+        {!card.deleted_at && card.edited_at && (
+          <span className="board-card-tag">{participantText(locale, 'boardEdited')}</span>
+        )}
       </header>
 
-      {card.kind === 'text' && <p className="board-card-text">{card.body}</p>}
-      {card.kind === 'link' && card.url && (
-        <a className="board-card-link" href={card.url} rel="noreferrer noopener" target="_blank">{card.url}</a>
+      {editingId === card.id ? (
+        <div className="board-card-editor">
+          <textarea
+            autoFocus
+            maxLength={1000}
+            rows={card.kind === 'link' ? 1 : 3}
+            value={editDraft}
+            onChange={(event) => props.onEditDraft(event.target.value)}
+          />
+          <div className="board-card-editor-actions">
+            <button disabled={busy || !editDraft.trim()} type="button" onClick={() => props.onEditSubmit(card.id)}>
+              {participantText(locale, 'boardSave')}
+            </button>
+            <button className="board-card-action" disabled={busy} type="button" onClick={props.onEditCancel}>
+              {participantText(locale, 'boardCancel')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {card.kind === 'text' && <p className="board-card-text">{card.body}</p>}
+          {card.kind === 'link' && card.url && (
+            <a className="board-card-link" href={card.url} rel="noreferrer noopener" target="_blank">{card.url}</a>
+          )}
+        </>
       )}
       {isImageCard(card) && card.public_url && (
         <a href={card.public_url} rel="noreferrer noopener" target="_blank">
@@ -557,6 +627,11 @@ function BoardCard(props: {
             )}
           </div>
         )}
+        {editable && editingId !== card.id && (
+          <button className="board-card-action" disabled={busy} type="button" onClick={() => props.onEditStart(card)}>
+            <Pencil size={14} />{participantText(locale, 'boardEdit')}
+          </button>
+        )}
         {mine && !card.deleted_at && !props.readOnly && (
           <button className="board-card-action is-danger" disabled={busy} type="button" onClick={props.onWithdraw}>
             <Trash2 size={14} />{participantText(locale, 'boardWithdraw')}
@@ -571,7 +646,42 @@ function BoardCard(props: {
               <strong>{anonymous && reply.participant_id !== viewerId
                 ? participantText(locale, 'boardAnonymous')
                 : reply.participant_name}</strong>
-              {reply.body}
+              {editingId === reply.id ? (
+                <div className="board-card-editor">
+                  <textarea
+                    autoFocus
+                    maxLength={1000}
+                    rows={2}
+                    value={editDraft}
+                    onChange={(event) => props.onEditDraft(event.target.value)}
+                  />
+                  <div className="board-card-editor-actions">
+                    <button disabled={busy || !editDraft.trim()} type="button" onClick={() => props.onEditSubmit(reply.id)}>
+                      {participantText(locale, 'boardSave')}
+                    </button>
+                    <button className="board-card-action" disabled={busy} type="button" onClick={props.onEditCancel}>
+                      {participantText(locale, 'boardCancel')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {reply.body}
+                  {reply.edited_at && (
+                    <span className="board-card-tag">{participantText(locale, 'boardEdited')}</span>
+                  )}
+                  {reply.participant_id === viewerId && !reply.deleted_at && !props.readOnly && (
+                    <button
+                      className="board-card-action"
+                      disabled={busy}
+                      type="button"
+                      onClick={() => props.onEditStart(reply)}
+                    >
+                      <Pencil size={13} />{participantText(locale, 'boardEdit')}
+                    </button>
+                  )}
+                </>
+              )}
             </li>
           ))}
         </ul>

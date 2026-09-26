@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { BookOpen, Coffee, PartyPopper, Send, Sparkles, Waves } from 'lucide-react'
+import { BookOpen, Coffee, Hand, PartyPopper, Send, Sparkles, Waves } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
 import { ParticipantBoard } from '../components/ParticipantBoard'
@@ -26,6 +26,7 @@ import {
   messageUsage,
 } from '../lib/messageLimit'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
+import { useMyStanding } from '../lib/standings'
 import { useSessionPresence } from '../lib/useSessionPresence'
 import { trackParticipantPresence } from '../lib/participantPresence'
 import { participantLocaleFromStorage, participantText } from '../lib/participantI18n'
@@ -50,6 +51,10 @@ export function ParticipantPage() {
   const participantId = localStorage.getItem(`interact_participant_${sessionId}`)
   const participantToken = localStorage.getItem(`interact_participant_token_${sessionId}`)
   const [participant, setParticipant] = useState<Participant | null>(null)
+  const [handBusy, setHandBusy] = useState(false)
+  // The same figure the teacher's list shows, worked out on their machine and
+  // sent here — see the note in lib/standings.
+  const standing = useMyStanding(sessionId, participant?.id || null)
   const [session, setSession] = useState<Session | null>(null)
   const [question, setQuestion] = useState<Question | null>(null)
   const [answer, setAnswer] = useState<Answer | null>(null)
@@ -403,6 +408,15 @@ export function ParticipantPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'exit_tickets', filter: `participant_id=eq.${participantId}` }, scheduleLoad)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ai_summaries', filter: `session_id=eq.${sessionId}` }, scheduleLoad)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shared_contents', filter: `session_id=eq.${sessionId}` }, scheduleLoad)
+      // Their own row, and no one else's, so that the presenter lowering a
+      // hand reaches the student who raised it without costing the class a
+      // round of queries. Patched straight from the payload for the same
+      // reason the roster does: the changed row already arrived.
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'participants', filter: `id=eq.${participantId}` }, (payload) => {
+        const row = payload.new as Participant
+        if (!row?.id) return
+        setParticipant((current) => (current ? { ...current, ...row } : current))
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
         const event = payload.new as SessionEvent
         if (event.event_type === 'buzzer') {
@@ -751,6 +765,29 @@ export function ParticipantPage() {
     )
   }
 
+  // Putting a hand up, and taking it down again. Set locally straight away so
+  // the button answers the tap; the row comes back over realtime a moment
+  // later, and that is also how the presenter lowering it reaches here.
+  async function toggleHand() {
+    if (!participant || !participantToken || handBusy) return
+    const raised = !participant.hand_raised_at
+    setHandBusy(true)
+    setParticipant((current) => (
+      current ? { ...current, hand_raised_at: raised ? new Date().toISOString() : null } : current
+    ))
+    try {
+      await requireSupabase().functions.invoke('participant-action', {
+        body: { action: 'set_hand', sessionId, participantId: participant.id, participantToken, raised },
+      })
+    } catch {
+      setParticipant((current) => (
+        current ? { ...current, hand_raised_at: raised ? null : new Date().toISOString() } : current
+      ))
+    } finally {
+      setHandBusy(false)
+    }
+  }
+
   return (
     <main className="participant-page">
       <ParticipantLanguageSwitcher locale={locale} onChange={changeLocale} />
@@ -760,6 +797,43 @@ export function ParticipantPage() {
         <h1>
           <strong>{participant?.name || participantText(locale, 'attendee')}</strong>{locale === 'en' ? participantText(locale, 'welcome') : `，${participantText(locale, 'welcome')}`}{session?.title || participantText(locale, 'session')}
         </h1>
+        {participant && participantToken && (
+          <div className="participant-header-side">
+            {standing && (
+              <div className="participant-standing">
+                <span className="participant-score" title={participantText(locale, 'standingScore')}>
+                  {standing.score} {participantText(locale, 'standingPoints')}
+                </span>
+                <span className="participant-rank">
+                  {participantText(locale, 'standingRank')} {standing.rank}／{standing.classSize}
+                </span>
+                {standing.badges.length > 0 && (
+                  <span
+                    className="participant-badges"
+                    title={standing.badges.map((badge) => `${badge.label}：${badge.detail}`).join('\n')}
+                  >
+                    {standing.badges.map((badge) => <span key={badge.key}>{badge.icon}</span>)}
+                  </span>
+                )}
+                {standing.awayMs >= 60_000 && (
+                  <span className="participant-away">
+                    {participantText(locale, 'standingAway')} {Math.floor(standing.awayMs / 60_000)} {participantText(locale, 'standingMinutes')}
+                  </span>
+                )}
+              </div>
+            )}
+            <button
+              aria-pressed={Boolean(participant.hand_raised_at)}
+              className={`participant-hand${participant.hand_raised_at ? ' is-raised' : ''}`}
+              disabled={handBusy}
+              type="button"
+              onClick={() => void toggleHand()}
+            >
+              <Hand size={18} />
+              {participantText(locale, participant.hand_raised_at ? 'handLower' : 'handRaise')}
+            </button>
+          </div>
+        )}
       </header>
       {onBreak && (
         <section className="panel participant-break" aria-live="polite">

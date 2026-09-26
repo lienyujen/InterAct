@@ -52,6 +52,10 @@ create table if not exists public.participants (
   -- device_id is rewritten at the same time so the unique constraint below no
   -- longer blocks that device from joining again under a corrected name.
   removed_at timestamptz null,
+  -- Set when the student asks to be called on, cleared when the presenter
+  -- acknowledges it. A timestamp rather than a flag so the class list can put
+  -- the longest-waiting hand first.
+  hand_raised_at timestamptz null,
   unique (session_id, device_id)
 );
 
@@ -333,6 +337,10 @@ create table if not exists public.board_posts (
   -- report still shows it was written, and so the per-student count cannot be
   -- reset by deleting and reposting.
   deleted_at timestamptz null,
+  -- The student corrected their own card. Recorded so the wall can say a card
+  -- was changed after the class read it, rather than quietly showing different
+  -- words to whoever looks next.
+  edited_at timestamptz null,
   -- The presenter took it down for everyone.
   hidden_at timestamptz null,
   -- The presenter pushed it to the front of the wall.
@@ -1074,7 +1082,16 @@ alter table public.sessions
 alter table public.participants
   add column if not exists unfocused_ms bigint not null default 0,
   add column if not exists focus_streak_ms bigint not null default 0,
-  add column if not exists removed_at timestamptz null;
+  add column if not exists removed_at timestamptz null,
+  -- Set when the student asks to be called on, cleared when the presenter
+  -- acknowledges it. A timestamp rather than a flag so the class list can put
+  -- the longest-waiting hand first.
+  add column if not exists hand_raised_at timestamptz null;
+
+-- Students may now correct a card instead of withdrawing it, which cost them
+-- one of their allotted cards.
+alter table public.board_posts
+  add column if not exists edited_at timestamptz null;
 
 -- Accumulating a column cannot be expressed through the REST API, and reading
 -- then writing would lose concurrent heartbeats.

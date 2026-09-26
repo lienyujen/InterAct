@@ -174,9 +174,15 @@ export function DesktopOverlayPage() {
   }, [])
 
   useEffect(() => {
+    // A live round now stays clickable to the end, not just while it is waiting
+    // to start. The presenter used to have nothing to press once it was running,
+    // so the window was made click-through — but that is exactly when the close
+    // button is needed, and it would have been clicked straight through. The
+    // overlay is opaque for the whole round, so nothing behind it is reachable
+    // either way.
     const interactive = Boolean(
       (lotteryEvent && lotteryEvent.payload.finalized === false)
-      || (isBuzzerPending(buzzerEvent) && !isBuzzerAccepting(buzzerEvent)),
+      || isBuzzerPending(buzzerEvent),
     )
     void window.interactDesktop?.setLotteryInteraction(interactive)
     return () => {
@@ -220,6 +226,18 @@ export function DesktopOverlayPage() {
     await window.interactDesktop?.showLottery(nextEvent)
   }
 
+  async function cancelBuzzer() {
+    const presenterToken = getPresenterToken(sessionId)
+    if (!presenterToken) throw new Error('找不到講者操作權限。')
+    const { error } = await requireSupabase().functions.invoke('presenter-action', {
+      body: { action: 'cancel_buzzer', sessionId, presenterToken },
+    })
+    if (error) throw error
+    // Closed here and now rather than waiting for the change to come back round
+    // through realtime: the presenter pressed it, so it should go.
+    setBuzzerEvent(null)
+  }
+
   if (!session) return null
   return (
     <div className="desktop-overlay-root">
@@ -234,7 +252,7 @@ export function DesktopOverlayPage() {
         />
       )}
       <LotteryOverlay event={lotteryEvent} onSelect={selectLotteryCandidate} />
-      <BuzzerOverlay event={buzzerEvent} onStart={activateBuzzer} />
+      <BuzzerOverlay event={buzzerEvent} onClose={cancelBuzzer} onStart={activateBuzzer} />
     </div>
   )
 }

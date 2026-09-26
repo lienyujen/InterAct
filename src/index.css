@@ -2327,12 +2327,79 @@ h2 {
 }
 
 .participant-header {
+  align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 5px solid var(--primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
   padding: 16px 18px;
+}
+
+.participant-header-side {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* A raised hand has to be obvious across a classroom on the student's own
+   screen as well as on the teacher's, so it changes colour rather than
+   only its label. */
+.participant-hand {
+  align-items: center;
+  background: var(--surface-muted, #eef1f6);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.participant-hand.is-raised {
+  background: #ffb020;
+  border-color: #ffb020;
+  color: #23262f;
+}
+
+/* The same figures as the teacher's list, read the same way round: the score
+   first because it is the one that moves, then where it places. */
+.participant-standing {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 14px;
+  gap: 8px;
+}
+
+.participant-score {
+  background: #e8492f;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 600;
+  padding: 3px 10px;
+}
+
+.participant-rank {
+  color: var(--text-muted, #687386);
+  font-variant-numeric: tabular-nums;
+}
+
+.participant-badges {
+  display: flex;
+  gap: 2px;
+}
+
+.participant-away {
+  color: #b54708;
+  font-variant-numeric: tabular-nums;
 }
 
 .participant-header h1 {
@@ -3319,6 +3386,29 @@ h2 {
   overflow: hidden;
   position: fixed;
   z-index: 210;
+}
+
+/* Sized for a finger on a touch display, not just a mouse on a laptop. */
+.buzzer-close {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  height: 46px;
+  justify-content: center;
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  width: 46px;
+  z-index: 3;
+}
+
+.buzzer-close:hover,
+.buzzer-close:active {
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .buzzer-content {
@@ -4682,6 +4772,40 @@ h2 {
 
 .roster-dot.is-online {
   background: #12b76a;
+}
+
+/* Takes the dot's place on a line where a hand is up, and is also the control
+   that puts it down again — so the thing the presenter is looking at is the
+   thing they press. */
+.roster-hand {
+  align-items: center;
+  background: #ffb020;
+  border: 0;
+  border-radius: 50%;
+  color: #23262f;
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  height: 26px;
+  justify-content: center;
+  margin: -9px 0 -9px -9px;
+  width: 26px;
+}
+
+/* The same hand, counting them, where the class is summarised. */
+.roster-hand.is-clear {
+  border-radius: 999px;
+  font-weight: 600;
+  gap: 4px;
+  height: 28px;
+  margin: 0;
+  padding: 0 10px;
+  width: auto;
+}
+
+.roster-hand:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .roster-empty {
@@ -6747,6 +6871,25 @@ h2 {
 }
 
 .board-reply-composer input { flex: 1 1 auto; }
+
+/* Correcting a card in place, so the student keeps their eye on the words they
+   are fixing rather than on a dialog over the top of them. */
+.board-card-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.board-card-editor textarea {
+  font: inherit;
+  resize: vertical;
+  width: 100%;
+}
+
+.board-card-editor-actions {
+  display: flex;
+  gap: 8px;
+}
 
 /* ---- the presenter's wall ---- */
 

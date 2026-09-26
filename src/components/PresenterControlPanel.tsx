@@ -1,10 +1,11 @@
-import { AudioLines, Captions, CircleDot, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Users } from 'lucide-react'
+import { AudioLines, Captions, CircleDot, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, Hand, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Users } from 'lucide-react'
 import { isPlusEdition } from '../lib/edition'
 import type { Session } from '../types'
 
 type Props = {
   session: Session
   onlineCount: number
+  raisedCount: number
   busy: boolean
   buzzerActive: boolean
   captionError?: string
@@ -16,6 +17,7 @@ type Props = {
   onOpenTextDispatch: () => void
   onOpenFileTransfer: () => void
   onOpenRoster: () => void
+  onLowerHands: () => void
   onOpenWordCloud: () => void
   onOpenSettings: () => void
   onToggleRecording: () => void
@@ -27,6 +29,7 @@ type Props = {
 export function PresenterControlPanel({
   session,
   onlineCount,
+  raisedCount,
   busy,
   buzzerActive,
   captionError,
@@ -38,6 +41,7 @@ export function PresenterControlPanel({
   onOpenTextDispatch,
   onOpenFileTransfer,
   onOpenRoster,
+  onLowerHands,
   onOpenWordCloud,
   onOpenSettings,
   onToggleRecording,
@@ -53,6 +57,19 @@ export function PresenterControlPanel({
           {/* A link rather than a button so it reads as part of the sentence;
               the roster opens beside the panel instead of covering it. */}
           <button className="online-count-link" type="button" onClick={onOpenRoster}>線上 {onlineCount} 人</button>
+          {/* Sits with the count rather than among the actions: it is news
+              about the class, and it disappears the moment it is dealt with. */}
+          {raisedCount > 0 && (
+            <button
+              className="roster-hand is-clear"
+              disabled={busy}
+              title="全部取消舉手"
+              type="button"
+              onClick={onLowerHands}
+            >
+              <Hand size={15} />{raisedCount}
+            </button>
+          )}
         </div>
         <div className="metric-actions">
           <button

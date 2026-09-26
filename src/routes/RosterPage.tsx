@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { ArrowDownWideNarrow, CircleCheck, ClipboardList, Plus, UserMinus, Users, X } from 'lucide-react'
+import { ArrowDownWideNarrow, CircleCheck, ClipboardList, Hand, Plus, UserMinus, Users, X } from 'lucide-react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { RosterManager } from '../components/RosterManager'
 import { getPresenterToken } from '../lib/presenterAuth'
@@ -272,6 +272,14 @@ export function RosterPage() {
   const sortedRows = useMemo(() => {
     const scored = rows.some((row) => (row.participation?.score || 0) > 0)
     return [...rows].sort((a, b) => {
+      // A raised hand outranks every sort, because it is a question waiting to
+      // be taken and a teacher scanning for one should never have to look past
+      // the top of the list. Longest wait first among them, which is the order
+      // the hands actually went up in.
+      const aHand = a.participation?.participant.hand_raised_at || ''
+      const bHand = b.participation?.participant.hand_raised_at || ''
+      if (Boolean(aHand) !== Boolean(bHand)) return aHand ? -1 : 1
+      if (aHand && bHand && aHand !== bHand) return aHand.localeCompare(bHand)
       // Whoever is not here is not actionable, so they sink regardless of sort —
       // and someone on the list who never turned up sinks furthest.
       if (a.online !== b.online) return a.online ? -1 : 1
@@ -290,6 +298,7 @@ export function RosterPage() {
   }, [rows, sort])
 
   const onlineCount = sortedRows.filter((row) => row.online).length
+  const raisedCount = sortedRows.filter((row) => row.participation?.participant.hand_raised_at).length
   const joinedCount = participants.length
 
   async function callPresenter(body: Record<string, unknown>, failure: string) {
@@ -307,6 +316,16 @@ export function RosterPage() {
       setError(caught instanceof Error && caught.message ? caught.message : failure)
       return false
     }
+  }
+
+  // One hand, or every hand at once when the presenter has finished taking
+  // questions. Omitting the id is what means "all of them".
+  async function lowerHands(participantId?: string) {
+    setBusyId(participantId || 'all')
+    if (await callPresenter({ action: 'lower_hands', participantId }, '取消舉手失敗，請再試一次。')) {
+      await load()
+    }
+    setBusyId('')
   }
 
   async function award(participantId: string) {
@@ -371,6 +390,17 @@ export function RosterPage() {
           線上 {onlineCount}／已加入 {joinedCount}
           {roster ? `／名單 ${roster.entries.length} 人` : ' 人'}
         </span>
+        {raisedCount > 0 && (
+          <button
+            className="roster-hand is-clear"
+            disabled={busyId === 'all'}
+            title="全部取消舉手"
+            type="button"
+            onClick={() => void lowerHands()}
+          >
+            <Hand size={14} />{raisedCount}
+          </button>
+        )}
         <button className="roster-sort" type="button" title="切換排序" onClick={cycleSort}>
           <ArrowDownWideNarrow size={14} />{sortLabels[sort]}
         </button>
@@ -397,7 +427,23 @@ export function RosterPage() {
             const busy = busyId === participation?.participant.id
             return (
               <li className={classes.join(' ')} key={row.key}>
-                <span className={`roster-dot${row.online ? ' is-online' : ''}`} />
+                {/* The dot's place is taken by the hand while one is up, so the
+                    line reads as "waiting" rather than merely "here", and the
+                    same spot is what the presenter taps to answer it. */}
+                {participation?.participant.hand_raised_at ? (
+                  <button
+                    aria-label={`取消 ${row.name} 的舉手`}
+                    className="roster-hand"
+                    disabled={busy}
+                    title="取消舉手"
+                    type="button"
+                    onClick={() => void lowerHands(participation.participant.id)}
+                  >
+                    <Hand size={15} />
+                  </button>
+                ) : (
+                  <span className={`roster-dot${row.online ? ' is-online' : ''}`} />
+                )}
                 <span className="roster-name">
                   {row.name}
                   {/* A green tick means this line on the class list was claimed by
