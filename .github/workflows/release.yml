@@ -117,6 +117,40 @@ jobs:
           [ $fail -eq 0 ] && echo "schema.sql: dollar-quoted blocks are well formed and balanced."
           exit $fail
 
+      # The whole file runs as one transaction, so a statement that touches a
+      # table before it is created does not merely fail — it takes every table
+      # created before it down with it, and a brand new project comes out of a
+      # successful-looking deployment completely empty. A migration written
+      # beside the feature it belongs to, rather than below the table, is all
+      # it takes; that is how `alter table public.answers` came to sit forty
+      # lines above `create table public.answers`.
+      - name: Verify no table is used before it is created
+        shell: bash
+        run: |
+          awk '
+          /^create table if not exists public\./ {
+            match($0, /public\.[a-z_]+/); t=substr($0,RSTART+7,RLENGTH-7); created[t]=NR
+          }
+          { lines[NR]=$0 }
+          END {
+            bad=0
+            for (n=1; n<=NR; n++) {
+              line=lines[n]
+              if (line ~ /^create table if not exists public\./) continue
+              s=line
+              while (match(s, /public\.[a-z_]+/)) {
+                t=substr(s,RSTART+7,RLENGTH-7)
+                s=substr(s,RSTART+RLENGTH)
+                if (t in created && n < created[t]) {
+                  printf "::error::schema.sql line %d uses public.%s, created at line %d\n", n, t, created[t]
+                  bad++
+                }
+              }
+            }
+            if (bad) exit 1
+            print "schema.sql: every table is created before it is used."
+          }' supabase/schema.sql
+
       - name: Package
         run: pnpm exec electron-builder ${{ matrix.package }} --publish never
 

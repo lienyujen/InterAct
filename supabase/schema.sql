@@ -176,19 +176,6 @@ alter table public.questions
     'hotspot', 'ordering', 'matching', 'board'
   ));
 
-alter table public.answers
-  add column if not exists round integer not null default 1;
-
--- One answer per student per question BECOMES one per round. Dropping the old
--- constraint by its generated name is safe: it is what Postgres called the
--- inline `unique (question_id, participant_id)` on this table.
-do $mig$ begin
-  alter table public.answers drop constraint if exists answers_question_id_participant_id_key;
-  alter table public.answers
-    add constraint answers_question_participant_round_key
-    unique (question_id, participant_id, round);
-exception when duplicate_table or duplicate_object then null; end $mig$;
-
 do $mig$ begin
   alter table public.questions
     add constraint questions_prepare_seconds_check
@@ -1040,7 +1027,25 @@ end $$;
 -- never gains them however many times this file is applied.
 
 alter table public.answers
-  add column if not exists answer_values text[] null;
+  add column if not exists answer_values text[] null,
+  add column if not exists round integer not null default 1;
+
+-- One answer per student per question BECOMES one per round. Dropping the old
+-- constraint by its generated name is safe: it is what Postgres called the
+-- inline `unique (question_id, participant_id)` on this table.
+--
+-- This has to sit down here, below the table, and not beside the question-type
+-- migration it was written next to. Up there it ran before `create table
+-- public.answers`, so on a project that did not have the table yet it raised
+-- 42P01 — and the whole file is one transaction, so every table it had already
+-- made was rolled back. A brand new project came out of a successful-looking
+-- deployment with nothing in it at all.
+do $mig$ begin
+  alter table public.answers drop constraint if exists answers_question_id_participant_id_key;
+  alter table public.answers
+    add constraint answers_question_participant_round_key
+    unique (question_id, participant_id, round);
+exception when duplicate_table or duplicate_object then null; end $mig$;
 
 alter table public.exit_tickets
   add column if not exists response_text text null,
