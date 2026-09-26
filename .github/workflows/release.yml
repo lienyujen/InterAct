@@ -46,18 +46,18 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      # Pinned here as well as in package.json, which is duplication with a
-      # reason. Left to read the version from packageManager, this action
-      # installs pnpm on Windows behind a shim pointing at
-      # ...\.bin\bin\..\global\v11\<hash>\node_modules\pnpm\pnpm, which is not
-      # a file — so every pnpm call in the job fails and nothing is ever
-      # installed. Given an explicit version it lays pnpm out the way it always
-      # did. macOS and the Ubuntu Pages deploy are both unaffected, which is
-      # how this reached a tag before anyone saw it.
+      # v6.1.0 or newer is required, not merely preferred: earlier versions do
+      # not know pnpm 12's layout, and on Windows they leave a shim pointing at
+      # ...\.bin\bin\..\global\v11\<hash>\node_modules\pnpm\pnpm — a path with
+      # no file at the end of it, so every pnpm call in the job fails and
+      # nothing is ever installed. Moving package.json to pnpm 12 is what
+      # exposed it. macOS and the Ubuntu Pages deploy were both unaffected,
+      # which is how it reached a tag unnoticed.
       #
-      # Keep this in step with packageManager in package.json.
+      # The version below is duplication; keep it in step with packageManager
+      # in package.json.
       - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 12.5.1
 
