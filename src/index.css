@@ -7316,3 +7316,25 @@ h2 {
   font-size: 13px;
   padding: 2px 10px;
 }
+
+/* What the AI made of a question, shown to the student under their own answer.
+   Quiet on purpose: it is a second opinion sitting beside what they wrote, not
+   a correction stamped over it. */
+.participant-ai-answer {
+  border-left: 3px solid var(--primary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding-left: 12px;
+}
+
+.participant-ai-answer small {
+  color: var(--text-muted, #687386);
+}
+
+.participant-ai-suggested {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

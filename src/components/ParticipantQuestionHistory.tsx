@@ -5,7 +5,7 @@ import { ParticipantAnswerReview, Verdict } from './ParticipantAnswerReview'
 import { FileTypeIcon } from './FileTypeIcon'
 import { isImageFileName } from '../lib/fileKinds'
 import { downloadHref, publicFileUrl } from '../lib/fileLinks'
-import type { Answer, AudioResponse, FileAnalysis, ParticipantQuizData, Question, Screenshot } from '../types'
+import type { Answer, AudioResponse, FileAnalysis, ParticipantQuizData, Question, QuestionAnalysis, Screenshot } from '../types'
 
 export type SubmittedFile = {
   id: string
@@ -29,6 +29,9 @@ type Props = {
   // question has closed and so has to be fetched rather than read off the
   // question row.
   questionKeys: Record<string, string[]>
+  // What the AI read the question as, and what it thought the answer was.
+  // Kept per question so it stays with the answer it belongs to.
+  analyses: Record<string, QuestionAnalysis>
   // What this student handed in for an upload or a 電寫題, fetched the same way.
   submittedFiles: Record<string, SubmittedFile[]>
   screenshots: Record<string, Screenshot>
@@ -48,6 +51,7 @@ export function ParticipantQuestionHistory({
   onLoadDetails,
   questions,
   questionKeys,
+  analyses,
   quizData,
   screenshots,
   submittedFiles,
@@ -98,6 +102,7 @@ export function ParticipantQuestionHistory({
             const answer = answers.find((item) => item.question_id === question.id)
             const screenshot = question.screenshot_id ? screenshots[question.screenshot_id] : null
             const audio = audioResponses[question.id]
+            const analysis = analyses[question.id]?.question_understanding
             const quiz = quizData[question.id]
             const loading = loadingQuestionIds.has(question.id)
             return (
@@ -192,6 +197,23 @@ export function ParticipantQuestionHistory({
                         screenshot={screenshot || null}
                       />
                     ) : null}
+                    {/* Sits below what the student handed in, never instead of
+                        it: this is what the AI made of the question, and it is
+                        worth reading precisely because their own answer is
+                        still there above it to compare against. */}
+                    {analysis && (analysis.detected_question || analysis.suggested_correct_answer) && (
+                      <div className="participant-ai-answer">
+                        <p className="eyebrow">{english ? 'What the AI made of this' : 'AI 對這一題的判讀'}</p>
+                        {analysis.detected_question && <p>{analysis.detected_question}</p>}
+                        {analysis.suggested_correct_answer && (
+                          <p className="participant-ai-suggested">
+                            <span className="participant-review-label">{english ? 'Suggested answer' : 'AI 建議答案'}</span>
+                            <strong>{analysis.suggested_correct_answer}</strong>
+                          </p>
+                        )}
+                        {analysis.reasoning && <small>{analysis.reasoning}</small>}
+                      </div>
+                    )}
                   </div>
                 )}
               </article>

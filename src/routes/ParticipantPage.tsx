@@ -31,7 +31,7 @@ import { useSessionPresence } from '../lib/useSessionPresence'
 import { trackParticipantPresence } from '../lib/participantPresence'
 import { participantLocaleFromStorage, participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
-import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, ParticipantQuizData, Question, Screenshot, Session, SessionAnalysis, SessionEvent, SharedContent } from '../types'
+import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, ParticipantQuizData, Question, QuestionAnalysis, Screenshot, Session, SessionAnalysis, SessionEvent, SharedContent } from '../types'
 
 async function participantFunctionMessage(error: unknown, fallback: string) {
   const context = (error as { context?: Response } | null)?.context
@@ -72,6 +72,8 @@ export function ParticipantPage() {
   const [sessionSummary, setSessionSummary] = useState<SessionAnalysis | null>(null)
   const [sharedContents, setSharedContents] = useState<SharedContent[]>([])
   const [historyQuestions, setHistoryQuestions] = useState<Question[]>([])
+  // Keyed by question id, so it survives every reload and every new question.
+  const [questionAnalyses, setQuestionAnalyses] = useState<Record<string, QuestionAnalysis>>({})
   const [historyAnswers, setHistoryAnswers] = useState<Answer[]>([])
   const [historyScreenshots, setHistoryScreenshots] = useState<Record<string, Screenshot>>({})
   const [historyAudioResponses, setHistoryAudioResponses] = useState<Record<string, AudioResponse | null>>({})
@@ -171,6 +173,27 @@ export function ParticipantPage() {
     } else {
       setSessionSummary(null)
     }
+
+    // What the AI made of each question, kept the way the student's own answers
+    // are kept: a newly dispatched question does not take the last one's
+    // explanation away, and neither does the end of the class. Read here rather
+    // than per question so opening an old one costs nothing.
+    //
+    // Ordered oldest first on purpose — a re-analysis writes a new row, and the
+    // last one written is the one that should win.
+    const { data: analysisData } = await supabase
+      .from('ai_summaries')
+      .select('question_id, output_json')
+      .eq('session_id', sessionId)
+      .eq('type', 'question_analysis')
+      .eq('status', 'success')
+      .order('created_at', { ascending: true })
+      .limit(500)
+    setQuestionAnalyses(Object.fromEntries(
+      ((analysisData || []) as Array<{ question_id: string | null; output_json: unknown }>)
+        .filter((row) => row.question_id)
+        .map((row) => [row.question_id as string, row.output_json as QuestionAnalysis]),
+    ))
 
     if (nextSession?.current_question_id) {
       const [{ data: questionData }, { data: answerData }] = await Promise.all([
@@ -736,6 +759,7 @@ export function ParticipantPage() {
         {/* Files stay downloadable after class until the presenter deletes the session. */}
         <ParticipantSharedFiles locale={locale} sessionId={sessionId} />
         <ParticipantQuestionHistory
+          analyses={questionAnalyses}
           answers={historyAnswers}
           audioResponses={historyAudioResponses}
           loadingQuestionIds={historyLoadingQuestionIds}
@@ -923,6 +947,7 @@ export function ParticipantPage() {
         screenshots={historyScreenshots}
         submittedFiles={historyFiles}
         questionKeys={historyKeys}
+        analyses={questionAnalyses}
         onLoadDetails={loadHistoryDetails}
       />
       {/* The field goes away rather than being disabled. A disabled box still

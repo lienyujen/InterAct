@@ -25,6 +25,8 @@ export type ParticipationRow = {
   answeredQuestionIds: Set<string>
   answerCount: number
   messageCount: number
+  // Replies this student wrote on a discussion board, each worth two points.
+  replyCount: number
   gradedCount: number
   correctCount: number
   quickCount: number
@@ -144,6 +146,14 @@ export function participationRows(input: Input): ParticipationRow[] {
       if (post.deleted_at || post.reply_to) continue
       answeredQuestionIds.add(post.question_id)
     }
+    // Answering the question is one thing; answering a classmate is another,
+    // and it is the half of a discussion that does not happen on its own. Worth
+    // points of its own, therefore, rather than being folded into the card
+    // count above — which deliberately ignores replies, because a reply is not
+    // a contribution to the topic.
+    const replyCount = (input.boardPosts || []).filter((post) => (
+      post.participant_id === participant.id && post.reply_to && !post.deleted_at
+    )).length
     const gradedCount = own.filter((answer) => answer.is_correct !== null).length
     const correctCount = own.filter((answer) => answer.is_correct === true).length
     const messageCount = messageCounts.get(participant.id) || 0
@@ -189,6 +199,7 @@ export function participationRows(input: Input): ParticipationRow[] {
     score += quickCount * 5
     score += buzzerWins * 5
     score += Math.min(messageCount * 2, 20)
+    score += replyCount * 2
     if (quiz && quiz.max > 0) score += Math.round((quiz.score / quiz.max) * 20)
     // A marked upload is worth what a quiz is worth, on the same 20-point
     // scale, so a class assessed on paper is not scored lower than one
@@ -238,6 +249,7 @@ export function participationRows(input: Input): ParticipationRow[] {
       answeredQuestionIds,
       answerCount: answeredQuestionIds.size,
       messageCount,
+      replyCount,
       gradedCount,
       correctCount,
       quickCount,
