@@ -2397,11 +2397,6 @@ h2 {
   gap: 2px;
 }
 
-.participant-away {
-  color: #b54708;
-  font-variant-numeric: tabular-nums;
-}
-
 .participant-header h1 {
   font-size: 24px;
   letter-spacing: 0;

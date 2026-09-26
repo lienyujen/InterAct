@@ -32,7 +32,6 @@ export type Standing = {
   rank: number
   classSize: number
   badges: Badge[]
-  awayMs: number
 }
 
 const CHANNEL = (sessionId: string) => `standings:${sessionId}`
@@ -99,7 +98,6 @@ export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
       id: row.participant.id,
       score: row.score + (awarded.get(row.participant.id) || 0),
       badges: row.badges,
-      awayMs: row.awayMs,
     }))
     // Equal scores share a place, which is what anyone reading "第 3 名"
     // expects when two people are level — and the next place down skips, so

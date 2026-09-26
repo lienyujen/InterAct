@@ -805,7 +805,7 @@ export function ParticipantPage() {
                   {standing.score} {participantText(locale, 'standingPoints')}
                 </span>
                 <span className="participant-rank">
-                  {participantText(locale, 'standingRank')} {standing.rank}／{standing.classSize}
+                  {participantText(locale, 'standingRank')} {standing.rank}/{standing.classSize}
                 </span>
                 {standing.badges.length > 0 && (
                   <span
@@ -813,17 +813,6 @@ export function ParticipantPage() {
                     title={standing.badges.map((badge) => `${badge.label}：${badge.detail}`).join('\n')}
                   >
                     {standing.badges.map((badge) => <span key={badge.key}>{badge.icon}</span>)}
-                  </span>
-                )}
-                {/* Two minutes, which is the roster's own threshold for calling
-                    someone distracted. At one minute this lit up for everybody:
-                    the figure counts the silence since the last heartbeat, those
-                    are 30 seconds apart, and the broadcast itself is up to half
-                    a minute old — so a student sitting still watching the class
-                    was told they had been away for a minute. */}
-                {standing.awayMs >= 2 * 60_000 && (
-                  <span className="participant-away">
-                    {participantText(locale, 'standingAway')} {Math.floor(standing.awayMs / 60_000)} {participantText(locale, 'standingMinutes')}
                   </span>
                 )}
               </div>
