@@ -1993,6 +1993,18 @@ Deno.serve(async (req) => {
     if (/Gemini quiz generation failed \(429\)/.test(detail)) return jsonResponse({ message: 'AI 出題服務目前忙碌或已達速率限制，請稍候再試。' }, 429)
     if (/Gemini quiz generation failed \((500|502|503|504)\)/.test(detail)) return jsonResponse({ message: 'AI 出題服務暫時異常，系統已自動重試；請稍候再派送一次。' }, 502)
     if (/Gemini quiz generation request failed|timed out|TimeoutError|AbortError/i.test(detail)) return jsonResponse({ message: 'AI 出題服務連線逾時，請稍候再派送一次。' }, 504)
+    // Gemini's own words, not ours: requestGemini puts the raw response body in
+    // the error, so what arrives here on a quota failure is Google's JSON. The
+    // formatted checks above never match it, which is how running out of quota
+    // came to surface as an unexplained 500.
+    if (/RESOURCE_EXHAUSTED|exceeded your current quota|quota metric|"code"\s*:\s*429/i.test(detail)) {
+      return jsonResponse({
+        message: 'Gemini 已達到最大用量 —— 免費額度用完或超出速率限制。請稍候再試，或到 Google AI Studio 確認這把金鑰的方案與配額。',
+      }, 429)
+    }
+    if (/API key not valid|API_KEY_INVALID|PERMISSION_DENIED/i.test(detail)) {
+      return jsonResponse({ message: 'Gemini 金鑰無效或沒有權限，請到系統設定重新填入。' }, 403)
+    }
     if (/AI returned|AI did not follow|invalid answer key|needs at least|needs an accepted answer|has no prompt|unsupported question count/i.test(detail)) {
       return jsonResponse({ message: 'AI 產生的題目格式不完整，請調整出題方向後再試。' }, 422)
     }

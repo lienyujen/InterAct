@@ -1112,7 +1112,27 @@ set search_path = public
 as $$
   update public.participants
   set last_seen_at = now(),
-      unfocused_ms = unfocused_ms + greatest(unfocused_delta, 0),
+      unfocused_ms = unfocused_ms + greatest(unfocused_delta, 0)
+        -- A silence far longer than the heartbeat interval means the page was
+        -- not running at all — closed, or on a sleeping device — and a page
+        -- that is not running cannot report the time it was away.
+        --
+        -- That absence used to live only in the gap between last_seen_at and
+        -- now, which is a live reading and nothing more: the first heartbeat
+        -- back moved last_seen_at to the present and the whole absence
+        -- vanished. A student who shut the tab for twenty minutes and came
+        -- back looked exactly like one who never left. Folding it in here is
+        -- what makes it survive their return, and it cannot double count —
+        -- whatever the client did manage to measure is taken off first.
+        + case
+            when now() - last_seen_at > interval '90 seconds' then
+              greatest(
+                extract(epoch from (now() - last_seen_at)) * 1000
+                  - greatest(unfocused_delta, 0),
+                0
+              )::bigint
+            else 0
+          end,
       -- The client reports its current unbroken stretch, which resets to zero
       -- when the student leaves; keeping the largest is what "was focused for
       -- ten minutes at a time" means.

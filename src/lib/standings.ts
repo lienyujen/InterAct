@@ -36,10 +36,10 @@ export type Standing = {
 }
 
 const CHANNEL = (sessionId: string) => `standings:${sessionId}`
-const REFRESH_MS = 60_000
+const REFRESH_MS = 30_000
 
 // Runs on the presenter's main window, which is open for the whole class.
-export function useStandingsBroadcast(sessionId: string, classSize: number) {
+export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
   const latest = useRef<Standing[]>([])
   const publishRef = useRef<(() => Promise<void>) | null>(null)
 
@@ -147,16 +147,19 @@ export function useStandingsBroadcast(sessionId: string, classSize: number) {
     }
   }, [compute, sessionId])
 
-  // Somebody just arrived, so send again rather than leaving them looking at
-  // nothing until the next sweep. Doing it from this side is what keeps the
-  // cost linear: if each new page asked for itself, every request would reach
-  // all of the others as well, and a class that starts together would open
-  // with a square's worth of messages.
+  // Somebody arrived, left, or reloaded their page, so send again rather than
+  // leaving them looking at nothing until the next sweep. A reload drops the
+  // student out of presence and puts them back, which is what makes this fire
+  // for a refresh and not only for a new joiner.
+  //
+  // Doing it from this side is what keeps the cost linear: if each new page
+  // asked for itself, every request would reach all of the others as well, and
+  // a class that starts together would open with a square's worth of messages.
   useEffect(() => {
-    if (!classSize || !publishRef.current) return
+    if (!presenceKey || !publishRef.current) return
     const timer = window.setTimeout(() => void publishRef.current?.(), 1500)
     return () => window.clearTimeout(timer)
-  }, [classSize])
+  }, [presenceKey])
 }
 
 // Runs on each student's page. One channel, no queries, and nothing arrives

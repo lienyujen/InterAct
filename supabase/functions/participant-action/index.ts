@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
     // the checking. The three actions here are the ones a policy cannot do,
     // because each of them turns on knowing WHICH student is asking — and all
     // a policy can see is that the row names somebody in this session.
-    if (['prepare_board_upload', 'get_my_board_posts', 'withdraw_board_post', 'toggle_board_reaction'].includes(action)) {
+    if (['prepare_board_upload', 'get_my_board_posts', 'withdraw_board_post', 'edit_board_post', 'toggle_board_reaction'].includes(action)) {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限驗證失敗，請重新掃描 QR Code 加入。' }, 403)
 

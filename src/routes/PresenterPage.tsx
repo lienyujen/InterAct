@@ -67,7 +67,17 @@ async function edgeFunctionErrorMessage(error: unknown, fallback: string) {
       const payload = await context.clone().json() as { message?: unknown }
       if (typeof payload.message === 'string' && payload.message.trim()) return payload.message.trim()
     } catch {
-      // Fall back to the SDK error message when the response is not JSON.
+      // Not JSON, which is what a function that crashed outright rather than
+      // returning a reason looks like. The SDK's own message for that is
+      // "Edge Function returned a non-2xx status code", which says nothing a
+      // presenter or a maintainer can act on — so say what actually came back.
+      try {
+        const body = (await context.clone().text()).trim().replace(/\s+/g, ' ')
+        if (body) return `${fallback}（HTTP ${context.status}：${body.slice(0, 200)}）`
+      } catch {
+        // Body already consumed or unreadable; fall through to the status.
+      }
+      return `${fallback}（HTTP ${context.status}）`
     }
   }
   return error instanceof Error && error.message ? error.message : fallback
@@ -158,7 +168,7 @@ export function PresenterPage() {
   const { onlineParticipantIds } = useSessionPresence(sessionId, { role: 'presenter' })
   // Worked out here rather than in the roster window, which is only open when
   // the teacher opens it, and sent to each student as their own line.
-  useStandingsBroadcast(sessionId, participants.length)
+  useStandingsBroadcast(sessionId, `${participants.length}:${onlineParticipantIds.join("|")}`)
   const raisedCount = useMemo(
     () => participants.filter((participant) => participant.hand_raised_at && !participant.removed_at).length,
     [participants],

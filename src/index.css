@@ -4777,19 +4777,22 @@ h2 {
 /* Takes the dot's place on a line where a hand is up, and is also the control
    that puts it down again — so the thing the presenter is looking at is the
    thing they press. */
+/* The same rounded box the student pressed to put the hand up, so the two ends
+   of the gesture look like one thing. */
 .roster-hand {
   align-items: center;
   background: #ffb020;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   color: #23262f;
   cursor: pointer;
   display: flex;
   flex: 0 0 auto;
+  gap: 4px;
   height: 26px;
   justify-content: center;
   margin: -9px 0 -9px -9px;
-  width: 26px;
+  padding: 0 9px;
 }
 
 /* The same hand, counting them, where the class is summarised. */
