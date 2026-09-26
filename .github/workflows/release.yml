@@ -46,27 +46,26 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
 
-      # No version here on purpose: the action reads packageManager from
-      # package.json, so the pin lives in one place instead of three.
+      # Pinned here as well as in package.json, which is duplication with a
+      # reason. Left to read the version from packageManager, this action
+      # installs pnpm on Windows behind a shim pointing at
+      # ...\.bin\bin\..\global\v11\<hash>\node_modules\pnpm\pnpm, which is not
+      # a file — so every pnpm call in the job fails and nothing is ever
+      # installed. Given an explicit version it lays pnpm out the way it always
+      # did. macOS and the Ubuntu Pages deploy are both unaffected, which is
+      # how this reached a tag before anyone saw it.
+      #
+      # Keep this in step with packageManager in package.json.
       - name: Setup pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 12.5.1
 
-      # No `cache: pnpm` here, unlike the Pages workflow. To find the store,
-      # setup-node runs `pnpm store path`, and it builds that command as
-      # PNPM_HOME + \bin — while pnpm/action-setup, when it takes the version
-      # from packageManager rather than from a `version:` input, points
-      # PNPM_HOME at the .bin directory itself. On Windows that produces
-      # ...\.bin\bin\pnpm.CMD, which does not exist, and the job dies before it
-      # has installed anything. Ubuntu is unaffected, which is why the Pages
-      # deploy kept working and this did not.
-      #
-      # Releases are rare, so a cold store costs a few seconds a month. Pinning
-      # the version here instead would work too, and would put the pnpm version
-      # back in three places.
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
