@@ -25,7 +25,8 @@ export type ParticipationRow = {
   answeredQuestionIds: Set<string>
   answerCount: number
   messageCount: number
-  // Replies this student wrote on a discussion board, each worth two points.
+  // Replies this student wrote on a discussion board, worth two points each up
+  // to thirty.
   replyCount: number
   gradedCount: number
   correctCount: number
@@ -199,7 +200,10 @@ export function participationRows(input: Input): ParticipationRow[] {
     score += quickCount * 5
     score += buzzerWins * 5
     score += Math.min(messageCount * 2, 20)
-    score += replyCount * 2
+    // Capped for the same reason danmaku is: without a ceiling the quickest way
+    // to the top of the list is thirty one-word replies, which is the opposite
+    // of what paying for replies is meant to encourage.
+    score += Math.min(replyCount * 2, 30)
     if (quiz && quiz.max > 0) score += Math.round((quiz.score / quiz.max) * 20)
     // A marked upload is worth what a quiz is worth, on the same 20-point
     // scale, so a class assessed on paper is not scored lower than one
