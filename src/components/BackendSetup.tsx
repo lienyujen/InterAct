@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CheckCircle2, CircleDashed, ExternalLink, KeyRound, LoaderCircle, Rocket, Save, Server, XCircle } from 'lucide-react'
-import { backendConfig, clearBackendConfig, requireSupabase, saveBackendConfig, testBackendConfig } from '../lib/supabase'
+import { backendConfig, clearBackendConfig, portableBackendState, requireSupabase, saveBackendConfig, testBackendConfig } from '../lib/supabase'
 import { canDeployBackend, checkToken, deployableFunctions, deployFunction, runSchema, setOwnerKey, setSecrets, verifyBackend, verifyPublicAccess } from '../lib/backendDeploy'
 import { generateOwnerKey, getOwnerKey, saveOwnerKey } from '../lib/ownerKey'
 import type { DeployStep } from '../lib/backendDeploy'
@@ -204,7 +204,8 @@ export function BackendSetup({ onCancel }: Props) {
   }
 
   function reset() {
-    clearBackendConfig()
+    const result = clearBackendConfig()
+    if (!result.ok) { setError(result.message); return }
     window.location.reload()
   }
 
@@ -226,6 +227,11 @@ export function BackendSetup({ onCancel }: Props) {
           填入專案資訊後即可開始使用。
         </p>
 
+        {portableBackendState && <p className={portableBackendState.ok ? 'field-hint' : 'error'} style={{ overflowWrap: 'anywhere' }}>
+          {portableBackendState.ok
+            ? `隨身設定：儲存後會寫入 ${portableBackendState.path}。帶走整個程式資料夾即可沿用後端；管理金鑰仍需在新電腦輸入。`
+            : portableBackendState.message}
+        </p>}
         <label>
           專案識別碼或網址
           <input

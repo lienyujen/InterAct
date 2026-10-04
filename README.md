@@ -88,6 +88,20 @@ InterAct 會替你建立資料表、部署 Edge Functions 並設定金鑰，不�
 
 學員端不必自行部署 —— QR Code 會帶上你的專案識別碼，共用學員端會連回你自己的 Supabase。
 
+### 隨身碟使用（v1.9.3 起）
+
+Windows 解壓後，先在「系統設定」儲存後端資訊；程式會在 `InterAct.exe` 旁建立
+`InterAct.config.json`。把**整個資料夾**連同此設定檔放到隨身碟，換電腦時就會讀取同一組後端，
+不會誤用該電腦之前的專案。不要只複製 EXE；`resources` 等執行檔案也必須一起帶走。
+
+也可把 `.env` 放到 EXE 旁，僅讀取 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（publishable key）
+及 `VITE_PUBLIC_APP_URL`；`InterAct.config.json` 存在時優先使用 JSON，清除設定也不會重新套用舊 `.env`。
+ZIP 內附 `InterAct.config.example.json` 範本，請勿把私密 API 金鑰或管理金鑰填入公開設定檔。
+教師管理金鑰仍需在新電腦第一次使用時輸入；Gemini、OpenAI 等 API 金鑰仍存於 Supabase secrets。
+
+macOS 讀取 `.app` 所在資料夾中的設定檔。若要隨身使用，請將程式放在可寫入的資料夾，
+不要直接在唯讀 DMG 中儲存設定。Windows 或 Mac 遇到防寫時會提示，不會要求提升管理者權限。
+
 ### 從舊版升級
 
 解壓縮或安裝新版之後，**請再跑一次自動部署**（場次管理 → 系統設定 → 自動部署）。

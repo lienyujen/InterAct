@@ -60,11 +60,17 @@ function remember(config: BackendConfig) {
 
 const linked = fromJoinLink()
 if (linked) remember(linked)
+export const portableBackendState = typeof window !== 'undefined'
+  ? window.interactDesktop?.getPortableBackendConfig?.() : undefined
+const portableBackend = portableBackendState?.ok && portableBackendState.config
+  ? build(portableBackendState.config.ref, portableBackendState.config.key, portableBackendState.config.appUrl) : null
 
 // A join link always wins: it is how a student reaches a project this build was
 // never configured for. Otherwise fall back to the last one used, then to the
 // values baked in at build time.
-const config = linked || fromStorage() || fromBuild()
+// A sidecar travels with this copy of the app. Never silently substitute the
+// host computer's previous project when that file is cleared or invalid.
+const config = linked || (portableBackendState?.hasFile ? portableBackend : fromStorage() || fromBuild())
 
 export const backendConfig = config
 export const isSupabaseConfigured = Boolean(config)
@@ -106,7 +112,7 @@ if (supabase) {
 
 export function requireSupabase() {
   if (!supabase) {
-    throw new Error('Supabase 尚未設定。請建立 .env 並填入 VITE_SUPABASE_URL 與 VITE_SUPABASE_ANON_KEY。')
+    throw new Error('Supabase 尚未設定。請在系統設定填入後端連線資訊。')
   }
 
   return supabase
@@ -132,20 +138,26 @@ export function saveBackendConfig(input: { ref: string; key: string; appUrl?: st
     return { ok: false, message: '學員端網址必須以 https:// 開頭。' }
   }
 
+  const portableSave = window.interactDesktop?.savePortableBackendConfig?.({ ref, key, appUrl: appUrl || undefined })
+  if (portableSave && !portableSave.ok) return portableSave
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ref, key, appUrl: appUrl || undefined }))
   } catch {
+    if (portableSave?.ok) return { ok: true }
     return { ok: false, message: '無法寫入本機設定，請確認瀏覽器或系統允許儲存資料。' }
   }
   return { ok: true }
 }
 
-export function clearBackendConfig() {
+export function clearBackendConfig(): SaveResult {
+  const portableSave = window.interactDesktop?.savePortableBackendConfig?.({ ref: '', key: '' })
+  if (portableSave && !portableSave.ok) return portableSave
   try {
     window.localStorage.removeItem(STORAGE_KEY)
   } catch {
     // Nothing to clear if storage is unavailable.
   }
+  return { ok: true }
 }
 
 // Checks the project answers before the presenter commits to it, so a typo is

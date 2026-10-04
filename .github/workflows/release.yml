@@ -75,6 +75,8 @@ jobs:
           pnpm lint
           pnpm exec tsc -b
           node scripts/test-detail-window-visibility.cjs
+          node scripts/test-portable-config.cjs
+          node scripts/test-runtime-backend.cjs
 
       # Deliberately built with no Supabase project configured: whoever downloads
       # this enters their own on first launch. Baking one in would send every
@@ -222,6 +224,10 @@ jobs:
 
           **Windows：** 解壓縮後執行資料夾裡的 `InterAct.exe` 即可，免安裝。
           建議解壓到固定位置（例如桌面或文件夾），之後直接從那裡開啟。
+
+          **隨身碟：** 在系統設定儲存後，`InterAct.config.json` 會寫在 EXE 旁。
+          整個資料夾一起帶走即可沿用後端設定；亦可讀取旁邊 `.env` 的公開連線欄位。
+          私密 API 金鑰不會存入此檔；新電腦第一次仍需輸入教師管理金鑰。
 
           **macOS：** 開啟 `InterAct.dmg`，把 InterAct 拖進「應用程式」。
 

@@ -17,6 +17,10 @@ declare global {
     interactDesktop?: {
       isDesktop: boolean
       platform: string
+      getPortableBackendConfig?: () =>
+        | { ok: true; path: string; hasFile: boolean; source: 'json' | 'env' | null; config: { ref: string; key: string; appUrl?: string } | null }
+        | { ok: false; path: string; hasFile: true; message: string }
+      savePortableBackendConfig?: (config: { ref: string; key: string; appUrl?: string }) => { ok: true } | { ok: false; message: string }
       enterPresenterMode: (sessionId: string) => Promise<void>
       setPresenterExpanded: (expanded: boolean, settingsOpen?: boolean, interactiveOpen?: boolean) => Promise<void>
       setLotteryInteraction: (enabled: boolean) => Promise<void>

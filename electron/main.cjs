@@ -2,6 +2,7 @@ const { app, BrowserWindow, desktopCapturer, ipcMain, screen, shell, systemPrefe
 const { fitAndCentre, overlayBoundsFor } = require('./windowPlacement.cjs')
 const path = require('node:path')
 const fs = require('node:fs')
+const portableConfig = require('./portableConfig.cjs')
 
 function logFatalError(scope, error) {
   const message = `[${new Date().toISOString()}] [${scope}] ${error?.stack || error}\n`
@@ -45,6 +46,10 @@ const APP_WINDOW_ICON_PATH = isDesktopDev
   ? path.join(__dirname, '..', 'build', 'icon.ico')
   : path.join(process.resourcesPath, 'icon.ico')
 const APP_EXECUTABLE_PATH = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath
+const PORTABLE_CONFIG_DIRECTORY = portableConfig.configDirectory({
+  packaged: app.isPackaged, platform: process.platform,
+  executablePath: APP_EXECUTABLE_PATH, appPath: app.getAppPath(),
+})
 const APP_RELAUNCH_ICON_PATH = isDesktopDev ? APP_WINDOW_ICON_PATH : APP_EXECUTABLE_PATH
 const CONTROL_COLLAPSED = { width: 194, height: 242 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
@@ -718,6 +723,13 @@ function captureSourceForDisplay(sources, targetDisplay) {
     return (leftRatio - rightRatio) || (leftSize - rightSize)
   })[0]
 }
+
+ipcMain.on('config:read-portable', (event) => {
+  event.returnValue = portableConfig.readConfig(PORTABLE_CONFIG_DIRECTORY)
+})
+ipcMain.on('config:write-portable', (event, input) => {
+  event.returnValue = portableConfig.writeConfig(PORTABLE_CONFIG_DIRECTORY, input)
+})
 
 ipcMain.handle('window:presenter-mode', (_event, sessionId) => {
   if (!mainWindow) return

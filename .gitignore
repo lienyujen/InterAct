@@ -19,6 +19,7 @@ release
 .codex-tmp/
 supabase/.temp/
 .env
+/InterAct.config.json
 *.local
 
 # Editor directories and files

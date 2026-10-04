@@ -31,6 +31,7 @@ module.exports = {
     },
   ],
   win: {
+    extraFiles: [{ from: 'build/InterAct.config.example.json', to: 'InterAct.config.example.json' }],
     icon: 'build/icon.ico',
     executableName: productName,
     requestedExecutionLevel: 'asInvoker',
