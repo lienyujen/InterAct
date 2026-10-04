@@ -1056,9 +1056,17 @@ export function PresenterPage() {
     try {
       const source = await window.interactDesktop.startCaptureSelection()
       setCaptureSource(source)
-    } catch {
+    } catch (error) {
       setSelectionMode(false)
-      await window.interactDesktop.finishCaptureSelection(false)
+      setControlsOpen(true)
+      const message = error instanceof Error ? error.message : '無法取得螢幕畫面。'
+      setAnalysisError(`截圖無法開始：${message}`)
+      void window.interactDesktop.logDiagnostic({ event: 'capture-start-failed', message })
+      try {
+        await window.interactDesktop.finishCaptureSelection(false)
+      } catch {
+        // The main process already attempts to restore the presenter window.
+      }
     }
   }
 
@@ -1950,6 +1958,7 @@ export function PresenterPage() {
           onToggleRecording={toggleCourseRecording}
           onToggleCaptionVisibility={toggleCaptionVisibility}
         />
+        {analysisError && !editorOpen && <p className="error presenter-action-error">{analysisError}</p>}
         <QuestionHistory
           activeQuestionId={session.current_question_id}
           answerCounts={answerCounts}

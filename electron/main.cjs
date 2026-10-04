@@ -73,15 +73,20 @@ function applyTaskbarIdentity(win) {
   })
 }
 
-// macOS puts desktopCapturer behind Screen Recording, and a denied app does not
-// get an error — it gets black frames, which reads as InterAct being broken
-// rather than as a permission being missing. Say what to do, and say that it
-// takes a restart, because the grant does not reach the running process.
-function ensureScreenCaptureAccess() {
-  if (process.platform !== 'darwin') return
-  if (systemPreferences.getMediaAccessStatus('screen') === 'granted') return
+function openScreenCaptureSettings() {
   shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture')
-  throw new Error('macOS 尚未允許 InterAct 錄製螢幕。請在「系統設定 → 隱私權與安全性 → 螢幕錄製」中開啟 InterAct，然後重新啟動 InterAct。')
+}
+
+// `not-determined` must be allowed through once: desktopCapturer.getSources()
+// is what makes macOS show its first consent prompt and add InterAct to the
+// Screen Recording list. Blocking it here meant a first-time Mac could never
+// grant access because the app was not yet present in System Settings.
+function assertScreenCaptureIsNotBlocked() {
+  if (process.platform !== 'darwin') return
+  const status = systemPreferences.getMediaAccessStatus('screen')
+  if (status !== 'denied' && status !== 'restricted') return
+  openScreenCaptureSettings()
+  throw new Error('macOS 已阻擋 InterAct 擷取螢幕。請在「系統設定 → 隱私權與安全性 → 螢幕與系統音訊錄製」允許 InterAct，然後重新啟動程式。')
 }
 
 app.setAppUserModelId(APP_USER_MODEL_ID)
@@ -654,7 +659,7 @@ function setControlBounds(expanded, snapToTopRight = false, settingsOpen = false
 }
 
 async function listCaptureSources(targetDisplay = screen.getPrimaryDisplay(), types = ['screen', 'window']) {
-  ensureScreenCaptureAccess()
+  assertScreenCaptureIsNotBlocked()
   const captureWidth = Math.round(targetDisplay.size.width * targetDisplay.scaleFactor)
   const captureHeight = Math.round(targetDisplay.size.height * targetDisplay.scaleFactor)
   const sources = await desktopCapturer.getSources({
@@ -663,8 +668,15 @@ async function listCaptureSources(targetDisplay = screen.getPrimaryDisplay(), ty
       width: Math.max(1920, captureWidth),
       height: Math.max(1080, captureHeight),
     },
-    fetchWindowIcons: true,
+    fetchWindowIcons: types.includes('window'),
   })
+
+  if (process.platform === 'darwin' && systemPreferences.getMediaAccessStatus('screen') !== 'granted') {
+    openScreenCaptureSettings()
+    throw new Error('macOS 尚未完成螢幕擷取授權。請允許 InterAct；若剛剛已允許，請重新啟動程式後再截圖。')
+  }
+
+  if (!sources.length) throw new Error('系統沒有回傳任何可截取的螢幕。請確認外接螢幕仍連線，然後再試一次。')
 
   return sources.map((source) => ({
     id: source.id,
@@ -675,6 +687,29 @@ async function listCaptureSources(targetDisplay = screen.getPrimaryDisplay(), ty
     thumbnailDataUrl: source.thumbnail.toDataURL(),
     appIconDataUrl: source.appIcon?.toDataURL() || null,
   }))
+}
+
+function captureSourceForDisplay(sources, targetDisplay) {
+  const exactDisplayId = sources.find((source) => source.displayId === String(targetDisplay.id))
+  if (exactDisplayId) return exactDisplayId
+
+  // display_id is the only guaranteed mapping, but older macOS/Electron builds
+  // may leave it empty for an external display. Prefer the source whose pixel
+  // shape matches the target instead of assuming source order equals Screen
+  // API order (Electron explicitly does not guarantee that numbering).
+  const expectedWidth = Math.round(targetDisplay.size.width * targetDisplay.scaleFactor)
+  const expectedHeight = Math.round(targetDisplay.size.height * targetDisplay.scaleFactor)
+  const expectedRatio = expectedWidth / Math.max(1, expectedHeight)
+  const sizedSources = sources.filter((source) => source.width > 0 && source.height > 0)
+  if (!sizedSources.length) return null
+
+  return [...sizedSources].sort((left, right) => {
+    const leftRatio = Math.abs((left.width / left.height) - expectedRatio)
+    const rightRatio = Math.abs((right.width / right.height) - expectedRatio)
+    const leftSize = Math.abs(left.width - expectedWidth) + Math.abs(left.height - expectedHeight)
+    const rightSize = Math.abs(right.width - expectedWidth) + Math.abs(right.height - expectedHeight)
+    return (leftRatio - rightRatio) || (leftSize - rightSize)
+  })[0]
 }
 
 ipcMain.handle('window:presenter-mode', (_event, sessionId) => {
@@ -843,10 +878,23 @@ ipcMain.handle('capture:start-selection', async () => {
     await new Promise((resolve) => setTimeout(resolve, 160))
 
     const sources = await listCaptureSources(targetDisplay, ['screen'])
-    const displayIndex = screen.getAllDisplays().findIndex((display) => display.id === targetDisplay.id)
-    const captureSource = sources.find((source) => source.displayId === String(targetDisplay.id))
-      || sources.find((source) => source.id.startsWith(`screen:${displayIndex}:`))
-      || sources[displayIndex]
+    writeDiagnostic({
+      event: 'capture-sources-ready',
+      platform: process.platform,
+      permission: process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('screen') : 'granted',
+      targetDisplayId: targetDisplay.id,
+      targetWidth: targetDisplay.size.width,
+      targetHeight: targetDisplay.size.height,
+      targetScaleFactor: targetDisplay.scaleFactor,
+      sources: sources.map((source) => ({
+        id: source.id,
+        displayId: source.displayId,
+        name: source.name,
+        width: source.width,
+        height: source.height,
+      })),
+    })
+    const captureSource = captureSourceForDisplay(sources, targetDisplay)
     if (!captureSource) throw new Error('找不到可截取的螢幕來源。')
 
     mainWindow.setBounds(targetDisplay.bounds)

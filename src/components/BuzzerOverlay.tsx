@@ -21,9 +21,11 @@ const RESULT_DURATION_MS = 6000
 export function BuzzerOverlay({ event, participantId, busy = false, onStart, onBuzz, onClose }: Props) {
   const [visible, setVisible] = useState(false)
   const [pressed, setPressed] = useState(false)
+  const [closing, setClosing] = useState(false)
 
   useEffect(() => {
     setPressed(false)
+    setClosing(false)
     if (!event || event.payload.cancelled) {
       setVisible(false)
       return
@@ -79,14 +81,36 @@ export function BuzzerOverlay({ event, participantId, busy = false, onStart, onB
     }
   }
 
+  async function close() {
+    if (!onClose || closing) return
+    // The desktop overlay covers the whole teaching screen. Remove it before
+    // waiting for the Edge Function and Realtime round trip, otherwise the
+    // close target appears to do nothing on a slower classroom connection.
+    setClosing(true)
+    setVisible(false)
+    try {
+      await onClose()
+    } catch {
+      setClosing(false)
+      setVisible(true)
+    }
+  }
+
   return (
     <div className={`buzzer-overlay${finalized ? ' revealed' : ' active'}`} aria-live="assertive">
-      <div className="buzzer-rings" />
       {onClose && (
-        <button aria-label="關閉搶答" className="buzzer-close" title="關閉搶答" type="button" onClick={() => void onClose()}>
+        <button
+          aria-label="關閉搶答"
+          className="buzzer-close"
+          title="關閉搶答"
+          type="button"
+          disabled={closing}
+          onClick={() => void close()}
+        >
           <X size={22} />
         </button>
       )}
+      <div className="buzzer-rings" />
       <div className="buzzer-content">
         {finalized ? (
           <>
