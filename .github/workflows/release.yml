@@ -74,6 +74,7 @@ jobs:
         run: |
           pnpm lint
           pnpm exec tsc -b
+          node scripts/test-detail-window-visibility.cjs
 
       # Deliberately built with no Supabase project configured: whoever downloads
       # this enters their own on first launch. Baking one in would send every

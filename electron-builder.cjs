@@ -77,6 +77,7 @@ module.exports = {
       // failure surfaces to the renderer as an ordinary permission error, so the
       // feature looks broken rather than unapproved.
       NSMicrophoneUsageDescription: 'InterAct 使用麥克風提供即時字幕與同步口譯。',
+      NSCameraUsageDescription: 'InterAct 使用相機拍攝全班姿態或學生手持白紙，供講師確認作答辨識結果。',
       NSScreenCaptureUsageDescription: 'InterAct 需要錄製螢幕，才能把畫面上的內容擷取成題目派送給學員。',
     },
   },
