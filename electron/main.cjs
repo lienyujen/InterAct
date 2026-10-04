@@ -225,6 +225,7 @@ function reinforcePresenterTopmost() {
     || mainWindow.isMinimized()
     || !mainWindow.isVisible()
     || reportWindow
+    || (quizReviewWindow && !quizReviewWindow.isDestroyed())
   ) return
   mainWindow.setAlwaysOnTop(true, TOPMOST_LEVEL, CONTROL_RELATIVE_LEVEL)
   mainWindow.moveTop()
@@ -232,6 +233,9 @@ function reinforcePresenterTopmost() {
 
 function bringControlToFront(focus = false) {
   if (!mainWindow || mainWindow.isDestroyed() || reportWindow) return
+  // Delayed expand/restore callbacks can run after the detail window hid us.
+  // Keep the presenter hidden until that window's closed handler restores it.
+  if (quizReviewWindow && !quizReviewWindow.isDestroyed()) return
 
   if (mainWindow.isMinimized()) mainWindow.restore()
   if (focus) mainWindow.show()
@@ -942,7 +946,11 @@ app.whenReady().then(() => {
   }
 
   app.on('activate', () => {
-    if (reportWindow && !reportWindow.isDestroyed()) {
+    if (quizReviewWindow && !quizReviewWindow.isDestroyed()) {
+      if (quizReviewWindow.isMinimized()) quizReviewWindow.restore()
+      quizReviewWindow.show()
+      quizReviewWindow.focus()
+    } else if (reportWindow && !reportWindow.isDestroyed()) {
       reportWindow.show()
       reportWindow.focus()
     } else if (mainWindow && !mainWindow.isDestroyed()) {
