@@ -270,7 +270,15 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               className={`${type === item.type ? 'selected-type' : 'ghost-button'}${item.type === 'send_screen' ? ' send-screen-type' : ''}`}
               key={item.type}
               type="button"
-              onClick={() => setType(item.type)}
+              onClick={() => {
+                if (item.type !== 'camera_poll') { setType(item.type); return }
+                onCreate({ type: 'camera_poll', options: ['A', 'B', 'C', 'D'],
+                  cameraGestureMap: ['一根手指', '兩根手指', '三根手指', '四根手指'],
+                  promptText: promptText.trim(), allowMultiple: false,
+                  timing: { prepareSeconds: null, answerSeconds: null }, key: { choices: [], correctValues: [] },
+                  maxPins: null, sliceCount: null, sliceHasAnswer: false, sentenceMode: false,
+                  shareScreenshot: false, boardFormats: [], boardMaxPosts: null, boardSelfPaced: false })
+              }}
             >
               {item.label}
             </button>

@@ -97,6 +97,8 @@ export type CameraPollResult = {
   totalDetected: number
   confidence: number
   notes: string
+  mode?: 'gestures' | 'poster'
+  paperResponses?: string[]
 }
 
 // The kinds of card a student can put on a 討論板.

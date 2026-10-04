@@ -18,6 +18,7 @@ export function CameraPollResult({ question, locale = 'zh-TW' }: { question: Que
         </div>)}
       </div>
       {result.unknownCount > 0 && <p className="muted">{english ? 'Unrecognized / no response' : '無法辨識／未作答'}：{result.unknownCount}</p>}
+      {result.mode === 'poster' && <div className="camera-poll-paper-responses">{result.paperResponses?.map((text, index) => <article key={index}><strong>{english ? 'Paper' : '白紙'} {index + 1}</strong><p>{text || (english ? 'Unreadable' : '文字不清楚／無法讀取')}</p></article>)}</div>}
     </section>
   )
 }

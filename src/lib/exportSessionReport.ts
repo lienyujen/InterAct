@@ -423,10 +423,12 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
         ? question.options.map((option, optionIndex) => `${option}：${question.camera_result?.counts[optionIndex] || 0} 人`).join('\n')
         : question.options.join('、'),
       correctAnswer: question.correct_answers?.length ? question.correct_answers.join('、') : question.correct_answer || '',
-      answerCount: questionAnswers.length,
+      answerCount: question.type === 'camera_poll' ? question.camera_result?.totalDetected || 0 : questionAnswers.length,
       responseRate: data.participants.length ? questionAnswers.length / data.participants.length : 0,
       correctRate: assessed.length ? assessed.filter((answer) => answer.is_correct).length / assessed.length : '',
-      analysis: questionAnalysis?.response_analysis.understanding_summary || '',
+      analysis: question.type === 'camera_poll' && question.camera_result
+        ? [question.camera_result.notes, ...(question.camera_result.paperResponses || []).map((text, paperIndex) => `白紙 ${paperIndex + 1}：${text || '文字不清楚／無法讀取'}`)].filter(Boolean).join('\n')
+        : questionAnalysis?.response_analysis.understanding_summary || '',
       misconceptions: questionAnalysis?.response_analysis.misconceptions.join('\n') || '',
       screenshotUrl: question.screenshot_id ? screenshotMap.get(question.screenshot_id) || '' : '',
     })

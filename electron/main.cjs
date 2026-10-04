@@ -536,6 +536,9 @@ function createWordCloudWindow(sessionId) {
 
 function createQuestionDetailWindow(route, title) {
   if (quizReviewWindow && !quizReviewWindow.isDestroyed()) {
+    overlayVisibilitySuppressed = true
+    overlayWindow?.hide()
+    mainWindow?.hide()
     loadAppRoute(quizReviewWindow, route)
     if (quizReviewWindow.isMinimized()) quizReviewWindow.restore()
     quizReviewWindow.show()
