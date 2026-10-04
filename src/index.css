@@ -7347,6 +7347,16 @@ h2 {
 .camera-gesture-editor h3 { margin: 0; }
 .camera-gesture-editor label { display: grid; grid-template-columns: minmax(5rem, .7fr) minmax(10rem, 1.3fr); gap: .75rem; align-items: center; }
 .camera-poll-backdrop { z-index: 12000; }
+.camera-poll-native-page { height: 100vh; overflow: auto; padding: 24px; background: var(--surface); }
+.camera-poll-window-panel { display: grid; gap: 18px; width: 100%; min-width: 0; }
+.camera-poll-window-panel .modal-heading { display: flex; justify-content: space-between; gap: 20px; }
+.camera-poll-window-panel .modal-heading h2 { display: flex; align-items: center; gap: 10px; margin: 0; }
+.camera-poll-setup { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(320px, 2fr); gap: 18px; }
+.camera-poll-setup-fieldset { margin: 0; padding: 0; border: 0; min-width: 0; }
+.camera-poll-setup > details { grid-column: 1 / -1; }
+.camera-poll-setup textarea { min-height: 85px; }
+.camera-poll-mapping { display: grid; grid-template-columns: 1fr 2fr auto; gap: 10px; margin-top: 10px; }
+.camera-poll-native-content .camera-poll-preview { max-height: 48vh; }
 .camera-poll-modal { width: min(900px, calc(100vw - 2rem)); max-height: 92vh; overflow: auto; }
 .camera-poll-preview-wrap { display: grid; gap: 1rem; justify-items: center; position: relative; }
 .camera-poll-preview { width: 100%; max-height: 58vh; object-fit: contain; border-radius: 18px; background: #0f172a; }

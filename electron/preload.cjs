@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   openBoardReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-board-review', sessionId, questionId),
   openSubmissionReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-submission-review', sessionId, questionId),
   openOrderingReview: (sessionId, questionId) => ipcRenderer.invoke('window:open-ordering-review', sessionId, questionId),
+  openCameraPoll: (sessionId) => ipcRenderer.invoke('window:open-camera-poll', sessionId),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   close: () => ipcRenderer.invoke('window:close'),
   listCaptureSources: () => ipcRenderer.invoke('capture:list'),

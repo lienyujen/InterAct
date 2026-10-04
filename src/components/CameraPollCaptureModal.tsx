@@ -1,5 +1,6 @@
 import { Camera, RefreshCw, Send, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { CameraPollResult } from '../types'
 
 type Props = {
@@ -10,22 +11,27 @@ type Props = {
   open: boolean
   options: string[]
   result: CameraPollResult | null
+  nativeWindow?: boolean
+  setup?: ReactNode
   onAnalyze: (imageDataUrl: string) => void
   onCancel: () => void
   onPublish: (result: CameraPollResult) => void
   onResultChange: (result: CameraPollResult | null) => void
 }
 
-export function CameraPollCaptureModal({ busy, cameraId, error, gestureMap, open, options, result, onAnalyze, onCancel, onPublish, onResultChange }: Props) {
+export function CameraPollCaptureModal({ busy, cameraId, error, gestureMap, open, options, result, nativeWindow = false, setup, onAnalyze, onCancel, onPublish, onResultChange }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const [previewError, setPreviewError] = useState('')
   const [countdown, setCountdown] = useState<number | null>(null)
+  const [ready, setReady] = useState(false)
+  const captureRunRef = useRef(0)
 
   useEffect(() => {
     if (!open || result) return
     let cancelled = false
     setPreviewError('')
+    setReady(false)
     void navigator.mediaDevices.getUserMedia({ video: { ...(cameraId ? { deviceId: { exact: cameraId } } : {}), width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
       .then((stream) => {
         if (cancelled) return stream.getTracks().forEach((track) => track.stop())
@@ -38,16 +44,19 @@ export function CameraPollCaptureModal({ busy, cameraId, error, gestureMap, open
       .catch((reason: unknown) => setPreviewError(reason instanceof Error ? reason.message : '無法開啟相機。'))
     return () => {
       cancelled = true
+      captureRunRef.current += 1
       streamRef.current?.getTracks().forEach((track) => track.stop())
       streamRef.current = null
     }
   }, [cameraId, open, result])
 
   async function capture() {
-    if (!videoRef.current || busy) return
+    if (!videoRef.current || busy || !ready || countdown !== null) return
+    const run = ++captureRunRef.current
     for (const value of [3, 2, 1]) {
       setCountdown(value)
-      await new Promise((resolve) => window.setTimeout(resolve, 700))
+      await new Promise((resolve) => window.setTimeout(resolve, 1000))
+      if (run !== captureRunRef.current || !videoRef.current) return
     }
     setCountdown(null)
     const video = videoRef.current
@@ -61,20 +70,23 @@ export function CameraPollCaptureModal({ busy, cameraId, error, gestureMap, open
 
   if (!open) return null
   return (
-    <div className="modal-backdrop camera-poll-backdrop">
-      <section className="modal camera-poll-modal" aria-modal="true" role="dialog">
+    <div className={nativeWindow ? 'camera-poll-native-content' : 'modal-backdrop camera-poll-backdrop'}>
+      <section className={nativeWindow ? 'camera-poll-window-panel' : 'modal camera-poll-modal'} aria-modal={!nativeWindow} role="dialog">
         <div className="modal-heading">
           <div><h2><Camera size={21} />全班相機作答</h2><p className="muted">只送出這一幀給 AI 分析；不儲存照片、不做人臉辨識。</p></div>
-          <button className="ghost-button icon-button" aria-label="關閉" type="button" onClick={onCancel}><X size={18} /></button>
+          <button className="ghost-button icon-button" disabled={busy} aria-label="關閉" type="button" onClick={onCancel}><X size={18} /></button>
         </div>
         {!result ? (
+          <>
+          {setup && <fieldset className="camera-poll-setup-fieldset" disabled={busy || countdown !== null}>{setup}</fieldset>}
           <div className="camera-poll-preview-wrap">
-            <video className="camera-poll-preview" muted playsInline ref={videoRef} />
+            <video className="camera-poll-preview" muted playsInline ref={videoRef} onLoadedData={() => setReady(true)} />
             {countdown !== null && <strong className="camera-poll-countdown">{countdown}</strong>}
             {previewError && <p className="error">相機預覽失敗：{previewError}</p>}
             <div className="camera-poll-legend">{options.map((option, index) => <span key={index}><b>{option}</b>＝{gestureMap[index]}</span>)}</div>
-            <button disabled={busy || Boolean(previewError) || countdown !== null} type="button" onClick={() => void capture()}><Camera size={18} />{busy ? 'AI 分析中…' : '倒數拍照並分析'}</button>
+            <button disabled={busy || !ready || Boolean(previewError) || countdown !== null || options.some((option, index) => !option.trim() || !gestureMap[index]?.trim())} type="button" onClick={() => void capture()}><Camera size={18} />{busy ? 'AI 分析中…' : '倒數拍照並分析'}</button>
           </div>
+          </>
         ) : (
           <div className="camera-poll-review">
             <h3>請確認統計，再派送給全班</h3>

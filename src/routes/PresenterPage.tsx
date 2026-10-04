@@ -1236,23 +1236,42 @@ export function PresenterPage() {
     }
   }
 
-  async function publishCameraPoll(result: CameraPollResultData) {
+  async function publishCameraPoll(result: CameraPollResultData, editedRequest?: DispatchRequest) {
     if (!captureFile || !cameraPollRequest) return
     setCameraPollResult(result)
     setCameraPollError('')
     try {
       // Pass the reviewed result explicitly because React state is asynchronous.
-      const request = cameraPollRequest
+      const request = editedRequest || cameraPollRequest
       await uploadQuestionScreenshot(captureFile, { ...request, cameraResult: result })
+      const channel = new BroadcastChannel(`interact:camera-poll:${sessionId}`)
+      channel.postMessage({ type: 'published' })
+      channel.close()
+      localStorage.removeItem(`interact:camera-draft:${sessionId}`)
       setCameraPollRequest(null)
       setCameraPollResult(null)
       setCaptureFile(null)
       setCapturePreviewUrl(null)
       returnToClassView()
     } catch (error) {
-      setCameraPollError(error instanceof Error ? error.message : '發布相機作答失敗。')
+      const message = error instanceof Error ? error.message : '發布相機作答失敗。'
+      setCameraPollError(message)
+      const channel = new BroadcastChannel(`interact:camera-poll:${sessionId}`)
+      channel.postMessage({ type: 'published', error: message })
+      channel.close()
     }
   }
+
+  useEffect(() => {
+    if (!cameraPollRequest || !window.interactDesktop) return
+    const channel = new BroadcastChannel(`interact:camera-poll:${sessionId}`)
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'publish' && event.data.result && event.data.request?.type === 'camera_poll') {
+        void publishCameraPoll(event.data.result, event.data.request)
+      }
+    }
+    return () => channel.close()
+  })
 
   async function createScreenshotQuestion(request: DispatchRequest) {
     if (!captureFile) return
@@ -1263,6 +1282,16 @@ export function PresenterPage() {
       setCameraPollRequest(request)
       setCameraPollResult(null)
       setCameraPollError('')
+      setControlsOpen(true)
+      if (window.interactDesktop) {
+        localStorage.setItem(`interact:camera-draft:${sessionId}`, JSON.stringify(request))
+        try { await window.interactDesktop.openCameraPoll(sessionId) }
+        catch (error) {
+          setCameraPollRequest(null)
+          setAnalysisError(error instanceof Error ? error.message : '無法開啟相機作答視窗。')
+          setEditorOpen(true)
+        }
+      }
       return
     }
     // Before the upload, not after. Closing the dialog on its own left nothing open
@@ -2138,7 +2167,7 @@ export function PresenterPage() {
         cameraId={selectedCameraId}
         error={cameraPollError}
         gestureMap={cameraPollRequest?.cameraGestureMap || []}
-        open={Boolean(cameraPollRequest)}
+        open={Boolean(cameraPollRequest) && !window.interactDesktop}
         options={cameraPollRequest?.options || []}
         result={cameraPollResult}
         onAnalyze={(imageDataUrl) => void analyzeCameraPoll(imageDataUrl)}

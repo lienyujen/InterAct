@@ -276,7 +276,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             </button>
           ))}
         </div>
-        {editableOptions && (
+        {editableOptions && type !== 'camera_poll' && (
           <div className="option-editor">
             <label className="multi-select-setting">
               <input
@@ -290,7 +290,6 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               <h2>選項</h2>
               <button className="ghost-button icon-button" type="button" onClick={() => {
                 setOptions((current) => [...current, String.fromCharCode(65 + current.length)])
-                if (type === 'camera_poll') setCameraGestureMap((current) => [...current, ''])
               }}>
                 <Plus size={16} />
               </button>
@@ -312,7 +311,6 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                   type="button"
                   onClick={() => {
                     setOptions((current) => current.filter((_, optionIndex) => optionIndex !== index))
-                    if (type === 'camera_poll') setCameraGestureMap((current) => current.filter((_, optionIndex) => optionIndex !== index))
                   }}
                 >
                   <Trash2 size={16} />
@@ -323,22 +321,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
         )}
         {type === 'camera_poll' && (
           <div className="camera-gesture-editor">
-            <p className="muted question-type-hint">相機會在倒數後拍一張全班畫面，AI 只統計姿勢，不辨識姓名，也不保存照片。派送前可修正人數。</p>
-            <h3>選項對應姿勢</h3>
-            {finalOptions.map((option, index) => (
-              <label key={`${option}-${index}`}>
-                <span>{option || `選項 ${index + 1}`}</span>
-                <input
-                  value={cameraGestureMap[index] || ''}
-                  placeholder="例如：一根手指、拇指向上"
-                  onChange={(event) => setCameraGestureMap((current) => {
-                    const next = [...current]
-                    next[index] = event.target.value
-                    return next
-                  })}
-                />
-              </label>
-            ))}
+            <p className="muted question-type-hint">下一步將開啟螢幕中央的大視窗，可選是非題、選擇題、理解度／信心投票、舉手、站立／坐下、左右動作、體育模仿或自訂活動，再預覽、拍照與確認統計。</p>
           </div>
         )}
         {(type === 'ordering' || type === 'matching') && (
@@ -617,7 +600,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             type="submit"
           >
             {type === 'custom_quiz' ? <Sparkles size={17} /> : <Send size={17} />}
-            {type === 'custom_quiz' ? 'AI 出題並派送' : '派送'}
+            {type === 'camera_poll' ? '開啟全班姿態回應' : type === 'custom_quiz' ? 'AI 出題並派送' : '派送'}
           </button>
         </div>
       </form>

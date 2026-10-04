@@ -10,6 +10,7 @@ import { ParticipantPage } from './routes/ParticipantPage'
 import { RosterPage } from './routes/RosterPage'
 import { PresenterNewPage } from './routes/PresenterNewPage'
 import { PresenterPage } from './routes/PresenterPage'
+import { CameraPollPage } from './routes/CameraPollPage'
 import { SessionReportPage } from './routes/SessionReportPage'
 import { BoardReviewPage } from './routes/BoardReviewPage'
 import { SubmissionReviewPage } from './routes/SubmissionReviewPage'
@@ -31,6 +32,7 @@ function AppRoutes() {
   const isSubmissionReview = location.pathname.startsWith('/submission-review/')
   const isOrderingReview = location.pathname.startsWith('/ordering-review/')
   const isDesktopPresenter = isDesktop && location.pathname.startsWith('/presenter/') && location.pathname !== '/presenter/new'
+  const isCameraPoll = location.pathname.startsWith('/camera-poll/')
   const isSessionReport = location.pathname.startsWith('/session-report/')
   const isWordCloud = location.pathname.startsWith('/word-cloud/')
   const isRoster = location.pathname.startsWith('/roster/')
@@ -48,13 +50,14 @@ function AppRoutes() {
 
   return (
     <div className={isDesktop ? 'desktop-shell' : undefined}>
-      {!isDesktopOverlay && !isDesktopPresenter && !isCustomQuizReview && !isHotspotReview && !isBoardReview && !isSubmissionReview && !isOrderingReview && !isRoster && (
+      {!isDesktopOverlay && !isDesktopPresenter && !isCustomQuizReview && !isHotspotReview && !isBoardReview && !isSubmissionReview && !isOrderingReview && !isRoster && !isCameraPoll && (
         <DesktopWindowChrome
           confirmClose={!isWordCloud}
           onBack={isSessionReport ? returnFromSessionReport : undefined}
         />
       )}
       <Routes>
+        <Route path="/camera-poll/:sessionId" element={isDesktop ? <WindowErrorBoundary><CameraPollPage /></WindowErrorBoundary> : <Navigate to="/" replace />} />
         <Route path="/" element={<HomePage />} />
         <Route path="/presenter/new" element={isDesktop ? <PresenterNewPage /> : <Navigate to="/" replace />} />
         <Route path="/presenter/:sessionId" element={isDesktop ? <PresenterPage /> : <Navigate to="/" replace />} />

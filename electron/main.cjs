@@ -864,6 +864,11 @@ ipcMain.handle('window:open-ordering-review', (_event, sessionId, questionId) =>
   createQuestionDetailWindow(`/ordering-review/${sessionId}/${questionId}`, 'InterAct 排序題檢視')
 })
 
+ipcMain.handle('window:open-camera-poll', (_event, sessionId) => {
+  if (!/^[a-f0-9-]{36}$/i.test(sessionId)) return
+  createQuestionDetailWindow(`/camera-poll/${sessionId}`, 'InterAct 全班姿態回應')
+})
+
 ipcMain.handle('capture:list', listCaptureSources)
 
 ipcMain.handle('capture:start-selection', async () => {
