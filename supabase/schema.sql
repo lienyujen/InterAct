@@ -96,7 +96,7 @@ create table if not exists public.questions (
   id uuid primary key default gen_random_uuid(),
   session_id uuid not null references public.sessions(id) on delete cascade,
   screenshot_id uuid null references public.screenshots(id) on delete set null,
-  type text not null check (type in ('send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'drawing', 'hotspot', 'ordering', 'matching', 'board')),
+  type text not null check (type in ('send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'drawing', 'hotspot', 'ordering', 'matching', 'board', 'camera_poll')),
   status text not null default 'active' check (status in ('draft', 'active', 'stopped', 'closed')),
   title text not null default '',
   prompt_text text null,
@@ -124,6 +124,9 @@ create table if not exists public.questions (
   -- types that are *about* the picture; 排序題 and 配對題 ask for it explicitly,
   -- because for a sliced ordering the uncut original is the answer key.
   share_screenshot boolean not null default true,
+  camera_gesture_map text[] not null default '{}'::text[],
+  camera_result jsonb null,
+  camera_published_at timestamptz null,
   -- Bumped by 再做一次 so the class can answer the same question twice and the
   -- two rounds can be compared. Answers carry the round they were given in.
   answer_round integer not null default 1,
@@ -158,6 +161,9 @@ alter table public.questions
   -- may want the class to think alone first and then look, or to share from the
   -- start and then close it again to settle everyone down.
   add column if not exists board_revealed_at timestamptz null,
+  add column if not exists camera_gesture_map text[] not null default '{}'::text[],
+  add column if not exists camera_result jsonb null,
+  add column if not exists camera_published_at timestamptz null,
   add column if not exists answer_round integer not null default 1;
 
 alter table public.questions drop constraint if exists questions_board_max_posts_check;
@@ -173,8 +179,18 @@ alter table public.questions
   add constraint questions_type_check check (type in (
     'send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer',
     'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'drawing',
-    'hotspot', 'ordering', 'matching', 'board'
+    'hotspot', 'ordering', 'matching', 'board', 'camera_poll'
   ));
+
+alter table public.questions drop constraint if exists questions_camera_result_check;
+alter table public.questions add constraint questions_camera_result_check check (
+  camera_result is null or (
+    jsonb_typeof(camera_result) = 'object'
+    and jsonb_typeof(camera_result -> 'counts') = 'array'
+    and jsonb_typeof(camera_result -> 'unknownCount') = 'number'
+    and jsonb_typeof(camera_result -> 'totalDetected') = 'number'
+  )
+);
 
 do $mig$ begin
   alter table public.questions

@@ -43,7 +43,7 @@ export function ParticipantQuestionView({ question, answer, audioBusy, audioResp
   // canvas itself; rendering here as well would print the question twice.
   // 'board' draws itself, lower down the page and with its own composer, so
   // rendering it here as well showed the class the same topic twice.
-  if (!question || ['send_screen', 'custom_quiz', 'file_upload', 'drawing', 'board'].includes(question.type)) return null
+  if (!question || ['send_screen', 'custom_quiz', 'file_upload', 'drawing', 'board', 'camera_poll'].includes(question.type)) return null
   const isAudioQuestion = question.type === 'pronunciation' || question.type === 'oral_response'
   // The clock running out and the teacher stopping the question are separate
   // things and the student is told which happened: "it closed" and "the teacher

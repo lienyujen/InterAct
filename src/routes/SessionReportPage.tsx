@@ -32,6 +32,7 @@ const questionTypeLabels: Record<Question['type'], string> = {
   hotspot: '圖上點選',
   ordering: '排序題',
   matching: '配對題',
+  camera_poll: '全班相機作答',
 }
 
 async function fetchAllRows<T>(table: string, sessionId: string, orderColumn: string) {

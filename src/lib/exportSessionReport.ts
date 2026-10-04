@@ -51,6 +51,7 @@ const questionTypeLabels = {
   hotspot: '圖上點選',
   ordering: '排序題',
   matching: '配對題',
+  camera_poll: '全班相機作答',
 }
 
 const quizItemTypeLabels = {
@@ -418,7 +419,9 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
       type: questionTypeLabels[question.type],
       title: questionAnalysis?.question_understanding.detected_question || question.prompt_text || question.title,
       status: question.status,
-      options: question.options.join('、'),
+      options: question.type === 'camera_poll' && question.camera_result
+        ? question.options.map((option, optionIndex) => `${option}：${question.camera_result?.counts[optionIndex] || 0} 人`).join('\n')
+        : question.options.join('、'),
       correctAnswer: question.correct_answers?.length ? question.correct_answers.join('、') : question.correct_answer || '',
       answerCount: questionAnswers.length,
       responseRate: data.participants.length ? questionAnswers.length / data.participants.length : 0,

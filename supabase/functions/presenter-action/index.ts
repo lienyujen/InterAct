@@ -1,4 +1,4 @@
-import { callAiJson, corsHeaders, jsonResponse, errorDetail } from '../_shared/ai.ts'
+import { callAiJson, corsHeaders, jsonResponse, errorDetail, geminiThinkingConfig, requestGemini } from '../_shared/ai.ts'
 import { generateCustomQuiz } from '../_shared/custom-quiz.ts'
 import { generateImageRegions, generateMatchingPairs, generateOrderingItems } from '../_shared/question-items.ts'
 import { analyzeFileResponse, isAnalyzableFile } from '../_shared/file-analysis.ts'
@@ -8,7 +8,7 @@ import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/own
 
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload', 'drawing', 'hotspot', 'ordering', 'matching', 'board'])
+const questionTypes = new Set(['send_screen', 'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response', 'file_upload', 'drawing', 'hotspot', 'ordering', 'matching', 'board', 'camera_poll'])
 const boardKinds = new Set<string>(BOARD_KINDS)
 const timedTypes = new Set([
   'poll', 'multiple_choice', 'true_false', 'short_answer', 'pronunciation', 'oral_response',
@@ -28,6 +28,37 @@ const speakerLanguages = new Set(['zh-tw', 'en'])
 // 'source' is the presenter asking for the transcript unaltered.
 const captionDisplayLanguages = new Set(['zh-tw', 'en', 'es', 'ja', 'ko', 'vi', 'de', 'id', 'th', 'fr', 'source'])
 const interpretationLanguagesSupported = new Set(['zh-tw', 'en', 'es', 'ja', 'ko', 'vi', 'de', 'id', 'th', 'fr'])
+const cameraPollSchema = {
+  type: 'object', additionalProperties: false,
+  properties: {
+    counts: { type: 'array', items: { type: 'integer', minimum: 0 } },
+    unknownCount: { type: 'integer', minimum: 0 },
+    totalDetected: { type: 'integer', minimum: 0 },
+    confidence: { type: 'number', minimum: 0, maximum: 1 },
+    notes: { type: 'string' },
+  },
+  required: ['counts', 'unknownCount', 'totalDetected', 'confidence', 'notes'],
+}
+
+async function analyzeCameraFrame(imageDataUrl: unknown, options: string[], gestureMap: string[], promptText: string) {
+  if (typeof imageDataUrl !== 'string') throw new Error('相機畫面格式不正確。')
+  const match = imageDataUrl.match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/)
+  if (!match || match[2].length > 6_000_000) throw new Error('相機畫面太大或格式不支援。')
+  const response = await requestGemini(JSON.stringify({
+    systemInstruction: { parts: [{ text: 'You count visible classroom response gestures in one image. Never identify people, infer identity, demographics, health, personality, or emotion. Count each visible person at most once. Use unknownCount when a gesture is occluded, ambiguous, absent, or does not match. Return only JSON matching the schema.' }] },
+    contents: [{ role: 'user', parts: [
+      { text: JSON.stringify({ task: promptText || 'Count whole-class responses', options, gestureMap, rules: ['counts length must equal options length', 'totalDetected must equal sum(counts)+unknownCount', 'do not describe individuals'] }) },
+      { inlineData: { mimeType: `image/${match[1]}`, data: match[2] } },
+    ] }],
+    generationConfig: { thinkingConfig: geminiThinkingConfig('realtime'), responseFormat: { text: { mimeType: 'APPLICATION_JSON', schema: cameraPollSchema } } },
+  }), 'realtime', { primaryTimeoutMs: 20_000, fallbackTimeoutMs: 25_000 })
+  const data = await response.json()
+  const text = data.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('') || ''
+  const parsed = JSON.parse(text) as { counts?: unknown[]; unknownCount?: unknown; totalDetected?: unknown; confidence?: unknown; notes?: unknown }
+  const counts = options.map((_, index) => Math.max(0, Math.round(Number(parsed.counts?.[index]) || 0)))
+  const unknownCount = Math.max(0, Math.round(Number(parsed.unknownCount) || 0))
+  return { counts, unknownCount, totalDetected: counts.reduce((sum, count) => sum + count, 0) + unknownCount, confidence: Math.min(1, Math.max(0, Number(parsed.confidence) || 0)), notes: typeof parsed.notes === 'string' ? parsed.notes.slice(0, 300) : '' }
+}
 const questionTranslationSchema = {
   type: 'object',
   additionalProperties: false,
@@ -241,6 +272,14 @@ Deno.serve(async (req) => {
         .maybeSingle()).data
       : null
     if (!keyRecord && !owner) return jsonResponse({ message: '講者權限驗證失敗。' }, 403)
+
+    if (action === 'analyze_camera_poll') {
+      const options = normalizedOptions(input.options).slice(0, 8)
+      const gestureMap = normalizedOptions(input.gestureMap).slice(0, options.length)
+      if (options.length < 2 || gestureMap.length !== options.length) return jsonResponse({ message: '選項與姿勢對應不完整。' }, 400)
+      const result = await analyzeCameraFrame(input.imageDataUrl, options, gestureMap, typeof input.promptText === 'string' ? input.promptText.slice(0, 1000) : '')
+      return jsonResponse({ result })
+    }
 
     if (action === 'update_session') {
       const values: Record<string, boolean | number | string | string[] | null> = {}
@@ -904,6 +943,23 @@ Deno.serve(async (req) => {
       // The sequence, or the right-hand item for each prompt in order. Empty
       // for an ordering question the presenter dispatched without an answer.
       const correctValues = ['ordering', 'matching'].includes(type) ? normalizedOptions(input.correctValues) : []
+      const cameraGestureMap = type === 'camera_poll' ? normalizedOptions(input.cameraGestureMap).slice(0, options.length) : []
+      const rawCameraResult = input.cameraResult && typeof input.cameraResult === 'object' ? input.cameraResult as Record<string, unknown> : null
+      const rawCameraCounts = Array.isArray(rawCameraResult?.counts) ? rawCameraResult.counts : []
+      const cameraCounts = type === 'camera_poll' && rawCameraCounts.length
+        ? options.map((_, index) => Math.max(0, Math.round(Number(rawCameraCounts[index]) || 0)))
+        : []
+      const cameraUnknownCount = Math.max(0, Math.round(Number(rawCameraResult?.unknownCount) || 0))
+      const cameraResult = type === 'camera_poll' && cameraCounts.length === options.length ? {
+        counts: cameraCounts,
+        unknownCount: cameraUnknownCount,
+        totalDetected: cameraCounts.reduce((sum, count) => sum + count, 0) + cameraUnknownCount,
+        confidence: Math.min(1, Math.max(0, Number(rawCameraResult?.confidence) || 0)),
+        notes: typeof rawCameraResult?.notes === 'string' ? rawCameraResult.notes.slice(0, 300) : '',
+      } : null
+      if (type === 'camera_poll' && (options.length < 2 || cameraGestureMap.length !== options.length || !cameraResult)) {
+        return jsonResponse({ message: '相機作答統計資料不完整。' }, 400)
+      }
       // Equal lengths are also all-zero when the model found nothing to pair, and
       // a question with no pairs is not a question — the class would get a blank.
       if (['ordering', 'matching'].includes(type) && options.length < 2) {
@@ -933,6 +989,7 @@ Deno.serve(async (req) => {
         ordering: '排序題',
         matching: '配對題',
         board: '討論板',
+        camera_poll: '全班相機作答',
       }
       // Image tiles have no words to translate, and handing a list of URLs to the
       // translator wastes a call to get the same URLs back.
@@ -981,7 +1038,7 @@ Deno.serve(async (req) => {
           session_id: sessionId,
           screenshot_id: screenshotId,
           type,
-          status: 'active',
+          status: type === 'camera_poll' ? 'stopped' : 'active',
           title: titles[type],
           prompt_text: promptText || null,
           options,
@@ -996,6 +1053,9 @@ Deno.serve(async (req) => {
           board_formats: boardFormats,
           board_max_posts: boardMaxPosts,
           board_revealed_at: boardRevealedAt,
+          camera_gesture_map: cameraGestureMap,
+          camera_result: cameraResult,
+          camera_published_at: type === 'camera_poll' ? stoppedAt : null,
         })
         .select('*')
         .single()

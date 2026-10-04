@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { CheckCircle2, ChevronDown, ChevronUp, Clock3, History, Mic2 } from 'lucide-react'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import { ParticipantAnswerReview, Verdict } from './ParticipantAnswerReview'
+import { CameraPollResult } from './CameraPollResult'
 import { FileTypeIcon } from './FileTypeIcon'
 import { isImageFileName } from '../lib/fileKinds'
 import { downloadHref, publicFileUrl } from '../lib/fileLinks'
@@ -117,6 +118,7 @@ export function ParticipantQuestionHistory({
                     {/* 圖上點選 draws the same picture with the taps on it, so
                         showing it here as well would print it twice. */}
                     {screenshot && question.type !== 'hotspot' && <img alt={english ? 'Dispatched question' : '派送題目'} src={screenshot.public_url} />}
+                    {question.type === 'camera_poll' && <CameraPollResult question={question} locale={locale} />}
                     {(question.type === 'file_upload' || question.type === 'drawing') && (
                       <SubmissionReview
                         drawn={question.type === 'drawing'}

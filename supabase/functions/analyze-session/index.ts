@@ -282,7 +282,8 @@ Deno.serve(async (req) => {
       // were what the class wrote; the marking in file_submissions below is
       // the real evidence.
       const handedInAPage = question.type === 'file_upload' || question.type === 'drawing'
-      const answerCount = quiz ? questionQuizAttempts.length
+      const answerCount = question.type === 'camera_poll' ? Number(question.camera_result?.totalDetected) || 0
+        : quiz ? questionQuizAttempts.length
         : isBoard ? new Set(topLevelCards.map((post) => post.participant_id)).size
         : questionAnswers.length
 
@@ -340,6 +341,10 @@ Deno.serve(async (req) => {
         })),
         prior_ai_analysis: analysisByQuestion.get(question.id) || null,
         custom_quiz: customQuiz,
+        camera_poll: question.type === 'camera_poll' ? {
+          gesture_map: question.camera_gesture_map || [],
+          result: question.camera_result || null,
+        } : null,
       }
     })
 
@@ -400,7 +405,7 @@ Deno.serve(async (req) => {
     }
 
     const result = await callAiJson(
-      '你是 InterAct 的課堂互動與形成性評量分析顧問。請先以繁體中文根據匿名化統計、講師派送的課程文字與連結、課堂原文逐字稿、彈幕內容、每題作答結果、錄音評測、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告；再於 translations.en 輸出結構相同、證據與意義一致的自然英文版本。英文版本是翻譯，不可另行推論。lesson_transcript 是講師授課內容：若有內容，lesson_key_points 必須將整節課整理成精煉、具結構且可直接給教師與學生閱讀的課堂重點，不可逐句照抄、不可顯示逐字稿；若 lesson_transcript 為空，中英文 lesson_key_points 都必須回傳空陣列。逐字稿可用來核對互動脈絡與提出教學建議，但不可把講師說的話誤認為學生意見或學習證據。錄音題的 audio_evaluations 包含匿名化逐字稿、分數及個別 AI 評語，必須納入該題的 result_summary、evidence 與整體學習分析。上傳作答題的 file_submissions 是學生寫在紙上或做成檔案後上傳、再由 AI 逐份批改的結果，一位學生一筆（file_count 是他交了幾個檔）；判定與分數必須納入該題的 result_summary 與 evidence，analysis_status 不是 success 的代表尚未批改，只能算在未批改份數裡，不可當成沒作答，也不可臆測其內容。討論板（type 為 board）的作答是牆上的卡片，不在一般作答裡：board.card_counts 是各型式的卡片數、board.contributor_count 是有幾位學生貼了東西、board.replies 是學生之間的回覆，written_response_sample 則是卡片上的文字與連結。只要這些有內容，就不可把討論板判斷為無人作答。card_counts 裡的圖片、檔案、錄音與電繪只給了數量，你沒有看到它們的內容，若它們佔多數必須明說結論只根據文字，不可臆測那些卡片畫了或說了什麼。自訂測驗的 custom_quiz 包含題目、選項、正確答案、匿名化學生答案、得分與回饋，必須逐題分析其答題表現、錯誤與迷思，並納入對應的 question_findings；只要 attempts 有資料，就不可把該測驗判斷為無人作答。instructor_shared_contents 是講師提供的課程參考資料。所有結論都要指出資料證據，但 evidence 必須寫成教師讀得懂的話，例如「3 位學生貼了 5 張卡片，其中 2 張是電繪」或「2 人作答，各選了 A 與 B」；不可出現 answer_count、response_rate、distribution 等欄位名稱或程式碼樣式的片段，也不可直接貼出原始 JSON。資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
+      '你是 InterAct 的課堂互動與形成性評量分析顧問。請先以繁體中文根據匿名化統計、講師派送的課程文字與連結、課堂原文逐字稿、彈幕內容、每題作答結果、錄音評測、既有題目分析與 Exit Ticket，產生可供講者課後使用的完整報告；再於 translations.en 輸出結構相同、證據與意義一致的自然英文版本。英文版本是翻譯，不可另行推論。lesson_transcript 是講師授課內容：若有內容，lesson_key_points 必須將整節課整理成精煉、具結構且可直接給教師與學生閱讀的課堂重點，不可逐句照抄、不可顯示逐字稿；若 lesson_transcript 為空，中英文 lesson_key_points 都必須回傳空陣列。逐字稿可用來核對互動脈絡與提出教學建議，但不可把講師說的話誤認為學生意見或學習證據。錄音題的 audio_evaluations 包含匿名化逐字稿、分數及個別 AI 評語，必須納入該題的 result_summary、evidence 與整體學習分析。上傳作答題的 file_submissions 是學生寫在紙上或做成檔案後上傳、再由 AI 逐份批改的結果，一位學生一筆（file_count 是他交了幾個檔）；判定與分數必須納入該題的 result_summary 與 evidence，analysis_status 不是 success 的代表尚未批改，只能算在未批改份數裡，不可當成沒作答，也不可臆測其內容。討論板（type 為 board）的作答是牆上的卡片，不在一般作答裡：board.card_counts 是各型式的卡片數、board.contributor_count 是有幾位學生貼了東西、board.replies 是學生之間的回覆，written_response_sample 則是卡片上的文字與連結。相機作答的 camera_poll 只有講師確認後的全班彙總，沒有個人身分；依選項人數分析，不可臆測個別學生。只要這些有內容，就不可把討論板或相機作答判斷為無人作答。card_counts 裡的圖片、檔案、錄音與電繪只給了數量，你沒有看到它們的內容，若它們佔多數必須明說結論只根據文字，不可臆測那些卡片畫了或說了什麼。自訂測驗的 custom_quiz 包含題目、選項、正確答案、匿名化學生答案、得分與回饋，必須逐題分析其答題表現、錯誤與迷思，並納入對應的 question_findings；只要 attempts 有資料，就不可把該測驗判斷為無人作答。instructor_shared_contents 是講師提供的課程參考資料。所有結論都要指出資料證據，但 evidence 必須寫成教師讀得懂的話，例如「3 位學生貼了 5 張卡片，其中 2 張是電繪」或「2 人作答，各選了 A 與 B」；不可出現 answer_count、response_rate、distribution 等欄位名稱或程式碼樣式的片段，也不可直接貼出原始 JSON。資料不足時必須寫入 limitations。不可推測學生身分，也不可把投票題當成對錯題。question_findings 的 question_id 必須原樣使用輸入中的 ID 以供系統對應，但不可在其他文字欄位中顯示或解釋 ID。',
       summaryInput,
       sessionAnalysisSchema,
       'deep',

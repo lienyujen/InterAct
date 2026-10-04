@@ -89,7 +89,15 @@ export type Screenshot = {
   created_at: string
 }
 
-export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz' | 'file_upload' | 'drawing' | 'hotspot' | 'ordering' | 'matching' | 'board'
+export type QuestionType = 'send_screen' | 'poll' | 'multiple_choice' | 'true_false' | 'short_answer' | 'pronunciation' | 'oral_response' | 'custom_quiz' | 'file_upload' | 'drawing' | 'hotspot' | 'ordering' | 'matching' | 'board' | 'camera_poll'
+
+export type CameraPollResult = {
+  counts: number[]
+  unknownCount: number
+  totalDetected: number
+  confidence: number
+  notes: string
+}
 
 // The kinds of card a student can put on a 討論板.
 export type BoardPostKind = 'text' | 'link' | 'image' | 'file' | 'audio' | 'drawing'
@@ -226,6 +234,11 @@ export type Question = {
   // When the presenter opened the board to the class. Until then each student
   // sees only their own cards.
   board_revealed_at: string | null
+  // Whole-class camera response. The camera frame is analyzed transiently and
+  // discarded; only the teacher-approved aggregate is stored and broadcast.
+  camera_gesture_map: string[]
+  camera_result: CameraPollResult | null
+  camera_published_at: string | null
   // Bumped by 再做一次; answers carry the round they were given in.
   answer_round: number
   started_at: string | null

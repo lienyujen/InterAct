@@ -7343,3 +7343,27 @@ h2 {
   flex-wrap: wrap;
   gap: 6px;
 }
+.camera-gesture-editor { display: grid; gap: .75rem; padding: 1rem; border: 1px solid var(--border); border-radius: 18px; }
+.camera-gesture-editor h3 { margin: 0; }
+.camera-gesture-editor label { display: grid; grid-template-columns: minmax(5rem, .7fr) minmax(10rem, 1.3fr); gap: .75rem; align-items: center; }
+.camera-poll-backdrop { z-index: 12000; }
+.camera-poll-modal { width: min(900px, calc(100vw - 2rem)); max-height: 92vh; overflow: auto; }
+.camera-poll-preview-wrap { display: grid; gap: 1rem; justify-items: center; position: relative; }
+.camera-poll-preview { width: 100%; max-height: 58vh; object-fit: contain; border-radius: 18px; background: #0f172a; }
+.settings-camera-preview { width: min(100%, 420px); max-height: 220px; object-fit: contain; border-radius: 14px; background: #0f172a; }
+.camera-poll-countdown { position: absolute; inset: 20% auto auto 50%; transform: translateX(-50%); color: white; font-size: clamp(5rem, 18vw, 12rem); text-shadow: 0 5px 25px #000; }
+.camera-poll-legend { display: flex; flex-wrap: wrap; gap: .55rem; justify-content: center; }
+.camera-poll-legend span { padding: .5rem .75rem; background: var(--soft-purple, #eef0ff); border-radius: 999px; }
+.camera-poll-review { display: grid; gap: .8rem; }
+.camera-poll-review > label { display: grid; grid-template-columns: 1fr 7rem; align-items: center; gap: 1rem; }
+.camera-poll-result { display: grid; gap: 1rem; }
+.camera-poll-result-heading { display: flex; gap: .75rem; align-items: flex-start; }
+.camera-poll-result-heading h2, .camera-poll-result-heading p { margin: 0; }
+.camera-poll-bars { display: grid; gap: .75rem; }
+.camera-poll-bar-row { display: grid; grid-template-columns: minmax(6rem, .8fr) minmax(8rem, 2fr) 3rem; gap: .7rem; align-items: center; }
+.camera-poll-bar-row > div { height: 1rem; border-radius: 999px; overflow: hidden; background: #eef0f5; }
+.camera-poll-bar-row > div > span { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: var(--accent, #5b5ce2); }
+@media (max-width: 640px) {
+  .camera-gesture-editor label, .camera-poll-review > label { grid-template-columns: 1fr; }
+  .camera-poll-bar-row { grid-template-columns: minmax(5rem, .8fr) minmax(5rem, 1.5fr) 2.5rem; }
+}

@@ -10,6 +10,8 @@ import { QRCodePanel } from '../components/QRCodePanel'
 import { ExitTicketResult } from '../components/ExitTicketResult'
 import { LotteryOverlay } from '../components/LotteryOverlay'
 import { QuestionEditor } from '../components/QuestionEditor'
+import { CameraPollCaptureModal } from '../components/CameraPollCaptureModal'
+import { CameraPollResult } from '../components/CameraPollResult'
 import type { DispatchRequest, GeneratedItems } from '../components/QuestionEditor'
 import type { CustomQuizSettings } from '../lib/customQuiz'
 import { QuestionHistory } from '../components/QuestionHistory'
@@ -33,7 +35,7 @@ import { SOURCE_CAPTION_LANGUAGE, resolvedCaptionLanguage } from '../lib/caption
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useStandingsBroadcast } from '../lib/standings'
 import { useSessionPresence } from '../lib/useSessionPresence'
-import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, FileResponse, SharedFile, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, Session, SessionEvent } from '../types'
+import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, CameraPollResult as CameraPollResultData, ExitTicket, FileResponse, SharedFile, LotterySessionEvent, Participant, PresenterQuizResults, Question, QuestionAnalysis, Session, SessionEvent } from '../types'
 import { useParams } from 'react-router-dom'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 
@@ -125,7 +127,12 @@ export function PresenterPage() {
   const [settingsError, setSettingsError] = useState('')
   const [captionError, setCaptionError] = useState('')
   const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([])
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([])
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState(() => localStorage.getItem('interact:caption-microphone') || '')
+  const [selectedCameraId, setSelectedCameraId] = useState(() => localStorage.getItem('interact:camera-device') || '')
+  const [cameraPollRequest, setCameraPollRequest] = useState<DispatchRequest | null>(null)
+  const [cameraPollResult, setCameraPollResult] = useState<CameraPollResultData | null>(null)
+  const [cameraPollError, setCameraPollError] = useState('')
   const [lotteryEvent, setLotteryEvent] = useState<LotterySessionEvent | null>(null)
   const [buzzerEvent, setBuzzerEvent] = useState<BuzzerSessionEvent | null>(null)
   const [captureFile, setCaptureFile] = useState<File | null>(null)
@@ -278,10 +285,12 @@ export function PresenterPage() {
     setParticipants((participantData || []) as Participant[])
     setQuestions(nextQuestions)
     setExitTickets((exitTicketData || []) as ExitTicket[])
-    setAnswerCounts((answerQuestionData || []).reduce<Record<string, number>>((counts, answer) => {
+    const nextAnswerCounts = (answerQuestionData || []).reduce<Record<string, number>>((counts, answer) => {
       counts[answer.question_id] = (counts[answer.question_id] || 0) + 1
       return counts
-    }, {}))
+    }, {})
+    for (const item of nextQuestions) if (item.type === 'camera_poll' && item.camera_result) nextAnswerCounts[item.id] = item.camera_result.totalDetected
+    setAnswerCounts(nextAnswerCounts)
 
     const selectedStillExists = selectedQuestionId && nextQuestions.some((item) => item.id === selectedQuestionId)
     const targetQuestionId = selectedStillExists
@@ -468,33 +477,43 @@ export function PresenterPage() {
     }
   }, [sessionId])
 
-  const refreshMicrophones = useCallback(async () => {
+  const refreshMediaDevices = useCallback(async () => {
     setSettingsError('')
+    const attempts = await Promise.allSettled([
+      navigator.mediaDevices.getUserMedia({ audio: true }),
+      navigator.mediaDevices.getUserMedia({ video: true }),
+    ])
+    attempts.forEach((attempt) => { if (attempt.status === 'fulfilled') attempt.value.getTracks().forEach((track) => track.stop()) })
     try {
-      const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      permissionStream.getTracks().forEach((track) => track.stop())
       const devices = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'audioinput')
       setMicrophones(devices)
+      const videoDevices = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput')
+      setCameras(videoDevices)
       if (selectedMicrophoneId && !devices.some((device) => device.deviceId === selectedMicrophoneId)) {
         setSelectedMicrophoneId('')
         localStorage.removeItem('interact:caption-microphone')
       }
+      if (selectedCameraId && !videoDevices.some((device) => device.deviceId === selectedCameraId)) {
+        setSelectedCameraId('')
+        localStorage.removeItem('interact:camera-device')
+      }
+      if (attempts.every((attempt) => attempt.status === 'rejected')) setSettingsError('無法讀取麥克風與相機，請檢查系統權限。')
     } catch (error) {
       setSettingsError(microphoneErrorMessage(error))
     }
-  }, [selectedMicrophoneId])
+  }, [selectedCameraId, selectedMicrophoneId])
 
   useEffect(() => {
     if (!settingsOpen) return
-    const handleDeviceChange = () => void refreshMicrophones()
+    const handleDeviceChange = () => void refreshMediaDevices()
     navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange)
     return () => navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange)
-  }, [refreshMicrophones, settingsOpen])
+  }, [refreshMediaDevices, settingsOpen])
 
   function openPresenterSettings() {
     setSettingsError('')
     setSettingsOpen(true)
-    void refreshMicrophones()
+    void refreshMediaDevices()
   }
 
   useEffect(() => {
@@ -804,7 +823,7 @@ export function PresenterPage() {
     await updateSession({ captions_enabled: !session.captions_enabled })
   }
 
-  async function savePresenterSettings(settings: PresenterCaptionSettings, microphoneId: string) {
+  async function savePresenterSettings(settings: PresenterCaptionSettings, microphoneId: string, cameraId: string) {
     if (!session) return
     const presenterToken = getPresenterToken(session.id)
     if (!presenterToken) {
@@ -838,8 +857,11 @@ export function PresenterPage() {
       const nextSession = data.session as Session
       setSession(nextSession)
       setSelectedMicrophoneId(microphoneId)
+      setSelectedCameraId(cameraId)
       if (microphoneId) localStorage.setItem('interact:caption-microphone', microphoneId)
       else localStorage.removeItem('interact:caption-microphone')
+      if (cameraId) localStorage.setItem('interact:camera-device', cameraId)
+      else localStorage.removeItem('interact:camera-device')
       setSettingsOpen(false)
       if (captionsWereActive) {
         await startCourseRecording(nextSession, microphoneId)
@@ -1018,6 +1040,8 @@ export function PresenterPage() {
           choices: dispatchKey.choices,
           correctValues: dispatchKey.correctValues,
           promptText,
+          cameraGestureMap: request.cameraGestureMap,
+          cameraResult: type === 'camera_poll' ? request.cameraResult : null,
         },
       })
       if (error) throw new Error(await edgeFunctionErrorMessage(error, '截圖派題失敗。'))
@@ -1189,10 +1213,58 @@ export function PresenterPage() {
     setControlsOpen(true)
   }
 
+  async function analyzeCameraPoll(imageDataUrl: string) {
+    if (!cameraPollRequest) return
+    setCameraPollError('')
+    setBusy(true)
+    try {
+      const data = await callPresenter({
+        action: 'analyze_camera_poll',
+        sessionId,
+        presenterToken: requirePresenterToken(),
+        imageDataUrl,
+        options: cameraPollRequest.options,
+        gestureMap: cameraPollRequest.cameraGestureMap,
+        promptText: cameraPollRequest.promptText,
+      }, 'AI 姿勢分析失敗。') as { result?: CameraPollResultData }
+      if (!data.result) throw new Error('AI 沒有回傳可用的統計。')
+      setCameraPollResult(data.result)
+    } catch (error) {
+      setCameraPollError(error instanceof Error ? error.message : 'AI 姿勢分析失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function publishCameraPoll(result: CameraPollResultData) {
+    if (!captureFile || !cameraPollRequest) return
+    setCameraPollResult(result)
+    setCameraPollError('')
+    try {
+      // Pass the reviewed result explicitly because React state is asynchronous.
+      const request = cameraPollRequest
+      await uploadQuestionScreenshot(captureFile, { ...request, cameraResult: result })
+      setCameraPollRequest(null)
+      setCameraPollResult(null)
+      setCaptureFile(null)
+      setCapturePreviewUrl(null)
+      returnToClassView()
+    } catch (error) {
+      setCameraPollError(error instanceof Error ? error.message : '發布相機作答失敗。')
+    }
+  }
+
   async function createScreenshotQuestion(request: DispatchRequest) {
     if (!captureFile) return
 
     setAnalysisError('')
+    if (request.type === 'camera_poll') {
+      setEditorOpen(false)
+      setCameraPollRequest(request)
+      setCameraPollResult(null)
+      setCameraPollError('')
+      return
+    }
     // Before the upload, not after. Closing the dialog on its own left nothing open
     // and controlsOpen still false from the screen capture, so the window collapsed
     // to the QR code for as long as the upload took and then expanded again — a
@@ -1966,7 +2038,7 @@ export function PresenterPage() {
           selectedQuestionId={selectedQuestionId}
           onSelect={selectQuestion}
         />
-        {question?.type === 'custom_quiz' ? (
+        {question?.type === 'camera_poll' ? <CameraPollResult question={question} /> : question?.type === 'custom_quiz' ? (
           <CustomQuizResult
             anonymousEnabled={session.anonymous_enabled}
             onlineCount={onlineParticipants.length}
@@ -2061,6 +2133,24 @@ export function PresenterPage() {
         onCreate={createScreenshotQuestion}
         onGenerate={(direction) => generateQuestionItems('ordering', direction)}
       />
+      <CameraPollCaptureModal
+        busy={busy}
+        cameraId={selectedCameraId}
+        error={cameraPollError}
+        gestureMap={cameraPollRequest?.cameraGestureMap || []}
+        open={Boolean(cameraPollRequest)}
+        options={cameraPollRequest?.options || []}
+        result={cameraPollResult}
+        onAnalyze={(imageDataUrl) => void analyzeCameraPoll(imageDataUrl)}
+        onCancel={() => {
+          if (busy) return
+          setCameraPollRequest(null)
+          setCameraPollResult(null)
+          setEditorOpen(true)
+        }}
+        onPublish={(result) => void publishCameraPoll(result)}
+        onResultChange={setCameraPollResult}
+      />
       {fileTransferOpen && (
         <FileTransferModal
           busy={busy}
@@ -2089,14 +2179,16 @@ export function PresenterPage() {
         busy={settingsBusy}
         error={settingsError}
         microphones={microphones}
+        cameras={cameras}
         open={settingsOpen}
         selectedMicrophoneId={selectedMicrophoneId}
+        selectedCameraId={selectedCameraId}
         session={session}
         onClose={() => {
           if (!settingsBusy) setSettingsOpen(false)
         }}
-        onRefreshMicrophones={() => void refreshMicrophones()}
-        onSave={(settings, microphoneId) => void savePresenterSettings(settings, microphoneId)}
+        onRefreshDevices={() => void refreshMediaDevices()}
+        onSave={(settings, microphoneId, cameraId) => void savePresenterSettings(settings, microphoneId, cameraId)}
       />
       <ConfirmDialog
         busy={busy}

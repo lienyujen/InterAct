@@ -1,6 +1,6 @@
 import { Plus, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { BoardPostKind, QuestionType, QuizRequestedType } from '../types'
+import type { BoardPostKind, CameraPollResult, QuestionType, QuizRequestedType } from '../types'
 import { CustomQuizFields } from './CustomQuizFields'
 import { TimingRow } from './TimingRow'
 import { ANSWER_PRESETS, PREPARE_PRESETS, canBeTimed, canPrepare } from '../lib/questionTiming'
@@ -54,6 +54,8 @@ export type DispatchRequest = {
   boardMaxPosts: number | null
   // Whether the class starts out unable to see each other's cards.
   boardSelfPaced: boolean
+  cameraGestureMap: string[]
+  cameraResult?: CameraPollResult
   quizSettings?: CustomQuizSettings
 }
 
@@ -72,6 +74,7 @@ const questionTypes: Array<{ type: QuestionType; label: string }> = [
   { type: 'custom_quiz', label: '自訂測驗' },
   { type: 'poll', label: '投票題' },
   { type: 'multiple_choice', label: '選擇題' },
+  { type: 'camera_poll', label: '相機作答' },
   { type: 'drawing', label: '電寫題' },
   { type: 'ordering', label: '排序題' },
   { type: 'matching', label: '配對題' },
@@ -116,6 +119,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
   // the presenter asking for everyone to think alone first, and they can turn
   // it on and off from the board itself once the class is going.
   const [boardSelfPaced, setBoardSelfPaced] = useState(false)
+  const [cameraGestureMap, setCameraGestureMap] = useState(['一根手指', '兩根手指', '三根手指', '四根手指'])
   const isBoard = type === 'send_screen' && boardFormats.length > 0
 
   useEffect(() => {
@@ -141,9 +145,10 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
     setBoardMaxPosts(1)
     setBoardShareScreenshot(true)
     setBoardSelfPaced(false)
+    setCameraGestureMap(['一根手指', '兩根手指', '三根手指', '四根手指'])
   }, [open])
 
-  const editableOptions = type === 'multiple_choice' || type === 'poll'
+  const editableOptions = type === 'multiple_choice' || type === 'poll' || type === 'camera_poll'
   const finalOptions = useMemo(() => {
     if (['short_answer', 'send_screen', 'pronunciation', 'oral_response', 'custom_quiz', 'file_upload', 'drawing', 'hotspot'].includes(type)) return []
     return options.map((option) => option.trim()).filter(Boolean)
@@ -221,6 +226,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
               boardFormats: [],
               boardMaxPosts: null,
               boardSelfPaced: false,
+              cameraGestureMap: [],
               quizSettings: quizSettingsFrom(quizCount, quizType, direction),
             })
             return
@@ -251,6 +257,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             boardFormats: isBoard ? boardFormats : [],
             boardMaxPosts: isBoard ? boardMaxPosts : null,
             boardSelfPaced: isBoard && boardSelfPaced,
+            cameraGestureMap: type === 'camera_poll' ? cameraGestureMap.slice(0, dispatchOptions.length) : [],
           })
         }}
       >
@@ -281,7 +288,10 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
             </label>
             <div className="panel-heading">
               <h2>選項</h2>
-              <button className="ghost-button icon-button" type="button" onClick={() => setOptions((current) => [...current, String.fromCharCode(65 + current.length)])}>
+              <button className="ghost-button icon-button" type="button" onClick={() => {
+                setOptions((current) => [...current, String.fromCharCode(65 + current.length)])
+                if (type === 'camera_poll') setCameraGestureMap((current) => [...current, ''])
+              }}>
                 <Plus size={16} />
               </button>
             </div>
@@ -300,11 +310,34 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
                   className="ghost-button icon-button"
                   disabled={options.length <= 2}
                   type="button"
-                  onClick={() => setOptions((current) => current.filter((_, optionIndex) => optionIndex !== index))}
+                  onClick={() => {
+                    setOptions((current) => current.filter((_, optionIndex) => optionIndex !== index))
+                    if (type === 'camera_poll') setCameraGestureMap((current) => current.filter((_, optionIndex) => optionIndex !== index))
+                  }}
                 >
                   <Trash2 size={16} />
                 </button>
               </div>
+            ))}
+          </div>
+        )}
+        {type === 'camera_poll' && (
+          <div className="camera-gesture-editor">
+            <p className="muted question-type-hint">相機會在倒數後拍一張全班畫面，AI 只統計姿勢，不辨識姓名，也不保存照片。派送前可修正人數。</p>
+            <h3>選項對應姿勢</h3>
+            {finalOptions.map((option, index) => (
+              <label key={`${option}-${index}`}>
+                <span>{option || `選項 ${index + 1}`}</span>
+                <input
+                  value={cameraGestureMap[index] || ''}
+                  placeholder="例如：一根手指、拇指向上"
+                  onChange={(event) => setCameraGestureMap((current) => {
+                    const next = [...current]
+                    next[index] = event.target.value
+                    return next
+                  })}
+                />
+              </label>
             ))}
           </div>
         )}
@@ -579,6 +612,7 @@ export function QuestionEditor({ error, open, previewUrl, onCancel, onCreate, on
           <button
             disabled={(type === 'custom_quiz' && !quizDirection.trim())
               || (type === 'ordering' && !sliceImage && items.length < 2)
+              || (type === 'camera_poll' && (finalOptions.length < 2 || finalOptions.some((_, index) => !cameraGestureMap[index]?.trim())))
               }
             type="submit"
           >

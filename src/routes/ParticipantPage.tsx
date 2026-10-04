@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ParticipantQuestionView } from '../components/ParticipantQuestionView'
 import { ParticipantBoard } from '../components/ParticipantBoard'
 import { ParticipantQuestionHistory } from '../components/ParticipantQuestionHistory'
+import { CameraPollResult } from '../components/CameraPollResult'
 import type { SubmittedFile } from '../components/ParticipantQuestionHistory'
 import { ParticipantCustomQuiz } from '../components/ParticipantCustomQuiz'
 import type { QuizSubmission } from '../components/ParticipantCustomQuiz'
@@ -902,7 +903,7 @@ export function ParticipantPage() {
       {screenshot && question?.share_screenshot && question?.type !== 'file_upload' && question?.type !== 'drawing' && question?.type !== 'hotspot' && question?.type !== 'board' && (
         <img alt={participantText(locale, 'imageAlt')} className="participant-image" src={screenshot.public_url} />
       )}
-      {question?.type === 'custom_quiz' ? (quizData ? (
+      {question?.type === 'camera_poll' ? <CameraPollResult question={question} locale={locale} /> : question?.type === 'custom_quiz' ? (quizData ? (
         <ParticipantCustomQuiz data={quizData} busy={quizBusy} locale={locale} onRetry={retryCustomQuiz} onSubmit={submitCustomQuiz} />
       ) : (
         <section className="panel participant-question quiz-loading-panel" aria-live="polite">
