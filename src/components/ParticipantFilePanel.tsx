@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Camera, Download, FileUp, LoaderCircle, PencilLine, Sparkles, Upload } from 'lucide-react'
 import { BoardDrawing } from './BoardDrawing'
 import { requireSupabase } from '../lib/supabase'
+import { usePageVisibility } from '../lib/usePageVisibility'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import { downloadHref, publicFileUrl } from '../lib/fileLinks'
@@ -10,6 +11,7 @@ import type { FileAnalysis, FileAnalysisStatus, SharedFile } from '../types'
 type Props = {
   sessionId: string
   locale: ParticipantLocale
+  live?: boolean
 }
 
 function formatSize(bytes: number) {
@@ -19,11 +21,12 @@ function formatSize(bytes: number) {
 }
 
 
-export function ParticipantSharedFiles({ sessionId, locale }: Props) {
+export function ParticipantSharedFiles({ sessionId, locale, live = true }: Props) {
+  const visible = usePageVisibility()
   const [files, setFiles] = useState<SharedFile[]>([])
 
   useEffect(() => {
-    if (!sessionId) return
+    if (!sessionId || !visible) return
     const supabase = requireSupabase()
     let active = true
 
@@ -34,11 +37,11 @@ export function ParticipantSharedFiles({ sessionId, locale }: Props) {
     }
     void load()
 
-    const channel = supabase.channel(`shared-files:${sessionId}`)
+    const channel = live ? supabase.channel(`shared-files:${sessionId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'shared_files', filter: `session_id=eq.${sessionId}`,
       }, () => void load())
-      .subscribe()
+      .subscribe() : null
 
     // A phone suspends the socket as soon as the browser goes to the background,
     // so every change made while the screen was off is missed. Without this the
@@ -52,9 +55,9 @@ export function ParticipantSharedFiles({ sessionId, locale }: Props) {
       active = false
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('focus', onVisible)
-      void supabase.removeChannel(channel)
+      if (channel) void supabase.removeChannel(channel)
     }
-  }, [sessionId])
+  }, [sessionId, live, visible])
 
   if (!files.length) return null
 
@@ -124,6 +127,7 @@ export function ParticipantFileUpload({
   locale,
   mode = 'upload',
 }: UploadProps) {
+  const visible = usePageVisibility()
   const drawing = mode === 'drawing'
   const [uploaded, setUploaded] = useState<string[]>([])
   // A student who wants to change their answer goes back to a blank canvas;
@@ -156,7 +160,7 @@ export function ParticipantFileUpload({
   // publication so a student cannot read the table. So the page asks for its
   // own rows instead, through the function that returns only theirs.
   useEffect(() => {
-    if (!questionId || !participantToken) return
+    if (!questionId || !participantToken || !visible) return
     let cancelled = false
     const supabase = requireSupabase()
 
@@ -179,7 +183,7 @@ export function ParticipantFileUpload({
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [participantId, participantToken, questionId, sessionId, uploaded.length])
+  }, [participantId, participantToken, questionId, sessionId, uploaded.length, visible])
 
   async function upload(files: File[]) {
     if (!files.length) return false

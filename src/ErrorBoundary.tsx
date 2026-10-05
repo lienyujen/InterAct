@@ -42,6 +42,8 @@ export class ErrorBoundary extends Component<Props, State> {
           <p>畫面發生錯誤：{this.state.error.message}</p>
           {this.state.where && <p>發生在：{this.state.where}</p>}
           <p style={{ color: '#687386' }}>{window.location.hash || window.location.pathname}</p>
+          <button type="button" onClick={() => window.location.reload()}>重新載入</button>
+          {window.interactDesktop && <button type="button" onClick={() => void window.interactDesktop?.close()}>關閉程式</button>}
         </div>
       )
     }

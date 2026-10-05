@@ -77,6 +77,7 @@ jobs:
           node scripts/test-detail-window-visibility.cjs
           node scripts/test-portable-config.cjs
           node scripts/test-runtime-backend.cjs
+          node scripts/test-classroom-stability.cjs
 
       # Deliberately built with no Supabase project configured: whoever downloads
       # this enters their own on first launch. Baking one in would send every

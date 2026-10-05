@@ -140,7 +140,7 @@ export function RosterPage() {
         return goneId ? current.filter((entry) => entry.id !== goneId) : current
       }
       const row = payload.new as unknown as Participant
-      if (!row?.id) return current
+      if (!row?.id || !row.session_id || typeof row.name !== 'string' || !row.joined_at) return current
       // Removing someone is an UPDATE that sets removed_at, and this list is
       // built with those filtered out — so applying the row verbatim would put
       // them straight back.

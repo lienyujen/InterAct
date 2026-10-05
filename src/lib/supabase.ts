@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { getOwnerKey } from './ownerKey'
+import { guardRealtimeTables } from './realtimeGuard'
+import { boundedFetch } from './boundedFetch'
 
 const STORAGE_KEY = 'interact:backend'
 
@@ -76,9 +78,10 @@ export const backendConfig = config
 export const isSupabaseConfigured = Boolean(config)
 
 export const supabase = config
-  ? createClient(config.url, config.key, {
+  ? guardRealtimeTables(createClient(config.url, config.key, {
+      global: { fetch: boundedFetch },
       realtime: { params: { eventsPerSecond: 20 } },
-    })
+    }))
   : null
 
 // Functions that act on the teacher's behalf rather than a student's.
@@ -98,6 +101,10 @@ if (supabase) {
   if (!prototype.__interactOwnerKey) {
     const original = prototype.invoke
     prototype.invoke = function patched(this: unknown, name: string, options?: InvokeOptions) {
+      const action = (options?.body as { action?: unknown } | undefined)?.action
+      if (name === 'participant-action' && typeof action === 'string' && action.startsWith('get_') && !options?.timeout) {
+        options = { ...options, timeout: 20_000 }
+      }
       const ownerKey = getOwnerKey()
       const body = options?.body
       if (ownerKey && ownerFunctions.has(name) && body && typeof body === 'object'

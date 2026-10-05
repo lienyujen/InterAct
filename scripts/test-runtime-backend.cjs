@@ -24,7 +24,7 @@ function load(portable, writeResult = { ok: true }) {
       } } : {}),
     },
     require: name => name === '@supabase/supabase-js'
-      ? { createClient: () => ({ functions: new Functions() }) } : { getOwnerKey: () => '' },
+      ? { createClient: () => ({ functions: new Functions() }) } : { getOwnerKey: () => '', guardRealtimeTables: client => client, boundedFetch: () => {} },
   }
   vm.createContext(context)
   vm.runInContext(code, context)

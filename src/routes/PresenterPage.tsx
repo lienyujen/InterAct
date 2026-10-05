@@ -244,7 +244,7 @@ export function PresenterPage() {
         return goneId ? current.filter((entry) => entry.id !== goneId) : current
       }
       const row = payload.new as unknown as Participant
-      if (!row?.id) return current
+      if (!row?.id || !row.session_id || typeof row.name !== 'string' || !row.joined_at) return current
       const at = current.findIndex((entry) => entry.id === row.id)
       // Appended, not sorted. The list arrives ordered by joined_at and someone
       // we have not seen before joined last, so the order holds — and sorting
@@ -1965,21 +1965,24 @@ export function PresenterPage() {
   async function closeSessionAndApp() {
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) {
-      setCloseConfirmOpen(false)
-      setAnalysisError('找不到這個場次的講者權限，無法安全結束課程。')
+      await window.interactDesktop?.close()
       return
     }
 
     setClosingSession(true)
     setAnalysisError('')
     try {
-      if (captionConnectionsRef.current.length) await stopCourseRecording()
-      await endManagedSession(sessionId, presenterToken)
+      await Promise.race([
+        (async () => {
+          if (captionConnectionsRef.current.length) await stopCourseRecording()
+          await endManagedSession(sessionId, presenterToken)
+        })(),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
+      ])
       await window.interactDesktop?.close()
     } catch (error) {
-      setCloseConfirmOpen(false)
-      setAnalysisError(error instanceof Error ? error.message : '無法結束課程，程式尚未關閉。')
-      setClosingSession(false)
+      logDiagnostic('close_backend_failed', { message: error instanceof Error ? error.message : 'End class failed' })
+      await window.interactDesktop?.close()
     }
   }
 
@@ -1987,12 +1990,13 @@ export function PresenterPage() {
     setClosingSession(true)
     setAnalysisError('')
     try {
-      if (captionConnectionsRef.current.length) await stopCourseRecording()
+      if (captionConnectionsRef.current.length) {
+        await Promise.race([stopCourseRecording(), new Promise<void>((resolve) => window.setTimeout(resolve, 4000))])
+      }
       await window.interactDesktop?.close()
     } catch (error) {
-      setCloseConfirmOpen(false)
-      setAnalysisError(error instanceof Error ? error.message : '暫時中止失敗，程式尚未關閉。')
-      setClosingSession(false)
+      logDiagnostic('close_recording_failed', { message: error instanceof Error ? error.message : 'Recording stop failed' })
+      await window.interactDesktop?.close()
     }
   }
 

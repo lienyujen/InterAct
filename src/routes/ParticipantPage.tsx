@@ -30,6 +30,8 @@ import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
 import { useMyStanding } from '../lib/standings'
 import { useSessionPresence } from '../lib/useSessionPresence'
 import { trackParticipantPresence } from '../lib/participantPresence'
+import { usePageVisibility } from '../lib/usePageVisibility'
+import { createCoalescedLoader } from '../lib/coalescedLoad'
 import { participantLocaleFromStorage, participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, ParticipantQuizData, Question, QuestionAnalysis, Screenshot, Session, SessionAnalysis, SessionEvent, SharedContent } from '../types'
@@ -55,8 +57,10 @@ export function ParticipantPage() {
   const [handBusy, setHandBusy] = useState(false)
   // The same figure the teacher's list shows, worked out on their machine and
   // sent here — see the note in lib/standings.
-  const standing = useMyStanding(sessionId, participant?.id || null)
   const [session, setSession] = useState<Session | null>(null)
+  const pageVisible = usePageVisibility()
+  const liveSessionId = pageVisible && session?.status === 'active' ? sessionId : ''
+  const standing = useMyStanding(liveSessionId, participant?.id || null)
   const [question, setQuestion] = useState<Question | null>(null)
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [audioResponse, setAudioResponse] = useState<AudioResponse | null>(null)
@@ -93,11 +97,12 @@ export function ParticipantPage() {
   const [sessionChecked, setSessionChecked] = useState(false)
   const [locale, setLocale] = useState<ParticipantLocale>(participantLocaleFromStorage)
   const loadSequence = useRef(0)
+  const coalescedLoad = useRef(createCoalescedLoader())
   const loadedQuizQuestionId = useRef('')
   const navigate = useNavigate()
   const location = useLocation()
   // Also tells the class whether anyone is at the front of the room.
-  const { presenterOnline } = useSessionPresence(sessionId, {
+  const { presenterOnline } = useSessionPresence(liveSessionId, {
     role: 'participant',
     participant: session?.status === 'active' ? participant : null,
   })
@@ -124,7 +129,7 @@ export function ParticipantPage() {
     setLocale(nextLocale)
   }
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(() => coalescedLoad.current(async () => {
     if (!isSupabaseConfigured || !sessionId || !participantId) return
     const requestId = ++loadSequence.current
     const supabase = requireSupabase()
@@ -296,7 +301,7 @@ export function ParticipantPage() {
       setBoardQuestion(null)
       setBoardImageUrl(null)
     }
-  }, [locale, participantId, participantToken, sessionId])
+  }), [locale, participantId, participantToken, sessionId])
 
   const loadHistoryDetails = useCallback(async (historyQuestion: Question) => {
     if (!participantId || !participantToken) return
@@ -385,20 +390,22 @@ export function ParticipantPage() {
   }, [location.search, navigate, participant?.removed_at, sessionId])
 
   useEffect(() => {
-    loadAll()
-  }, [loadAll])
+    if (!pageVisible) return
+    const timer = window.setTimeout(() => void loadAll(), Math.random() * 600)
+    return () => window.clearTimeout(timer)
+  }, [loadAll, pageVisible])
 
   useEffect(() => {
-    if (quizData?.attempt?.status !== 'grading') return
+    if (!pageVisible || quizData?.attempt?.status !== 'grading') return
     const timer = window.setInterval(() => void loadAll(), 2000)
     return () => window.clearInterval(timer)
-  }, [loadAll, quizData?.attempt?.status])
+  }, [loadAll, pageVisible, quizData?.attempt?.status])
 
   useEffect(() => {
-    if (question?.type !== 'custom_quiz' || quizData || quizLoadError) return
+    if (!liveSessionId || question?.type !== 'custom_quiz' || quizData || quizLoadError) return
     const timer = window.setInterval(() => void loadAll(), 1500)
     return () => window.clearInterval(timer)
-  }, [loadAll, question?.type, quizData, quizLoadError])
+  }, [loadAll, liveSessionId, question?.type, quizData, quizLoadError])
 
   // Dispatching one question writes a screenshot, a question and the session
   // row, so every student page used to run its seven queries three times over.
@@ -412,7 +419,7 @@ export function ParticipantPage() {
     if (reloadTimer.current !== null) return
     reloadTimer.current = window.setTimeout(() => {
       reloadTimer.current = null
-      void loadAll()
+      if (document.visibilityState !== 'hidden') void loadAll()
     }, 150 + Math.random() * 600)
   }, [loadAll])
 
@@ -421,7 +428,7 @@ export function ParticipantPage() {
   }, [])
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !sessionId || !participantId) return
+    if (!isSupabaseConfigured || !liveSessionId || !participantId) return
     const supabase = requireSupabase()
     const channel = supabase
       .channel(`participant:${sessionId}:${participantId}`)
@@ -462,7 +469,7 @@ export function ParticipantPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadAll, participantId, scheduleLoad, sessionId])
+  }, [loadAll, liveSessionId, participantId, scheduleLoad, sessionId])
 
   useEffect(() => {
     if (session?.status !== 'ended') return
@@ -758,7 +765,7 @@ export function ParticipantPage() {
           />
         )}
         {/* Files stay downloadable after class until the presenter deletes the session. */}
-        <ParticipantSharedFiles locale={locale} sessionId={sessionId} />
+        <ParticipantSharedFiles locale={locale} sessionId={sessionId} live={false} />
         <ParticipantQuestionHistory
           analyses={questionAnalyses}
           answers={historyAnswers}
