@@ -1,4 +1,4 @@
-import { Check, Eraser, MousePointer2, Pen, RotateCcw, Trash2, Type as TypeIcon, X } from 'lucide-react'
+import { RotateCcw, Camera, Check, MousePointer2, Eraser, Pen, Type as TypeIcon, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
@@ -18,7 +18,7 @@ type Props = {
 // reasons that all came out the same way:
 //
 // tldraw is the best of them and its licence asks for a paid one to remove the
-// watermark from a commercial product, which is exactly what InterAct sells.
+// watermark from a commercial product, which is exactly what LingoAct is.
 // Excalidraw is MIT but about a megabyte and a half before it draws anything,
 // and this page is opened on phones on school wifi. Fabric brings three
 // hundred kilobytes for a feature set that is mostly not wanted here.
@@ -30,7 +30,8 @@ type Props = {
 
 type Stroke = { id: number; tool: 'pen' | 'eraser'; color: string; width: number; points: Point[]; transform: Transform }
 type Label = { id: number; tool: 'text'; color: string; size: number; at: Point; text: string; transform: Transform }
-type Mark = Stroke | Label
+type Picture = { id: number; tool: 'image'; image: HTMLCanvasElement; box: Box; transform: Transform }
+type Mark = Stroke | Label | Picture
 const COLORS = ['#18223a', '#d4584e', '#1463ff', '#288a62', '#c78b20']
 const WIDTHS = [3, 7, 16]
 // Big enough that a finger-drawn line is not a staircase, small enough that a
@@ -42,6 +43,7 @@ const HANDLE = 34
 
 // Where a mark sits before it was moved or turned.
 function baseBox(mark: Mark, measure: CanvasRenderingContext2D): Box {
+  if (mark.tool === 'image') return mark.box
   if (mark.tool === 'text') {
     measure.font = `600 ${mark.size}px system-ui, "Noto Sans TC", sans-serif`
     const lines = mark.text.split('\n')
@@ -68,6 +70,8 @@ function baseBox(mark: Mark, measure: CanvasRenderingContext2D): Box {
 
 export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const importRequest = useRef(0)
   // The student's marks live on their own canvas so the eraser can take them
   // off without touching the picture underneath. Compositing the two is what
   // makes "remove the teacher's image" a toggle rather than a redraw.
@@ -93,6 +97,8 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
   const [width, setWidth] = useState(WIDTHS[1])
   const [keepBackground, setKeepBackground] = useState(true)
   const [typing, setTyping] = useState<{ at: Point; value: string } | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [imageError, setImageError] = useState('')
   const [, redraw] = useState(0)
   const bump = () => redraw((count) => count + 1)
 
@@ -120,6 +126,12 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
       inkContext.scale(mark.transform.scale, mark.transform.scale)
       inkContext.translate(-middle.x, -middle.y)
 
+      if (mark.tool === 'image') {
+        inkContext.globalCompositeOperation = 'source-over'
+        inkContext.drawImage(mark.image, box.left, box.top, box.right - box.left, box.bottom - box.top)
+        inkContext.restore()
+        continue
+      }
       if (mark.tool === 'text') {
         inkContext.globalCompositeOperation = 'source-over'
         inkContext.fillStyle = mark.color
@@ -191,6 +203,47 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
     }
   }, [keepBackground])
 
+  useEffect(() => () => { importRequest.current += 1 }, [])
+
+  async function importImage(file: File) {
+    if (busy || importing) return
+    if (!file.type.startsWith('image/')) { setImageError(participantText(locale, 'drawImportFailed')); return }
+    if (file.size > 20 * 1024 * 1024) { setImageError(participantText(locale, 'drawImportTooLarge')); return }
+    const request = ++importRequest.current
+    const url = URL.createObjectURL(file)
+    setImporting(true)
+    setImageError('')
+    try {
+      const image = new Image()
+      image.src = url
+      await image.decode()
+      if (request !== importRequest.current) return
+      // Keep bounded pixel data rather than a phone's full-resolution photo.
+      const scale = Math.min(1, 2048 / Math.max(image.naturalWidth, image.naturalHeight))
+      const picture = document.createElement('canvas')
+      picture.width = Math.max(1, Math.round(image.naturalWidth * scale))
+      picture.height = Math.max(1, Math.round(image.naturalHeight * scale))
+      const context = picture.getContext('2d')
+      if (!context) throw new Error('No image canvas')
+      context.drawImage(image, 0, 0, picture.width, picture.height)
+      const fit = Math.min(CANVAS.width / picture.width, CANVAS.height / picture.height) * 0.9
+      const w = picture.width * fit, h = picture.height * fit
+      const id = nextId.current++
+      marksRef.current = [...marksRef.current, { id, tool: 'image', image: picture,
+        box: { left: (CANVAS.width - w) / 2, top: (CANVAS.height - h) / 2, right: (CANVAS.width + w) / 2, bottom: (CANVAS.height + h) / 2 },
+        transform: { ...IDENTITY } }]
+      selectedRef.current = id
+      setTool('select')
+      render()
+      bump()
+    } catch {
+      if (request === importRequest.current) setImageError(participantText(locale, 'drawImportFailed'))
+    } finally {
+      URL.revokeObjectURL(url)
+      if (request === importRequest.current) setImporting(false)
+    }
+  }
+
   useEffect(() => {
     if (!inkRef.current) {
       const ink = document.createElement('canvas')
@@ -242,8 +295,9 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
   }
 
   function onPointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
-    if (busy) return
+    if (busy || importing) return
     const canvas = event.currentTarget
+    canvas.closest<HTMLElement>('.board-drawing')?.focus({ preventScroll: true })
     const at = pointFrom(event, canvas)
     pointersRef.current.set(event.pointerId, at)
     try {
@@ -439,16 +493,24 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
     render(false)
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
     if (!blob) return
-    await onSubmit(new File([blob], 'drawing.png', { type: 'image/png' }))
-    clearAll()
+    try {
+      await onSubmit(new File([blob], 'drawing.png', { type: 'image/png' }))
+      clearAll()
+    } catch {
+      // The parent shows the upload error; retain the photo and handwriting.
+    }
   }
 
   const empty = marksRef.current.length === 0
   const hasSelection = selectedRef.current !== null
 
   return (
-    <div className="board-composer-body board-drawing">
-      <div className="board-drawing-tools">
+    <div className="board-composer-body board-drawing" tabIndex={0} onPaste={(event) => {
+      if (busy || importing || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      const file = [...event.clipboardData.items].find(item => item.kind === 'file' && item.type.startsWith('image/'))?.getAsFile()
+    if (file) { event.preventDefault(); void importImage(file) }
+    }}>
+      <div className="board-drawing-tools" inert={busy || importing}>
         <div className="board-drawing-group">
           {([
             ['select', MousePointer2, 'drawSelect'],
@@ -516,8 +578,18 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
           <button className="ghost-button" disabled={empty} type="button" onClick={clearAll}>
             <Trash2 size={16} />{participantText(locale, 'drawClear')}
           </button>
+          <button className="ghost-button" disabled={busy || importing} type="button" onClick={() => fileInputRef.current?.click()}>
+            <Camera size={16} />{participantText(locale, importing ? 'boardUploading' : 'drawImport')}
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*" capture={window.matchMedia('(pointer: coarse)').matches ? 'environment' : undefined} hidden onChange={(event) => {
+            const file = event.target.files?.[0]
+            event.target.value = ''
+            if (file) void importImage(file)
+          }} />
         </div>
       </div>
+      <p className="muted board-drawing-hint">{participantText(locale, 'drawImportHint')}</p>
+      {imageError && <p className="error" role="alert">{imageError}</p>}
 
       {tool === 'select' && (
         <p className="muted board-drawing-hint">{participantText(locale, 'drawSelectHint')}</p>
@@ -563,13 +635,13 @@ export function BoardDrawing({ busy, locale, backgroundUrl, onSubmit }: Props) {
                 if (event.key === 'Escape') setTyping(null)
               }}
             />
-            <button aria-label="確定" type="button" onClick={commitText}><Check size={16} /></button>
-            <button aria-label="取消" className="ghost-button" type="button" onClick={() => setTyping(null)}><X size={16} /></button>
+            <button aria-label={"確定"} type="button" onClick={commitText}><Check size={16} /></button>
+            <button aria-label={"取消"} className="ghost-button" type="button" onClick={() => setTyping(null)}><X size={16} /></button>
           </div>
         )}
       </div>
 
-      <button disabled={busy || empty} type="button" onClick={() => void send()}>
+      <button disabled={busy || importing || empty} type="button" onClick={() => void send()}>
         {busy ? participantText(locale, 'boardUploading') : participantText(locale, 'boardPost')}
       </button>
     </div>

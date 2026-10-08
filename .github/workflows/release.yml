@@ -78,6 +78,8 @@ jobs:
           node scripts/test-portable-config.cjs
           node scripts/test-runtime-backend.cjs
           node scripts/test-classroom-stability.cjs
+          node scripts/test-reconnect-board.cjs
+          node scripts/test-about-page.mjs
 
       # Deliberately built with no Supabase project configured: whoever downloads
       # this enters their own on first launch. Baking one in would send every
@@ -238,7 +240,14 @@ jobs:
           學員端網址留空就好 —— QR Code 會自動帶上你的專案，課堂資料只會進你自己的 Supabase。
 
           尚未建立 Supabase 專案，請參考
-          [部署教學](https://github.com/lienyujen/InterAct/blob/main/docs/InterAct-%E5%BE%9E%E9%9B%B6%E9%83%A8%E7%BD%B2%E8%88%87%E6%89%93%E5%8C%85%E6%95%99%E5%AD%B8.md)。
+          [部署 Step by Step 教學](https://interact.ehuayu.org/about/#deployment)。
+
+          ## 本版更新
+
+          - 電寫題與討論板可拍照、上傳或貼上手寫圖片。
+          - 討論板放大視窗遵循課堂匿名設定，並可切換匿名顯示。
+          - 修正斷線重連後舊彈幕重播、讀取重疊與載入延遲問題。
+          - 新增公開教學／授權網站與逐步部署指南，設定頁可直接開啟。
 
           ## 從舊版升級
 
@@ -265,7 +274,7 @@ jobs:
           請點「其他資訊 → 仍要執行」。部分公司電腦的資安政策可能直接封鎖。
 
           個人與教育用途免費；補習班、企業內訓與收費課程屬商業用途，
-          請見 [授權說明](https://github.com/lienyujen/InterAct#授權)。
+          請見 [授權說明](https://interact.ehuayu.org/about/#license)。
           MD
           )
           # workflow_dispatch is normally pointed at a tag that was already

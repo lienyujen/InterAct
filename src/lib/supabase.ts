@@ -102,7 +102,7 @@ if (supabase) {
     const original = prototype.invoke
     prototype.invoke = function patched(this: unknown, name: string, options?: InvokeOptions) {
       const action = (options?.body as { action?: unknown } | undefined)?.action
-      if (name === 'participant-action' && typeof action === 'string' && action.startsWith('get_') && !options?.timeout) {
+      if ((name === 'participant-action' || name === 'presenter-action') && typeof action === 'string' && action.startsWith('get_') && !options?.timeout) {
         options = { ...options, timeout: 20_000 }
       }
       const ownerKey = getOwnerKey()

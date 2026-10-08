@@ -30,6 +30,7 @@ import { createRealtimeCaptionConnection } from '../lib/liveCaptions'
 import { createGeminiCaptionConnection } from '../lib/geminiCaptions'
 import { createInterpretationAudioBroadcaster } from '../lib/liveInterpretation'
 import { logDiagnostic } from '../lib/diagnostics'
+import { createCoalescedLoader } from '../lib/coalescedLoad'
 import { createCaptionTextNormalizer } from '../lib/traditionalChinese'
 import { SOURCE_CAPTION_LANGUAGE, resolvedCaptionLanguage } from '../lib/captionLanguages'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
@@ -267,17 +268,23 @@ export function PresenterPage() {
     })
   }, [])
 
-  const loadAll = useCallback(async () => {
-    if (!isSupabaseConfigured || !sessionId) return
+  const reload = useRef(createCoalescedLoader())
+  const loadAll = useCallback(() => reload.current(async () => {
+    if (!isSupabaseConfigured || !sessionId || navigator.onLine === false) return
+    try {
 
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }, { data: questionListData }, { data: answerQuestionData }, { data: exitTicketData }] = await Promise.all([
+    const initial = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at'),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at'),
       supabase.from('answers').select('question_id').eq('session_id', sessionId),
       supabase.from('exit_tickets').select('*').eq('session_id', sessionId).order('submitted_at'),
     ])
+    const readError = initial.find((result) => result.error)?.error
+    if (readError) throw readError
+    const [{ data: sessionData }, { data: participantData }, { data: questionListData }, { data: answerQuestionData }, { data: exitTicketData }] = initial
+    if (!sessionData) return
 
     const nextSession = sessionData as Session | null
     const nextQuestions = (questionListData || []) as Question[]
@@ -298,7 +305,7 @@ export function PresenterPage() {
       : nextSession?.current_question_id || nextQuestions.at(-1)?.id || null
 
     if (targetQuestionId) {
-      const [{ data: questionData }, { data: answerData }, { data: summaryData }] = await Promise.all([
+      const detail = await Promise.all([
         supabase.from('questions').select('*').eq('id', targetQuestionId).single(),
         supabase.from('answers').select('*').eq('question_id', targetQuestionId).order('submitted_at'),
         supabase
@@ -311,6 +318,9 @@ export function PresenterPage() {
           .limit(1)
           .maybeSingle(),
       ])
+      const detailError = detail.find((result) => result.error)?.error
+      if (detailError) throw detailError
+      const [{ data: questionData }, { data: answerData }, { data: summaryData }] = detail
       if (targetQuestionId !== selectedQuestionId) setSelectedQuestionId(targetQuestionId)
       setQuestion(questionData as Question | null)
       setAnswers((answerData || []) as Answer[])
@@ -319,9 +329,10 @@ export function PresenterPage() {
       if (loadedQuestion?.type === 'custom_quiz') {
         const presenterToken = getPresenterToken(sessionId)
         if (presenterToken) {
-          const { data: quizData } = await supabase.functions.invoke('presenter-action', {
+          const { data: quizData, error: quizError } = await supabase.functions.invoke('presenter-action', {
             body: { action: 'get_custom_quiz_results', sessionId, presenterToken, questionId: targetQuestionId },
           })
+          if (quizError) throw quizError
           setQuizResults((quizData as PresenterQuizResults | null) || null)
         }
         setAudioResponses([])
@@ -356,7 +367,11 @@ export function PresenterPage() {
       setQuizResults(null)
       setAnalysis(null)
     }
-  }, [selectedQuestionId, sessionId])
+    } catch (error) {
+      logDiagnostic('presenter_reload_failed', { message: error instanceof Error ? error.message : String(error) })
+      // Keep the last successful classroom snapshot while reconnecting.
+    }
+  }), [selectedQuestionId, sessionId])
 
   // A whole class answering at once is 145 INSERTs in a couple of seconds, and
   // every one of them used to mean another full reload. They all want the same
@@ -377,6 +392,11 @@ export function PresenterPage() {
   useEffect(() => {
     loadAll()
   }, [loadAll])
+
+  useEffect(() => {
+    window.addEventListener('online', scheduleReload)
+    return () => window.removeEventListener('online', scheduleReload)
+  }, [scheduleReload])
 
   useEffect(() => {
     if (!session || recordingStateRecoveredRef.current) return
@@ -460,7 +480,7 @@ export function PresenterPage() {
           setBuzzerEvent(null)
         }
       })
-      .subscribe()
+      .subscribe((status) => { if (status === 'SUBSCRIBED') scheduleReload() })
     return () => {
       supabase.removeChannel(channel)
     }

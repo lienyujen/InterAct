@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { buzzerWinsFrom, participationRows } from './participation'
 import type { Badge } from './participation'
 import { getPresenterToken } from './presenterAuth'
+import { createCoalescedLoader } from './coalescedLoad'
 import { requireSupabase } from './supabase'
 import type {
   Answer, BoardPost, FileResponse, Message, Participant, ParticipantPoint,
@@ -119,17 +120,20 @@ export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
     const supabase = requireSupabase()
     const channel = supabase.channel(CHANNEL(sessionId))
 
-    const publish = async () => {
+    let active = true
+    const reload = createCoalescedLoader()
+    const publish = () => reload(async () => {
+      if (!active || navigator.onLine === false) return
       try {
         const rows = await compute()
-        if (!rows.length) return
+        if (!active || !rows.length) return
         latest.current = rows
         await channel.send({ type: 'broadcast', event: 'standings', payload: { rows } })
       } catch {
         // A class that cannot be scored still runs. Nothing here is worth
         // interrupting a lesson for.
       }
-    }
+    })
 
     publishRef.current = publish
 
@@ -139,6 +143,7 @@ export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
     const timer = window.setInterval(() => void publish(), REFRESH_MS)
 
     return () => {
+      active = false
       window.clearInterval(timer)
       publishRef.current = null
       void supabase.removeChannel(channel)

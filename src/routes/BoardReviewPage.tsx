@@ -1,9 +1,11 @@
-import { Eye, EyeOff, X } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Eye, EyeOff, UserRound, UserRoundX, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { BoardWall } from '../components/BoardWall'
 import { boardAction, loadBoard } from '../lib/boardData'
 import type { BoardSnapshot } from '../lib/boardData'
+import { requireSupabase } from '../lib/supabase'
+import { createCoalescedLoader } from '../lib/coalescedLoad'
 
 // The whole wall on the whole screen, in its own window. It runs with no
 // presenter page underneath it, so it fetches its own copy rather than being
@@ -13,21 +15,40 @@ export function BoardReviewPage() {
   const [snapshot, setSnapshot] = useState<BoardSnapshot | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [anonymous, setAnonymous] = useState(true)
+  const reload = useRef(createCoalescedLoader())
 
-  const read = useCallback(async () => {
+  const read = useCallback(() => reload.current(async () => {
+    if (navigator.onLine === false) return
     try {
-      setSnapshot(await loadBoard(sessionId, questionId))
+      const [board, { data, error: sessionError }] = await Promise.all([
+        loadBoard(sessionId, questionId),
+        requireSupabase().from('sessions').select('anonymous_enabled').eq('id', sessionId).single(),
+      ])
+      if (sessionError) throw sessionError
+      setSnapshot(board)
+      setAnonymous(data?.anonymous_enabled !== false)
       setError('')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '讀取討論板失敗。')
     }
-  }, [questionId, sessionId])
+  }), [questionId, sessionId])
 
   useEffect(() => {
     void read()
     const timer = window.setInterval(() => void read(), 10_000)
     return () => window.clearInterval(timer)
   }, [read])
+
+  useEffect(() => {
+    const supabase = requireSupabase()
+    const channel = supabase.channel(`board-review-settings:${sessionId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` }, () => void read())
+      .subscribe()
+    const onOnline = () => void read()
+    window.addEventListener('online', onOnline)
+    return () => { window.removeEventListener('online', onOnline); void supabase.removeChannel(channel) }
+  }, [read, sessionId])
 
   async function run(body: Record<string, unknown>) {
     setBusy(true)
@@ -55,6 +76,11 @@ export function BoardReviewPage() {
         </div>
         <div className="board-review-actions">
           <span className="muted">{live.length} 則 · {contributors} 人</span>
+          <button className="ghost-button" aria-pressed={anonymous} disabled={busy || !snapshot} type="button"
+            onClick={() => void run({ action: 'update_session', anonymousEnabled: !anonymous })}>
+            {anonymous ? <UserRoundX size={16} /> : <UserRound size={16} />}
+            {anonymous ? '取消匿名' : '開啟匿名'}
+          </button>
           <button
             className="ghost-button"
             disabled={busy || !question}
@@ -81,7 +107,7 @@ export function BoardReviewPage() {
         <img alt="討論板主題" className="board-review-image" src={snapshot.imageUrl} />
       )}
       <BoardWall
-        anonymous={Boolean(snapshot?.posts.some((post) => post.anonymous_at_display))}
+        anonymous={anonymous}
         busy={busy}
         posts={snapshot?.posts || []}
         reactions={snapshot?.reactions || []}

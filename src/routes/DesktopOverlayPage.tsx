@@ -46,8 +46,14 @@ export function DesktopOverlayPage() {
   const mergeMessages = useCallback((incoming: Message[]) => {
     setMessages((current) => {
       const byId = new Map(current.map((message) => [message.id, message]))
-      for (const message of incoming) byId.set(message.id, message)
-      return [...byId.values()].sort((left, right) => left.created_at.localeCompare(right.created_at))
+      let changed = false
+      for (const message of incoming) {
+        if (byId.has(message.id)) continue
+        byId.set(message.id, message)
+        changed = true
+      }
+      if (!changed) return current
+      return [...byId.values()].sort((left, right) => left.created_at.localeCompare(right.created_at)).slice(-200)
     })
   }, [])
 
@@ -78,11 +84,11 @@ export function DesktopOverlayPage() {
   }, [])
 
   const loadOverlay = useCallback(async () => {
-    if (!isSupabaseConfigured || !sessionId || loadingRef.current) return
+    if (!isSupabaseConfigured || !sessionId || loadingRef.current || navigator.onLine === false) return
     loadingRef.current = true
     const supabase = requireSupabase()
     try {
-      const [{ data: sessionData }, { data: messageData }] = await Promise.all([
+      const [{ data: sessionData, error: sessionError }, { data: messageData, error: messageError }] = await Promise.all([
         supabase.from('sessions').select('*').eq('id', sessionId).single(),
         supabase
           .from('messages')
@@ -92,6 +98,7 @@ export function DesktopOverlayPage() {
           .order('created_at', { ascending: false })
           .limit(100),
       ])
+      if (sessionError || messageError || !sessionData) return
       const nextSession = sessionData as Session | null
       setSession(nextSession)
       mergeMessages((messageData || []) as Message[])
@@ -104,6 +111,11 @@ export function DesktopOverlayPage() {
 
   useEffect(() => {
     loadOverlay()
+  }, [loadOverlay])
+
+  useEffect(() => {
+    window.addEventListener('online', loadOverlay)
+    return () => window.removeEventListener('online', loadOverlay)
   }, [loadOverlay])
 
   useEffect(() => {

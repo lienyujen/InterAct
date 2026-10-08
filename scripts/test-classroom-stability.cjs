@@ -87,9 +87,11 @@ async function main() {
   let release
   const seen = []
   const first = refresh(async () => { seen.push('first'); await new Promise(resolve => { release = resolve }) })
-  for (let i = 0; i < 100; i++) refresh(async () => { seen.push(i) })
+  let last
+  for (let i = 0; i < 100; i++) last = refresh(async () => { seen.push(i) })
+  await flush()
   assert.deepEqual(seen, ['first'])
-  release(); await first
+  release(); await first; await last
   assert.deepEqual(seen, ['first', 99], '100 queued reloads collapse to the latest')
   await refresh(async () => { seen.push('next') })
   assert.equal(seen.at(-1), 'next')

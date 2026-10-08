@@ -35,10 +35,7 @@ export function BoardWall({ anonymous, busy, posts, reactions, onSetState }: Pro
             key={card.id}
           >
             <header>
-              {/* The presenter always sees the name. Anonymity is what the
-                  class was shown, not a fact about the card, and the person
-                  giving out points has to know whose work it is. */}
-              <strong>{card.participant_name}</strong>
+              <strong>{anonymous ? '匿名學員' : card.participant_name}</strong>
               {anonymous && <span className="board-wall-tag">班上匿名</span>}
               {card.deleted_at && <span className="board-wall-tag">學生刪除</span>}
               {card.hidden_at && <span className="board-wall-tag">已收起</span>}
@@ -69,7 +66,7 @@ export function BoardWall({ anonymous, busy, posts, reactions, onSetState }: Pro
             {childReplies.length > 0 && (
               <ul className="board-wall-replies">
                 {childReplies.map((reply) => (
-                  <li key={reply.id}><strong>{reply.participant_name}</strong>{reply.body}</li>
+                  <li key={reply.id}><strong>{anonymous ? '匿名學員' : reply.participant_name}</strong>{reply.body}</li>
                 ))}
               </ul>
             )}

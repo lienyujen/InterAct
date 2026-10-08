@@ -130,10 +130,10 @@ export function ParticipantPage() {
   }
 
   const loadAll = useCallback(() => coalescedLoad.current(async () => {
-    if (!isSupabaseConfigured || !sessionId || !participantId) return
+    if (!isSupabaseConfigured || !sessionId || !participantId || navigator.onLine === false) return
     const requestId = ++loadSequence.current
     const supabase = requireSupabase()
-    const [{ data: sessionData }, { data: participantData }, { data: exitTicketData }, { data: sharedContentData }, { data: buzzerData }, { data: allQuestions }, { data: allAnswers }] = await Promise.all([
+    const initial = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('id', participantId).single(),
       supabase.from('exit_tickets').select('*').eq('session_id', sessionId).eq('participant_id', participantId).maybeSingle(),
@@ -142,6 +142,8 @@ export function ParticipantPage() {
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at'),
       supabase.from('answers').select('*').eq('session_id', sessionId).eq('participant_id', participantId).order('submitted_at'),
     ])
+    if (initial.some((result) => result.error)) return
+    const [{ data: sessionData }, { data: participantData }, { data: exitTicketData }, { data: sharedContentData }, { data: buzzerData }, { data: allQuestions }, { data: allAnswers }] = initial
     if (requestId !== loadSequence.current) return
     const nextSession = sessionData as Session | null
     setSession(nextSession)
@@ -422,6 +424,11 @@ export function ParticipantPage() {
       if (document.visibilityState !== 'hidden') void loadAll()
     }, 150 + Math.random() * 600)
   }, [loadAll])
+
+  useEffect(() => {
+    window.addEventListener('online', scheduleLoad)
+    return () => window.removeEventListener('online', scheduleLoad)
+  }, [scheduleLoad])
 
   useEffect(() => () => {
     if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current)
