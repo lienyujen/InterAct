@@ -1,7 +1,7 @@
 export const pages = {
   'zh-TW': {
     title: 'InterAct｜使用教學與版權授權', description: 'InterAct 即時課堂互動系統：安裝、自行部署、截圖派題、自訂測驗、相機作答、字幕口譯與版權授權教學。',
-    nav: ['課堂功能', '使用教學', '版本選擇', '版權授權'], eyebrow: '讓每個回應，都成為學習的起點',
+    nav: ['課堂功能', '部署教學', '使用教學', '版本選擇', '版權授權'], eyebrow: '讓每個回應，都成為學習的起點',
     hero: '把參與帶進每一堂課', lead: '老師從電腦派送教材、題目與活動，學生用手機、平板或電腦瀏覽器加入。從即時回應到課後整理，讓教學、會議與演講都能看見參與。',
     start: '開始使用', license: '閱讀授權', tag: '教師桌面程式 × 學生瀏覽器 · 使用自己的後端',
     demo: ['課堂流程示意', '準備與派送', '截圖、題目或教材', '選擇適合的活動', '加入與回應', '掃 QR Code 加入', '作答、拍照或參與討論', '觀察與整理', '查看回應、調整答案與匯出成果'],
@@ -48,7 +48,7 @@ export const pages = {
   },
   en: {
     title: 'InterAct | Teaching Guide & License', description: 'Set up InterAct, run classroom activities, use camera responses, captions and interpretation, and read the complete license.',
-    nav: ['Activities', 'Get started', 'Editions', 'License'], eyebrow: 'Every response is a starting point for learning',
+    nav: ['Activities', 'Deployment', 'Get started', 'Editions', 'License'], eyebrow: 'Every response is a starting point for learning',
     hero: 'Bring everyone into the lesson', lead: 'Teachers send materials and activities from their desktop. Learners join in a phone, tablet or computer browser—no app installation required. See participation during lessons, meetings and presentations.',
     start: 'Read the guide', license: 'Read the license', tag: 'Teacher desktop × Learner browser · Your own backend',
     demo: ['Classroom workflow', 'Prepare and send', 'Capture materials or write a prompt', 'Choose an activity', 'Join and respond', 'Scan the QR code', 'Answer, draw or discuss', 'Review and reflect', 'Review responses, correct answers and export results'],

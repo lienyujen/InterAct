@@ -225,6 +225,7 @@ export function BackendSetup({ onCancel }: Props) {
         <p className="muted">
           InterAct 使用你自己的 <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer">Supabase</a> 專案存放課堂資料，資料不會經過其他人。
           填入專案資訊後即可開始使用。
+          {' '}第一次部署請先閱讀 <a href="https://interact.ehuayu.org/about/#deployment" target="_blank" rel="noopener noreferrer">部署 Step by Step 教學</a>。
         </p>
 
         {portableBackendState && <p className={portableBackendState.ok ? 'field-hint' : 'error'} style={{ overflowWrap: 'anywhere' }}>

@@ -1,15 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { pages } from '../docs/about-content.mjs'
+import { deploymentGuides } from '../docs/deployment-guide.mjs'
 const root=path.resolve(import.meta.dirname,'..'),out=path.join(root,'public/about')
 const license=fs.readFileSync(path.join(root,'LICENSE'),'utf8')
 const escape=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')
-const links=['features','start','editions','license']
+const links=['features','deployment','start','editions','license']
 for(const [language,p] of Object.entries(pages)){
  const suffix=language==='en'?'en':language==='zh-CN'?'zh-cn':''
  const dir=path.join(out,suffix),prefix='/about/'
  fs.mkdirSync(dir,{recursive:true})
  const items=(values,render)=>values.map(render).join('\n')
+ const guide=deploymentGuides[language]
+ const deployment=`<section id="deployment"><p class="section-kicker">DEPLOYMENT / STEP BY STEP</p><h2>${escape(guide.title)}</h2><p class="section-lead">${escape(guide.lead)}</p><p class="note">${escape(guide.prerequisite)}</p><ol class="steps deployment-steps">${items(guide.steps,({title,lines,links=[]},i)=>`<li><span class="step-number">${String(i+1).padStart(2,'0')}</span><div><h3>${escape(title)}</h3><ul>${items(lines,line=>`<li>${escape(line)}</li>`)}</ul>${items(links,([label,url])=>`<a class="guide-link" href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(label)} ↗</a>`)}</div></li>`)}</ol><h3>${escape(guide.troubleshootingTitle)}</h3><div class="faq">${items(guide.troubleshooting,([q,a])=>`<details><summary>${escape(q)}</summary><p>${escape(a)}</p></details>`)}</div></section>`
  const html=`<!doctype html>
 <html lang="${language}" id="top"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -24,6 +27,7 @@ ${items([['zh-TW','繁體',prefix],['en','English',prefix+'en/']],([code,label,h
 <main><section class="hero"><div><p class="eyebrow">${escape(p.eyebrow)}</p><h1>${escape(p.hero)}</h1><p class="lead">${escape(p.lead)}</p><div class="actions"><a class="button primary" href="#start">${escape(p.start)} <span aria-hidden="true">↗</span></a><a class="button" href="#license">${escape(p.license)}</a></div><p class="small">${escape(p.tag)}</p></div>
 <div class="workflow" aria-label="${escape(p.demo[0])}"><div class="workflow-head"><span class="status-dot"></span>InterAct <small>${escape(p.demo[0])}</small></div><div class="flow-row"><span class="flow-number">01</span><div><strong>${escape(p.demo[1])}</strong><p>${escape(p.demo[2])}<br>${escape(p.demo[3])}</p></div><span class="flow-icon" aria-hidden="true">↗</span></div><div class="flow-row"><span class="flow-number">02</span><div><strong>${escape(p.demo[4])}</strong><p>${escape(p.demo[5])}<br>${escape(p.demo[6])}</p></div><span class="flow-icon" aria-hidden="true">✓</span></div><div class="flow-row"><span class="flow-number">03</span><div><strong>${escape(p.demo[7])}</strong><p>${escape(p.demo[8])}</p></div><span class="flow-icon" aria-hidden="true">↻</span></div></div></section>
 <section id="features"><p class="section-kicker">01 / CLASSROOM</p><h2>${escape(p.featureTitle)}</h2><p class="section-lead">${escape(p.featureLead)}</p><div class="feature-grid">${items(p.features,([icon,title,text])=>`<article class="feature"><span class="skill" aria-hidden="true">${escape(icon)}</span><h3>${escape(title)}</h3><p>${escape(text)}</p></article>`)}</div><p class="note">${escape(p.extra)}</p></section>
+${deployment}
 <section id="start"><p class="section-kicker">02 / GET STARTED</p><h2>${escape(p.setupTitle)}</h2><p class="section-lead">${escape(p.setupLead)}</p><ol class="steps">${items(p.steps,([title,text],i)=>`<li><span class="step-number">${String(i+1).padStart(2,'0')}</span><div><h3>${escape(title)}</h3><p>${escape(text)}</p></div></li>`)}</ol>
 <aside class="portable"><div><h3>${escape(p.settingsTitle)}</h3><p>${escape(p.settingsText)}</p><p class="small">${escape(p.settingsKeys)}</p></div><pre><code>VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_PUBLISHABLE_KEY

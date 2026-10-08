@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/about/about.css"><link rel="icon" href="/about/mark.svg" type="image/svg+xml">
 </head><body>
 <header class="header"><a class="brand" href="#top"><img src="/about/mark.svg" alt="" width="36" height="36">InterAct</a><nav aria-label="InterAct｜使用教學與版權授權"><a href="#features">課堂功能</a>
+<a href="#deployment">部署教學</a>
 <a href="#start">使用教學</a>
 <a href="#editions">版本選擇</a>
 <a href="#license">版權授權</a></nav><div class="languages" aria-label="Language">
@@ -19,6 +20,41 @@
 <article class="feature"><span class="skill" aria-hidden="true">寫</span><h3>電寫與討論板</h3><p>學生在畫布書寫，也能拍照、上傳或貼上手寫圖片。討論板集中展示全班作品與回應；放大視窗可依課堂設定切換匿名顯示。</p></article>
 <article class="feature"><span class="skill" aria-hidden="true">拍</span><h3>全班相機作答</h3><p>選擇 webcam，在放大的視窗確認取景後拍照。支援手指數量、頭頂大圈／胸前大叉、舉手、站坐與動作，以及 A4 紙文字回答；AI 辨識後由教師確認或修正統計，再發布給全班。</p></article>
 <article class="feature"><span class="skill" aria-hidden="true">聲</span><h3>課程錄製、字幕與口譯</h3><p>按需開啟課程錄製；字幕可獨立顯示或隱藏，並調整語言、大小、粗體與位置。教師另外勾選要派送的即時口譯語音，學生開啟聆聽並選擇可用語言。</p></article></div><p class="note">也提供彈幕、文字派送、文字雲、抽籤、搶答、匿名回應、Exit Ticket 與課後報表。錄製、字幕與口譯預設關閉；AI 服務依實際使用計費。</p></section>
+<section id="deployment"><p class="section-kicker">DEPLOYMENT / STEP BY STEP</p><h2>部署 Step by Step：第一次也能完成</h2><p class="section-lead">這份指南使用 InterAct 桌面版內建的「自動部署」，不需要寫程式，也不需要安裝 Node.js 或 Supabase CLI。已經有後端的人，可直接跳到步驟 8 測試連線；更新後端請從步驟 5 開始。</p><p class="note">先準備：Windows／macOS 教師端程式、穩定網路、自己的 Supabase 帳號，以及需要 AI 出題與分析時使用的 Gemini API key。OpenAI 與 Reurl 金鑰為選填。不要把任何私密金鑰或權杖交給學員。</p><ol class="steps deployment-steps"><li><span class="step-number">01</span><div><h3>註冊 Supabase，建立專案</h3><ul><li>開啟 Supabase Dashboard，註冊或登入自己的帳號。</li>
+<li>按 New project，選擇或建立 Organization，輸入專案名稱、設定資料庫密碼，選擇適合的區域後建立。資料庫密碼請自行安全保存，不需貼到 InterAct。</li>
+<li>等待專案建立完成、可進入專案後台後再繼續。</li></ul><a class="guide-link" href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer">開啟 Supabase Dashboard ↗</a></div></li>
+<li><span class="step-number">02</span><div><h3>找出專案識別碼與公開金鑰</h3><ul><li>專案後台 → Project Settings → General，複製 Project ID。也可使用完整網址 https://你的專案識別碼.supabase.co；不是後台的 dashboard/project/... 網址。</li>
+<li>到 Settings → API Keys，複製以 sb_publishable_ 開頭的 Publishable key；也可在 Connect 對話框取得專案網址與公開金鑰。</li>
+<li>請勿使用 sb_secret_ 或 service_role。Project ID、Publishable key、資料庫密碼與 Access Token 是不同資料，不要混貼。</li></ul><a class="guide-link" href="https://supabase.com/docs/guides/getting-started/api-keys" target="_blank" rel="noopener noreferrer">Supabase 官方 API 金鑰說明 ↗</a></div></li>
+<li><span class="step-number">03</span><div><h3>把專案資訊填進 InterAct</h3><ul><li>開啟 InterAct 桌面版。第一次使用會出現「連接你的 Supabase 專案」；已有設定時，從場次管理開啟「系統設定」。</li>
+<li>把 Project ID 或完整專案網址貼進「專案識別碼或網址」，把公開金鑰貼進「Publishable key」。</li>
+<li>「學員端網址」非商業用途可留空，程式會使用共用學員端並帶上你的專案資訊；商業使用者依授權自行託管並填入自己的學員網址。首次部署不用自己填「管理金鑰」，稍後會自動產生。</li></ul></div></li>
+<li><span class="step-number">04</span><div><h3>建立只用於部署的 Access Token</h3><ul><li>到 Supabase 帳號的 Access Tokens 頁面建立一組權杖。它不是專案的 Publishable key。</li>
+<li>優先使用限縮範圍的權杖（scoped／fine-grained token），資源只選這個專案，設定適當到期日。需要資料庫讀寫、Edge Functions 讀寫，以及部署函式 secrets 所需權限；名稱以當時後台顯示為準。</li>
+<li>建立後立即複製權杖並安全保存，不要貼在公開文件或截圖中。若 403 提示缺少權限，依 missing_permissions 補足必要權限，重新建立權杖；不必開放所有專案。</li></ul><a class="guide-link" href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener noreferrer">建立 Supabase Access Token ↗</a>
+<a class="guide-link" href="https://supabase.com/changelog/scoped-personal-access-tokens-ga" target="_blank" rel="noopener noreferrer">官方權杖範圍與權限說明 ↗</a></div></li>
+<li><span class="step-number">05</span><div><h3>展開自動部署，填入所需金鑰</h3><ul><li>在 InterAct 設定頁展開「還沒建立後端？讓 InterAct 幫你部署」，將上一步的權杖貼進「Supabase 存取權杖」。</li>
+<li>在「Gemini API key」貼上自己的金鑰，供 AI 出題、分析與批改使用。不使用 AI 功能可先不填，但相關活動會無法使用。</li>
+<li>需要課程錄製、字幕或口譯時，才填「OpenAI API key（選填）」；需要 QR Code 短網址時，才填「Reurl API key（選填）」。私密金鑰會送入自己的 Supabase 後端，不應放進公開設定檔。</li></ul><a class="guide-link" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">取得 Gemini API key ↗</a>
+<a class="guide-link" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">OpenAI API 金鑰頁 ↗</a>
+<a class="guide-link" href="https://reurl.cc" target="_blank" rel="noopener noreferrer">Reurl ↗</a></div></li>
+<li><span class="step-number">06</span><div><h3>按「開始自動部署」，等待檢查完成</h3><ul><li>確認上方的 Project ID 與 Publishable key 均已填入，按「開始自動部署」。請保持程式開啟與網路連線，不要連續重按。</li>
+<li>程式依序建立資料表與儲存空間、部署後端函式、設定 API 金鑰、產生管理金鑰，最後檢查部署結果與學生端讀取權限。</li>
+<li>成功時會出現「後端部署完成，測試連線後即可儲存。」若某步失敗，先查看該步的錯誤、修正再重跑；不要為了重試刪除專案或課堂資料。瀏覽器版無法執行此自動部署，請使用桌面版。</li></ul></div></li>
+<li><span class="step-number">07</span><div><h3>備份教師管理金鑰</h3><ul><li>部署完成後，「管理金鑰」欄位會顯示自動產生的值。按「複製」，存到自己的安全位置。</li>
+<li>這把金鑰用來開課與管理場次，不是給學生使用的公開金鑰。換電腦時，在同一專案設定中貼上同一組。</li>
+<li>不要任意按重新產生管理金鑰；換發後其他電腦的舊金鑰會失效。更新程式時保留自己原有的管理金鑰與公開設定。</li></ul></div></li>
+<li><span class="step-number">08</span><div><h3>測試連線，儲存並開課</h3><ul><li>按「測試連線」，確認顯示「連線成功，可以儲存了。」再按「儲存並開始使用」。</li>
+<li>程式重新載入設定後，建立一個測試場次。用另一台手機掃 QR Code 加入，先派送一則文字或簡單題目，確認老師與學生畫面都能更新。</li>
+<li>需要 AI 時再測一次出題／分析；需要字幕與口譯時再分別開啟測試。只測連線不代表 AI 帳號與額度也已驗證。</li></ul></div></li>
+<li><span class="step-number">09</span><div><h3>更新版本或帶到另一台電腦</h3><ul><li>更新教師端後，使用同一個 Supabase 專案，從系統設定再跑一次自動部署，補齊新版後端。既有專案的操作前，建議先備份重要課堂資料。</li>
+<li>重新部署時，空白的 AI 金鑰欄位不會刪除後端既有金鑰；要替換金鑰才填入新的值。部署成功會清空這次輸入的 Access Token。</li>
+<li>隨身資料夾保留 .env 或 InterAct.config.json（只含公開設定），新電腦另外輸入教師管理金鑰。不要把 Access Token 或 AI 私密金鑰放在隨身公開設定中。</li></ul></div></li></ol><h3>卡在哪一步？先看這裡</h3><div class="faq"><details><summary>401／權杖無效或過期</summary><p>確認使用 Access Token，而不是 Publishable key。回 Access Tokens 建立有效權杖再貼上。</p></details>
+<details><summary>403／權限不足</summary><p>確認權杖包含此專案，並有失敗步驟所需的資料庫、函式或 secrets 權限。組織成員自身也必須有相應權限。</p></details>
+<details><summary>找不到專案／識別碼格式錯誤</summary><p>使用 Project ID 或 https://專案識別碼.supabase.co，不要填後台頁面的網址。</p></details>
+<details><summary>資料表不存在／學生端讀不到</summary><p>先完成全部自動部署步驟，確認 Publishable key 屬於同一專案，再測試連線；不要改用 secret key，也不要關掉權限保護來繞過錯誤。</p></details>
+<details><summary>Function failed to start／AI 無法出題</summary><p>確認教師端為新版，重新部署對應後端。仍失敗時查看 Supabase Edge Functions 的 Logs；AI 的服務異常、金鑰或額度問題需另外確認。</p></details>
+<details><summary>沒有自動部署功能</summary><p>請在 Windows／macOS 教師桌面程式操作，網頁版不提供自動部署。</p></details></div></section>
 <section id="start"><p class="section-kicker">02 / GET STARTED</p><h2>第一次使用，跟著這六步走</h2><p class="section-lead">先連接自己的 Supabase 專案，再開始課堂。教學與授權頁可直接閱讀，不需要 GitHub 帳號。</p><ol class="steps"><li><span class="step-number">01</span><div><h3>取得教師端程式</h3><p>下載適合的 Windows 或 macOS 版本。Windows 解壓縮後執行資料夾內的 EXE；macOS 開啟 DMG 並安裝 App。學員不必安裝程式。</p></div></li>
 <li><span class="step-number">02</span><div><h3>註冊並建立 Supabase 專案</h3><p>前往 Supabase 網站建立帳號與專案。在程式的部署／設定頁填入專案網址或識別碼、公開 publishable key，再依部署精靈提示設定後端與所需的 AI 金鑰。保留教師管理金鑰，不要給學生。</p></div></li>
 <li><span class="step-number">03</span><div><h3>建立場次，邀請學員加入</h3><p>輸入課程名稱並建立新場次，顯示 QR Code。學員用瀏覽器掃碼加入、填入姓名。需要隱藏姓名時，開啟主選單的匿名設定。</p></div></li>
