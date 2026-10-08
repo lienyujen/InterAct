@@ -1,9 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { createHash } from 'node:crypto'
 import { pages } from '../docs/about-content.mjs'
 import { deploymentGuides } from '../docs/deployment-guide.mjs'
 const root=path.resolve(import.meta.dirname,'..'),out=path.join(root,'public/about')
 const license=fs.readFileSync(path.join(root,'LICENSE'),'utf8')
+const assetVersion=createHash('sha256').update(fs.readFileSync(path.join(out,'about.css'))).digest('hex').slice(0,12)
 const escape=value=>String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')
 const links=['features','deployment','start','editions','license']
 for(const [language,p] of Object.entries(pages)){
@@ -20,7 +22,7 @@ for(const [language,p] of Object.entries(pages)){
 <link rel="canonical" href="https://interact.ehuayu.org/about${suffix?'/'+suffix:''}">
 <link rel="alternate" hreflang="zh-Hant" href="https://interact.ehuayu.org/about"><link rel="alternate" hreflang="en" href="https://interact.ehuayu.org/about/en">
 <meta name="theme-color" content="#6056e9"><meta property="og:title" content="${escape(p.title)}"><meta property="og:description" content="${escape(p.description)}"><meta property="og:type" content="website">
-<link rel="stylesheet" href="${prefix}about.css"><link rel="icon" href="${prefix}mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="${prefix}about.css?v=${assetVersion}"><link rel="icon" href="${prefix}mark.svg" type="image/svg+xml">
 </head><body>
 <header class="header"><a class="brand" href="#top"><img src="${prefix}mark.svg" alt="" width="36" height="36">InterAct</a><nav aria-label="${escape(p.title)}">${items(p.nav,(label,i)=>`<a href="#${links[i]}">${escape(label)}</a>`)}</nav><div class="languages" aria-label="Language">
 ${items([['zh-TW','繁體',prefix],['en','English',prefix+'en/']],([code,label,href])=>`<a href="${href}" lang="${code}" ${code===language?'aria-current="page"':''}>${label}</a>`)}</div></header>

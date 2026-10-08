@@ -8,7 +8,7 @@ for (const suffix of ['', '/en']) {
   const html = fs.readFileSync(path.join(root, `public/about${suffix}/index.html`), 'utf8')
   assert.ok(html.includes(`href="https://interact.ehuayu.org/about${suffix}"`))
   assert.ok(html.includes('href="https://supabase.com/dashboard"'))
-  assert.ok(html.includes('href="/about/about.css"'))
+  assert.match(html, /href="\/about\/about.css\?v=[a-f0-9]{12}"/)
   assert.ok(!html.includes('LingoAct'))
   assert.ok(!html.includes('undefined'))
   for (const anchor of ['features', 'deployment', 'start', 'editions', 'license', 'faq']) assert.ok(html.includes(`id="${anchor}"`))
