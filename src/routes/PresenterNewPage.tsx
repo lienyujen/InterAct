@@ -190,7 +190,7 @@ export function PresenterNewPage() {
           <Settings size={18} />系統設定
         </button>
         <p className="app-credit">
-          <a href="https://github.com/lienyujen/InterAct/blob/main/LICENSE" rel="noreferrer" target="_blank">InterAct</a>
+          <a href="https://interact.ehuayu.org/about" rel="noopener noreferrer" target="_blank">InterAct</a>
           {' | Designed and Developed by '}
           <a href="https://www.facebook.com/lienyujen/" rel="noreferrer" target="_blank">Yujen Lien</a>
         </p>

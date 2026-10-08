@@ -1,0 +1,127 @@
+Required Notice: Copyright 2026 Yujen Lien (https://github.com/lienyujen/InterAct)
+
+---
+
+Note from the licensor (not part of the PolyForm text below)
+
+Free for personal use, schools and educational institutions, public research
+organizations, government bodies, and nonprofits — regardless of how they are
+funded.
+
+The following are commercial purposes and require a commercial licence:
+
+  1. Cram schools, tutoring centres, and other for-profit teaching businesses
+  2. Corporate training, including external trainers engaged by a company
+  3. Paid online courses, paid workshops, and paid seminars
+  4. Taking this software, changing it, and making money from the result —
+     rebranding it, folding it into your own product or service, or
+     distributing a derivative commercially
+
+HOW TO OBTAIN A COMMERCIAL LICENCE
+
+For 1 to 3 — teaching with this software as it stands — donate an amount of
+your own choosing, scaled to your use, at:
+
+  https://www.paypal.com/paypalme/lienyujen
+or LINE Bank
+  銀行帳戶：824 連線商業銀行（總行 6880），帳號： 111011583074
+
+Keep the payment receipt. That receipt is your commercial licence for this
+software. There is no fixed price.
+
+For 4, a donation is not a licence and no receipt covers it. Building your own
+product out of this one requires a separate written licence granted by the
+author; ask first. The same applies to any commercial use not listed above.
+
+---
+
+以下均屬商業用途，需取得商業授權：
+
+  一、補習班、才藝班等營利教育機構
+  二、企業內訓講師（含受企業委託授課的外部講師）
+  三、收費線上課程、付費工作坊與付費研習
+  四、把本軟體拿去修改並以其營利 —— 改名、併入自己的產品或服務，或散布修改版本牟利
+
+第一至三項是「以現有軟體授課」，請至上方 PayPal 連結或 LINE Bank 帳戶依使用規模自由樂捐，
+並留存付款收據，該收據即為你的商業使用授權證明。金額由你自行斟酌，沒有固定價目。
+
+第四項不適用樂捐，收據也不構成授權。把整套拿去改成自己的產品，必須另外取得作者書面授權，
+請先與作者聯絡。上述未列出的其他商業用途亦同。
+
+散布修改版本時，務必一併保留本 LICENSE 檔案與其中的 Required Notice: 版權標示。
+
+---
+
+# PolyForm Noncommercial License 1.0.0
+
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
+
+## Acceptance
+
+In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
+
+## Copyright License
+
+The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose.  However, you may only distribute the software according to [Distribution License](#distribution-license) and make changes or new works based on the software according to [Changes and New Works License](#changes-and-new-works-license).
+
+## Distribution License
+
+The licensor grants you an additional copyright license to distribute copies of the software.  Your license to distribute covers distributing the software with changes and new works permitted by [Changes and New Works License](#changes-and-new-works-license).
+
+## Notices
+
+You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them above, as well as copies of any plain-text lines beginning with `Required Notice:` that the licensor provided with the software.  For example:
+
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+
+## Changes and New Works License
+
+The licensor grants you an additional copyright license to make changes and new works based on the software for any permitted purpose.
+
+## Patent License
+
+The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
+
+## Noncommercial Purposes
+
+Any noncommercial purpose is a permitted purpose.
+
+## Personal Uses
+
+Personal use for research, experiment, and testing for the benefit of public knowledge, personal study, private entertainment, hobby projects, amateur pursuits, or religious observance, without any anticipated commercial application, is use for a permitted purpose.
+
+## Noncommercial Organizations
+
+Use by any charitable organization, educational institution, public research organization, public safety or health organization, environmental protection organization, or government institution is use for a permitted purpose regardless of the source of funding or obligations resulting from the funding.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else.  These terms do not imply any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice.  Otherwise, all your licenses end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these terms, and the **software** is the software the licensor makes available under these terms.
+
+**You** refers to the individual or entity agreeing to these terms.
+
+**Your company** is any legal entity, sole proprietorship, or other kind of organization that you work for, plus all organizations that have control over, are under the control of, or are under common control with that organization.  **Control** means ownership of substantially all the assets of an entity, or the power to direct its management and policies by vote, contract, or otherwise.  Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the software under these terms.
+
+**Use** means anything you do with the software requiring one of your licenses.

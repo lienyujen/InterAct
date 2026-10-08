@@ -223,7 +223,7 @@ export function BackendSetup({ onCancel }: Props) {
         <span className="form-heading-icon"><Server size={24} /></span>
         <h1>{embedded ? '系統設定' : '連接你的 Supabase 專案'}</h1>
         <p className="muted">
-          InterAct 使用你自己的 Supabase 專案存放課堂資料，資料不會經過其他人。
+          InterAct 使用你自己的 <a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer">Supabase</a> 專案存放課堂資料，資料不會經過其他人。
           填入專案資訊後即可開始使用。
         </p>
 
