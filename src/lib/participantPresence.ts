@@ -1,4 +1,5 @@
 import { requireSupabase } from './supabase'
+import type { Participant } from '../types'
 
 // Reports that a student is still here, and how long the page spent in the
 // background. Without this last_seen_at keeps the value it was given at join,
@@ -9,9 +10,11 @@ type Args = {
   sessionId: string
   participantId: string
   participantToken: string
+  captureRevision?: () => number
+  onParticipantState?: (state: Partial<Participant>, revision: number) => void
 }
 
-export function trackParticipantPresence({ sessionId, participantId, participantToken }: Args) {
+export function trackParticipantPresence({ sessionId, participantId, participantToken, captureRevision, onParticipantState }: Args) {
   let hiddenSince = document.visibilityState === 'hidden' ? Date.now() : 0
   let unreportedMs = 0
   let stopped = false
@@ -37,8 +40,9 @@ export function trackParticipantPresence({ sessionId, participantId, participant
     const unfocusedMs = unreportedMs
     unreportedMs = 0
     const focusStreakMs = focusedSince ? Date.now() - focusedSince : 0
+    const revision = captureRevision?.() || 0
     try {
-      const { error } = await requireSupabase().functions.invoke('participant-action', {
+      const { data, error } = await requireSupabase().functions.invoke('participant-action', {
         timeout: 10_000,
         body: { action: 'heartbeat', sessionId, participantId, participantToken, unfocusedMs, focusStreakMs },
         ...(keepalive ? { headers: { 'keep-alive': 'true' } } : {}),
@@ -46,6 +50,7 @@ export function trackParticipantPresence({ sessionId, participantId, participant
       // Put it back rather than lose it, so a dropped beat does not understate
       // how long the student was away.
       if (error) unreportedMs += unfocusedMs
+      else if (!stopped && data?.participantState?.id === participantId) onParticipantState?.(data.participantState, revision)
     } catch {
       unreportedMs += unfocusedMs
     } finally {

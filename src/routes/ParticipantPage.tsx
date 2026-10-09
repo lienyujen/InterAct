@@ -32,6 +32,7 @@ import { useSessionPresence } from '../lib/useSessionPresence'
 import { trackParticipantPresence } from '../lib/participantPresence'
 import { usePageVisibility } from '../lib/usePageVisibility'
 import { createCoalescedLoader } from '../lib/coalescedLoad'
+import { createRevisionGuard } from '../lib/realtimeSnapshot'
 import { participantLocaleFromStorage, participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import type { AiSummary, Answer, AudioResponse, BuzzerSessionEvent, ExitTicket, LotterySessionEvent, Participant, ParticipantQuizData, Question, QuestionAnalysis, Screenshot, Session, SessionAnalysis, SessionEvent, SharedContent } from '../types'
@@ -54,13 +55,36 @@ export function ParticipantPage() {
   const participantId = localStorage.getItem(`interact_participant_${sessionId}`)
   const participantToken = localStorage.getItem(`interact_participant_token_${sessionId}`)
   const [participant, setParticipant] = useState<Participant | null>(null)
+  const participantRevision = useRef(createRevisionGuard())
+  const participantRef = useRef(participant)
+  participantRef.current = participant
+  const ownRowLoader = useRef(createCoalescedLoader())
+  const handSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => { participantRevision.current.changed() }, [participantId, sessionId])
   const [handBusy, setHandBusy] = useState(false)
   // The same figure the teacher's list shows, worked out on their machine and
   // sent here — see the note in lib/standings.
   const [session, setSession] = useState<Session | null>(null)
   const pageVisible = usePageVisibility()
   const liveSessionId = pageVisible && session?.status === 'active' ? sessionId : ''
-  const standing = useMyStanding(liveSessionId, participant?.id || null)
+  const refreshParticipantRow = useCallback(() => ownRowLoader.current(async () => {
+    if (!isSupabaseConfigured || !participantId || !sessionId || navigator.onLine === false || document.visibilityState === 'hidden') return
+    const revision = participantRevision.current.current()
+    const { data, error } = await requireSupabase().from('participants').select('*').eq('id', participantId).eq('session_id', sessionId).maybeSingle()
+    if (error || !data || !participantRevision.current.accepts(revision)) return
+    participantRevision.current.changed()
+    setParticipant(data as Participant)
+  }), [participantId, sessionId])
+  const syncLoweredHand = useCallback(() => {
+    if (!participantRef.current?.hand_raised_at || handSyncTimer.current !== null) return
+    // Invalidation only: an unauthenticated broadcast cannot lower a hand.
+    handSyncTimer.current = setTimeout(() => {
+      handSyncTimer.current = null
+      void refreshParticipantRow()
+    }, 100 + Math.random() * 300)
+  }, [refreshParticipantRow])
+  const standing = useMyStanding(liveSessionId, participant?.id || null, syncLoweredHand)
+  useEffect(() => () => { if (handSyncTimer.current !== null) clearTimeout(handSyncTimer.current) }, [])
   const [question, setQuestion] = useState<Question | null>(null)
   const [answer, setAnswer] = useState<Answer | null>(null)
   const [audioResponse, setAudioResponse] = useState<AudioResponse | null>(null)
@@ -119,7 +143,14 @@ export function ParticipantPage() {
   // Presence in the channel is live-only; this is what the report reads later.
   useEffect(() => {
     if (session?.status !== 'active' || !participant?.id || !participantToken) return
-    return trackParticipantPresence({ sessionId, participantId: participant.id, participantToken })
+    return trackParticipantPresence({ sessionId, participantId: participant.id, participantToken,
+      captureRevision: participantRevision.current.current,
+      onParticipantState: (state, revision) => {
+        if (state.session_id !== sessionId || !participantRevision.current.accepts(revision)) return
+        participantRevision.current.changed()
+        setParticipant(current => current ? { ...current, ...state } : current)
+      },
+    })
   }, [participant?.id, participantToken, session?.status, sessionId])
   const localizedSummary = locale === 'en' ? sessionSummary?.translations?.en || sessionSummary : sessionSummary
   const participantName = participant?.name || localStorage.getItem(`interact_name_${sessionId}`) || ''
@@ -132,6 +163,7 @@ export function ParticipantPage() {
   const loadAll = useCallback(() => coalescedLoad.current(async () => {
     if (!isSupabaseConfigured || !sessionId || !participantId || navigator.onLine === false) return
     const requestId = ++loadSequence.current
+    const participantReadRevision = participantRevision.current.current()
     const supabase = requireSupabase()
     const initial = await Promise.all([
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
@@ -148,7 +180,7 @@ export function ParticipantPage() {
     const nextSession = sessionData as Session | null
     setSession(nextSession)
     setSessionChecked(true)
-    setParticipant(participantData as Participant | null)
+    if (participantRevision.current.accepts(participantReadRevision)) setParticipant(participantData as Participant | null)
     setExitTicket((exitTicketData as ExitTicket | null) || null)
     setSharedContents((sharedContentData || []) as SharedContent[])
     setBuzzerEvent((buzzerData as BuzzerSessionEvent | null) || null)
@@ -426,9 +458,10 @@ export function ParticipantPage() {
   }, [loadAll])
 
   useEffect(() => {
-    window.addEventListener('online', scheduleLoad)
-    return () => window.removeEventListener('online', scheduleLoad)
-  }, [scheduleLoad])
+    const reconnect = () => { scheduleLoad(); void refreshParticipantRow() }
+    window.addEventListener('online', reconnect)
+    return () => window.removeEventListener('online', reconnect)
+  }, [refreshParticipantRow, scheduleLoad])
 
   useEffect(() => () => {
     if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current)
@@ -452,7 +485,8 @@ export function ParticipantPage() {
       // reason the roster does: the changed row already arrived.
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'participants', filter: `id=eq.${participantId}` }, (payload) => {
         const row = payload.new as Participant
-        if (!row?.id) return
+        if (row?.id !== participantId || row.session_id !== sessionId) return
+        participantRevision.current.changed()
         setParticipant((current) => (current ? { ...current, ...row } : current))
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'session_events', filter: `session_id=eq.${sessionId}` }, (payload) => {
@@ -471,12 +505,14 @@ export function ParticipantPage() {
           }
         }
       })
-      .subscribe()
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') { void refreshParticipantRow(); scheduleLoad() }
+      })
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadAll, liveSessionId, participantId, scheduleLoad, sessionId])
+  }, [loadAll, liveSessionId, participantId, refreshParticipantRow, scheduleLoad, sessionId])
 
   useEffect(() => {
     if (session?.status !== 'ended') return
@@ -810,18 +846,27 @@ export function ParticipantPage() {
   async function toggleHand() {
     if (!participant || !participantToken || handBusy) return
     const raised = !participant.hand_raised_at
+    const previousHand = participant.hand_raised_at
+    participantRevision.current.changed()
+    const mutationRevision = participantRevision.current.current()
     setHandBusy(true)
     setParticipant((current) => (
       current ? { ...current, hand_raised_at: raised ? new Date().toISOString() : null } : current
     ))
     try {
-      await requireSupabase().functions.invoke('participant-action', {
+      const { data, error: handError } = await requireSupabase().functions.invoke('participant-action', {
         body: { action: 'set_hand', sessionId, participantId: participant.id, participantToken, raised },
       })
+      if (handError) throw handError
+      if (data?.participantState?.id === participantId && participantRevision.current.accepts(mutationRevision)) {
+        participantRevision.current.changed()
+        setParticipant(current => current ? { ...current, ...data.participantState } : current)
+      }
     } catch {
-      setParticipant((current) => (
-        current ? { ...current, hand_raised_at: raised ? null : new Date().toISOString() } : current
-      ))
+      if (participantRevision.current.accepts(mutationRevision)) {
+        participantRevision.current.changed()
+        setParticipant(current => current ? { ...current, hand_raised_at: previousHand } : current)
+      }
     } finally {
       setHandBusy(false)
     }

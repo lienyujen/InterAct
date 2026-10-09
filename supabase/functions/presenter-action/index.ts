@@ -5,6 +5,7 @@ import { analyzeFileResponse, isAnalyzableFile } from '../_shared/file-analysis.
 import { attachBoardUrls, BOARD_KINDS } from '../_shared/board.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
 import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/owner.ts'
+import { notifyHandsLowered, notifyQuizScoreChanged } from '../_shared/classroom-sync.ts'
 
 type ParticipantRecord = { id: string; name: string }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -888,6 +889,7 @@ Deno.serve(async (req) => {
           if (error) throw error
         }
       }
+      notifyQuizScoreChanged(supabase, sessionId)
       return jsonResponse({ success: true })
     }
 
@@ -1632,6 +1634,7 @@ Deno.serve(async (req) => {
       }
       const { error } = await query
       if (error) throw error
+      notifyHandsLowered(supabase, sessionId, participantId)
       return jsonResponse({ ok: true })
     }
 

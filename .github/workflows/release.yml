@@ -81,6 +81,7 @@ jobs:
           node scripts/test-reconnect-board.cjs
           node scripts/test-about-page.mjs
           node scripts/test-report-credentials.cjs
+          node scripts/test-live-standing-sync.cjs
 
       # Deliberately built with no Supabase project configured: whoever downloads
       # this enters their own on first launch. Baking one in would send every

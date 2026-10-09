@@ -37,12 +37,12 @@ async function verifyParticipant(
   const tokenHash = await hashParticipantToken(participantToken)
   const { data } = await supabase
     .from('participant_session_keys')
-    .select('participant_id, participants!inner(id, session_id, name)')
+    .select('participant_id, participants!inner(id, session_id, name, hand_raised_at)')
     .eq('participant_id', participantId)
     .eq('token_hash', tokenHash)
     .eq('participants.session_id', sessionId)
     .maybeSingle()
-  const participant = data?.participants as unknown as { id: string; session_id: string; name: string } | null
+  const participant = data?.participants as unknown as { id: string; session_id: string; name: string; hand_raised_at: string | null } | null
   return participant || null
 }
 
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
         focus_streak: focusStreak,
       })
       if (error) throw error
-      return jsonResponse({ ok: true })
+      return jsonResponse({ ok: true, participantState: { id: participant.id, session_id: sessionId, hand_raised_at: participant.hand_raised_at } })
     }
 
     // Asking to be called on. A toggle rather than a one-way set, because a
@@ -149,12 +149,13 @@ Deno.serve(async (req) => {
       const participant = await verifyParticipant(supabase, sessionId, participantId, participantToken)
       if (!participant) return jsonResponse({ message: '學員權限失效。' }, 403)
       const raised = input.raised !== false
-      const { error } = await supabase.from('participants')
+      const { data: updated, error } = await supabase.from('participants')
         .update({ hand_raised_at: raised ? new Date().toISOString() : null })
         .eq('id', participantId)
         .eq('session_id', sessionId)
+        .select('*').single()
       if (error) throw error
-      return jsonResponse({ ok: true })
+      return jsonResponse({ ok: true, participantState: updated })
     }
 
     if (['get_custom_quiz', 'submit_custom_quiz', 'retry_custom_quiz_grading'].includes(action)) {

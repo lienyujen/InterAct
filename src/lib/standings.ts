@@ -19,8 +19,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { buzzerWinsFrom, participationRows } from './participation'
 import type { Badge } from './participation'
-import { getPresenterToken } from './presenterAuth'
-import { createCoalescedLoader } from './coalescedLoad'
+import { getReportCredentials } from './presenterAuth'
+import { createBatchedRefresh, createRealtimeSnapshot } from './realtimeSnapshot'
 import { requireSupabase } from './supabase'
 import type {
   Answer, BoardPost, FileResponse, Message, Participant, ParticipantPoint,
@@ -40,49 +40,80 @@ const REFRESH_MS = 30_000
 
 // Runs on the presenter's main window, which is open for the whole class.
 export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
-  const latest = useRef<Standing[]>([])
-  const publishRef = useRef<(() => Promise<void>) | null>(null)
+  const publishRef = useRef<(() => void) | null>(null)
+  const cache = useRef(createRealtimeSnapshot())
+  const fullRefresh = useRef(true)
+  const ready = useRef(false)
+  const generation = useRef(0)
+  const dirtyPrivate = useRef(new Set(['quiz', 'uploads', 'board']))
+  const privateData = useRef<{ quiz: SessionCustomQuizResults | null; uploads: FileResponse[] }>({ quiz: null, uploads: [] })
+  const forceSend = useRef(0)
 
   const compute = useCallback(async (): Promise<Standing[]> => {
+    const startedGeneration = generation.current
+    const current = () => startedGeneration === generation.current
     const supabase = requireSupabase()
-    const presenterToken = getPresenterToken(sessionId)
-    if (!presenterToken) return []
-
-    const [p, q, a, m, e, pt] = await Promise.all([
-      supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at').limit(5000),
-      supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
-      supabase.from('answers').select('*').eq('session_id', sessionId).limit(10000),
-      supabase.from('messages').select('*').eq('session_id', sessionId).limit(5000),
-      supabase.from('session_events').select('*').eq('session_id', sessionId).eq('event_type', 'buzzer').limit(2000),
-      supabase.from('participant_points').select('*').eq('session_id', sessionId).limit(5000),
-    ])
+    const credentials = getReportCredentials(sessionId)
+    if (fullRefresh.current || !ready.current) {
+      fullRefresh.current = false
+      cache.current.begin()
+      try {
+        const [p, q, a, m, e, pt] = await Promise.all([
+          supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at').limit(5000),
+          supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at').limit(500),
+          supabase.from('answers').select('*').eq('session_id', sessionId).limit(10000),
+          supabase.from('messages').select('*').eq('session_id', sessionId).limit(5000),
+          supabase.from('session_events').select('*').eq('session_id', sessionId).eq('event_type', 'buzzer').limit(2000),
+          supabase.from('participant_points').select('*').eq('session_id', sessionId).limit(5000),
+        ])
+        if (!current()) return []
+        for (const result of [p, q, a, m, e, pt]) if (result.error) throw result.error
+        cache.current.replace({ participants: p.data || [], questions: q.data || [], answers: a.data || [], messages: m.data || [], session_events: e.data || [], participant_points: pt.data || [] })
+        ready.current = true
+        for (const source of ['quiz', 'uploads', 'board']) dirtyPrivate.current.add(source)
+      } catch (error) {
+        if (current()) { cache.current.abort(); fullRefresh.current = true }
+        throw error
+      }
+    }
 
     // Private to the presenter, so they come back through the action rather
     // than the table. Without them the score would be lower than the roster's
     // for anyone who sat a quiz or handed in a photograph.
-    const [quizResult, uploadResult, boardResult] = await Promise.all([
-      supabase.functions.invoke('presenter-action', {
-        body: { action: 'get_session_custom_quiz_results', sessionId, presenterToken },
-      }),
-      supabase.functions.invoke('presenter-action', {
-        body: { action: 'get_file_responses', sessionId, presenterToken },
-      }),
-      supabase.functions.invoke('presenter-action', {
-        body: { action: 'get_session_board_posts', sessionId, presenterToken },
-      }),
-    ])
+    const actions: Record<string, string> = { quiz: 'get_session_custom_quiz_results', uploads: 'get_file_responses', board: 'get_session_board_posts' }
+    const privateResults = await Promise.allSettled([...dirtyPrivate.current].map(async source => {
+      dirtyPrivate.current.delete(source)
+      try {
+        // Board events can arrive while this private snapshot is loading too.
+        if (source === 'board') cache.current.begin()
+        const result = await supabase.functions.invoke('presenter-action', { body: { action: actions[source], ...credentials } })
+        if (!current()) return
+        if (result.error || !result.data) throw result.error || new Error('Missing score source')
+        if (source === 'quiz') privateData.current.quiz = result.data as SessionCustomQuizResults
+        if (source === 'uploads') privateData.current.uploads = (result.data.responses || []) as FileResponse[]
+        if (source === 'board') {
+          cache.current.replace({ board_posts: result.data.posts || [] })
+        }
+      } catch (error) {
+        if (current()) { if (source === 'board') cache.current.abort(); dirtyPrivate.current.add(source) }
+        throw error
+      }
+    }))
+    if (!current()) return []
+    const failedPrivate = privateResults.find(result => result.status === 'rejected')
+    if (failedPrivate?.status === 'rejected') throw failedPrivate.reason
 
-    const participants = ((p.data || []) as Participant[]).filter((entry) => !entry.removed_at)
-    const quiz = (quizResult.data || null) as SessionCustomQuizResults | null
+    const participants = cache.current.rows<Participant>('participants').filter(entry => !entry.removed_at)
+    const quiz = privateData.current.quiz
     const rows = participationRows({
       participants,
-      questions: (q.data || []) as Question[],
-      answers: (a.data || []) as Answer[],
-      messages: (m.data || []) as Message[],
+      questions: cache.current.rows<Question>('questions'),
+      answers: cache.current.rows<Answer>('answers'),
+      messages: cache.current.rows<Message>('messages'),
       quizAttempts: quiz?.attempts || [],
-      buzzerWins: buzzerWinsFrom((e.data || []) as SessionEvent[]),
-      uploadMarks: (uploadResult.data?.responses || []) as FileResponse[],
-      boardPosts: (boardResult.data?.posts || []) as BoardPost[],
+      buzzerWins: buzzerWinsFrom(cache.current.rows<SessionEvent>('session_events')),
+      uploadMarks: privateData.current.uploads,
+      boardPosts: cache.current.rows<BoardPost>('board_posts'),
       // Null for the same reason the roster passes null: the class is running,
       // so the absence clock runs to now. The two have to agree.
       endedAt: null,
@@ -91,7 +122,7 @@ export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
     // The teacher's manual awards are part of the figure on the roster, so they
     // are part of this one too.
     const awarded = new Map<string, number>()
-    for (const point of ((pt.data || []) as ParticipantPoint[])) {
+    for (const point of cache.current.rows<ParticipantPoint>('participant_points')) {
       awarded.set(point.participant_id, (awarded.get(point.participant_id) || 0) + point.points)
     }
 
@@ -119,31 +150,68 @@ export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
     if (!sessionId) return
     const supabase = requireSupabase()
     const channel = supabase.channel(CHANNEL(sessionId))
+    generation.current++
+    const invalidateGeneration = () => { generation.current++ }
+    cache.current = createRealtimeSnapshot()
+    ready.current = false
+    fullRefresh.current = true
+    privateData.current = { quiz: null, uploads: [] }
+    dirtyPrivate.current = new Set(['quiz', 'uploads', 'board'])
+    forceSend.current++
 
     let active = true
-    const reload = createCoalescedLoader()
-    const publish = () => reload(async () => {
+    let lastPayload = ''
+    let lastForcedVersion = -1
+    const batch = createBatchedRefresh(async () => {
       if (!active || navigator.onLine === false) return
       try {
         const rows = await compute()
         if (!active || !rows.length) return
-        latest.current = rows
-        await channel.send({ type: 'broadcast', event: 'standings', payload: { rows } })
+        const signature = JSON.stringify(rows)
+        const forcedVersion = forceSend.current
+        if (forcedVersion === lastForcedVersion && signature === lastPayload) return
+        const result = await channel.send({ type: 'broadcast', event: 'standings', payload: { rows, sentAt: Date.now() } })
+        if (result === 'ok') { lastPayload = signature; lastForcedVersion = forcedVersion }
       } catch {
         // A class that cannot be scored still runs. Nothing here is worth
         // interrupting a lesson for.
       }
     })
 
-    publishRef.current = publish
+    publishRef.current = () => { forceSend.current++; batch.request() }
+    channel.on('broadcast', { event: 'score_sources_changed' }, message => {
+      if (message.payload?.source !== 'quiz') return
+      dirtyPrivate.current.add('quiz')
+      batch.request()
+    })
+    for (const table of ['participants', 'questions', 'answers', 'messages', 'session_events', 'participant_points', 'board_posts']) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `session_id=eq.${sessionId}` }, payload => {
+        if (!active) return
+        const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as Record<string, unknown>
+        if (row.session_id && row.session_id !== sessionId) return
+        cache.current.update(table, payload)
+        if (table === 'answers' || table === 'questions') {
+          const questionId = table === 'questions' ? row.id : row.question_id
+          const type = cache.current.rows<Question>('questions').find(question => question.id === questionId)?.type
+          if (type === 'custom_quiz') dirtyPrivate.current.add('quiz')
+          if (type === 'drawing' || type === 'file_upload') dirtyPrivate.current.add('uploads')
+        }
+        batch.request()
+      })
+    }
 
     channel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') void publish()
+      if (status === 'SUBSCRIBED') { fullRefresh.current = true; forceSend.current++; batch.request() }
     })
-    const timer = window.setInterval(() => void publish(), REFRESH_MS)
+    const resync = () => { fullRefresh.current = true; forceSend.current++; batch.request() }
+    window.addEventListener('online', resync)
+    const timer = window.setInterval(resync, REFRESH_MS)
 
     return () => {
       active = false
+      invalidateGeneration()
+      batch.stop()
+      window.removeEventListener('online', resync)
       window.clearInterval(timer)
       publishRef.current = null
       void supabase.removeChannel(channel)
@@ -160,25 +228,35 @@ export function useStandingsBroadcast(sessionId: string, presenceKey: string) {
   // a class that starts together would open with a square's worth of messages.
   useEffect(() => {
     if (!presenceKey || !publishRef.current) return
-    const timer = window.setTimeout(() => void publishRef.current?.(), 1500)
+    const timer = window.setTimeout(() => publishRef.current?.(), 350)
     return () => window.clearTimeout(timer)
   }, [presenceKey])
 }
 
 // Runs on each student's page. One channel, no queries, and nothing arrives
 // that is not about this class.
-export function useMyStanding(sessionId: string, participantId: string | null) {
+export function useMyStanding(sessionId: string, participantId: string | null, onHandsLowered?: () => void) {
   const [standing, setStanding] = useState<Standing | null>(null)
+  const handsLoweredRef = useRef(onHandsLowered)
+  handsLoweredRef.current = onHandsLowered
 
   useEffect(() => {
     if (!sessionId || !participantId) return
     const supabase = requireSupabase()
     const channel = supabase.channel(CHANNEL(sessionId))
+    let newest = 0
 
     channel.on('broadcast', { event: 'standings' }, (message) => {
-      const rows = (message.payload as { rows?: Standing[] } | undefined)?.rows
+      const payload = message.payload as { rows?: Standing[]; sentAt?: number } | undefined
+      if (typeof payload?.sentAt === 'number' && payload.sentAt < newest) return
+      if (typeof payload?.sentAt === 'number') newest = payload.sentAt
+      const rows = payload?.rows
       if (!Array.isArray(rows)) return
       setStanding(rows.find((row) => row.id === participantId) || null)
+    })
+    channel.on('broadcast', { event: 'hands_lowered' }, message => {
+      const target = (message.payload as { participantId?: unknown } | undefined)?.participantId
+      if (target === '' || target === participantId) handsLoweredRef.current?.()
     })
 
     // Listening only. The presenter sends when the class changes size, so a
