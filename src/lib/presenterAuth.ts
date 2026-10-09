@@ -1,3 +1,5 @@
+import { getOwnerKey } from './ownerKey'
+
 const TOKEN_PREFIX = 'interact:presenter-token:'
 
 export type PresenterCredential = {
@@ -11,6 +13,17 @@ export function savePresenterToken(sessionId: string, token: string) {
 
 export function getPresenterToken(sessionId: string) {
   return window.localStorage.getItem(`${TOKEN_PREFIX}${sessionId}`)
+}
+
+// This is only a local presence check. The Edge Function verifies either
+// credential against its own project before returning data or spending on AI.
+export function getReportCredentials(sessionId: string) {
+  const presenterToken = getPresenterToken(sessionId)
+  const ownerKey = getOwnerKey()
+  if (!presenterToken && !ownerKey) {
+    throw new Error('缺少這個場次的講者憑證或管理金鑰。請到系統設定貼上此專案的管理金鑰。')
+  }
+  return { sessionId, ...(presenterToken ? { presenterToken } : {}), ...(ownerKey ? { ownerKey } : {}) }
 }
 
 export function removePresenterToken(sessionId: string) {

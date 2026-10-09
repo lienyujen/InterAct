@@ -80,6 +80,7 @@ jobs:
           node scripts/test-classroom-stability.cjs
           node scripts/test-reconnect-board.cjs
           node scripts/test-about-page.mjs
+          node scripts/test-report-credentials.cjs
 
       # Deliberately built with no Supabase project configured: whoever downloads
       # this enters their own on first launch. Baking one in would send every
@@ -248,6 +249,7 @@ jobs:
           - 討論板放大視窗遵循課堂匿名設定，並可切換匿名顯示。
           - 修正斷線重連後舊彈幕重播、讀取重疊與載入延遲問題。
           - 新增公開教學／授權網站與逐步部署指南，設定頁可直接開啟。
+          - 修正舊場次報告：有效管理金鑰可讀取與產生報告，不再要求原電腦的場次憑證。
 
           ## 從舊版升級
 

@@ -1,5 +1,6 @@
 import { callAiJson, corsHeaders, jsonResponse, parseThinkingLevel, errorDetail } from '../_shared/ai.ts'
 import { getAdminClient, hashPresenterToken } from '../_shared/supabase.ts'
+import { isOwner, ownerKeyConfigured, ownerRefusalMessage } from '../_shared/owner.ts'
 
 const sessionAnalysisCoreSchema = {
   type: 'object',
@@ -90,20 +91,24 @@ Deno.serve(async (req) => {
     const input = await req.json()
     sessionId = typeof input.sessionId === 'string' ? input.sessionId : ''
     const presenterToken = typeof input.presenterToken === 'string' ? input.presenterToken : ''
-    if (!sessionId || !presenterToken) return jsonResponse({ message: '缺少課堂分析所需資料。' }, 400)
+    if (!sessionId) return jsonResponse({ message: '缺少課堂分析所需資料。' }, 400)
     // An explicit thinking level means the presenter is retrying on purpose, so skip the cache.
     const thinkingLevel = parseThinkingLevel(input.thinkingLevel)
     const regenerate = input.regenerate === true || Boolean(thinkingLevel)
 
     const supabase = getAdminClient()
-    const tokenHash = await hashPresenterToken(presenterToken)
-    const { data: keyRecord } = await supabase
+    // A valid project owner may analyse historical classes from another
+    // computer; possession of a public Supabase key never grants this right.
+    const owner = isOwner(input)
+    const keyRecord = !owner && presenterToken ? (await supabase
       .from('presenter_session_keys')
       .select('session_id')
       .eq('session_id', sessionId)
-      .eq('token_hash', tokenHash)
-      .maybeSingle()
-    if (!keyRecord) return jsonResponse({ message: '講者權限驗證失敗。' }, 403)
+      .eq('token_hash', await hashPresenterToken(presenterToken))
+      .maybeSingle()).data : null
+    if (!owner && !keyRecord) {
+      return jsonResponse({ message: ownerKeyConfigured() ? ownerRefusalMessage(input) : '講者權限驗證失敗。' }, 403)
+    }
 
     const { data: session } = await supabase.from('sessions').select('*').eq('id', sessionId).single()
     if (!session) return jsonResponse({ message: '找不到場次。' }, 404)

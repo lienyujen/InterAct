@@ -1,6 +1,7 @@
 import type { Session } from '../types'
 import { listPresenterCredentials, removePresenterToken } from './presenterAuth'
 import { requireSupabase } from './supabase'
+import { hasOwnerKey } from './ownerKey'
 
 export type ManagedSession = Pick<Session, 'id' | 'title' | 'code' | 'status' | 'created_at' | 'ended_at'>
 
@@ -19,7 +20,7 @@ async function functionErrorMessage(error: unknown, fallback: string) {
 
 export async function listManagedSessions() {
   const credentials = listPresenterCredentials()
-  if (!credentials.length) return []
+  if (!credentials.length && !hasOwnerKey()) return []
 
   const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
     body: { action: 'list_sessions', credentials },

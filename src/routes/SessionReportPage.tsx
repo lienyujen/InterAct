@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, BookOpen, ChartNoAxesCombined, Clock, Download, ListChecks, LoaderCircle, MessageSquareText, RefreshCw, Users } from 'lucide-react'
-import { getPresenterToken } from '../lib/presenterAuth'
+import { getReportCredentials } from '../lib/presenterAuth'
 import { getRoster, getSessionRosterId } from '../lib/classRoster'
 import { useSessionReportBack } from '../lib/sessionReportNavigation'
 import { requireSupabase } from '../lib/supabase'
@@ -104,6 +104,7 @@ export function SessionReportPage() {
   const automaticLoadKeyRef = useRef('')
 
   const loadReportData = useCallback(async () => {
+    const credentials = getReportCredentials(sessionId)
     const supabase = requireSupabase()
     const { data: session, error: sessionError } = await supabase.from('sessions').select('*').eq('id', sessionId).single()
     if (sessionError) throw sessionError
@@ -122,29 +123,29 @@ export function SessionReportPage() {
       fetchAllRows<ParticipantPoint>('participant_points', sessionId, 'created_at'),
     ])
 
-    const presenterToken = getPresenterToken(sessionId)
-    if (!presenterToken) throw new Error('找不到這個場次的講者權限，無法讀取錄音評測。')
     const [recordingResult, customQuizResult, fileResult, boardResult] = await Promise.all([
       supabase.functions.invoke('presenter-action', {
-        body: { action: 'get_session_recording_results', sessionId, presenterToken },
+        body: { action: 'get_session_recording_results', ...credentials },
       }),
       supabase.functions.invoke('presenter-action', {
-        body: { action: 'get_session_custom_quiz_results', sessionId, presenterToken },
+        body: { action: 'get_session_custom_quiz_results', ...credentials },
       }),
       // Session-wide: the presenter analyses uploads per file, and the report
       // has to carry whatever was analysed by the time the class ended.
       supabase.functions.invoke('presenter-action', {
-        body: { action: 'get_file_responses', sessionId, presenterToken },
+        body: { action: 'get_file_responses', ...credentials },
       }),
       // Read on the service role, because a board that was never revealed is
       // closed to the ordinary client — and an unrevealed board is exactly the
       // one whose cards the presenter still has to be able to look back at.
       supabase.functions.invoke('presenter-action', {
-        body: { action: 'get_session_board_posts', sessionId, presenterToken },
+        body: { action: 'get_session_board_posts', ...credentials },
       }),
     ])
     if (recordingResult.error) throw new Error(await edgeFunctionMessage(recordingResult.error))
     if (customQuizResult.error) throw new Error(await edgeFunctionMessage(customQuizResult.error))
+    if (fileResult.error) throw new Error(await edgeFunctionMessage(fileResult.error))
+    if (boardResult.error) throw new Error(await edgeFunctionMessage(boardResult.error))
 
     // The class list never reaches the database, so the report picks it up from
     // this computer. Without it the absent students simply do not appear, which
@@ -177,12 +178,11 @@ export function SessionReportPage() {
     setLoading(true)
     setError('')
     try {
-      const presenterToken = getPresenterToken(sessionId)
-      if (!presenterToken) throw new Error('找不到這個場次的講者權限，無法產生課堂報告。')
+      const credentials = getReportCredentials(sessionId)
 
       const supabase = requireSupabase()
       const { data, error: functionError } = await supabase.functions.invoke('analyze-session', {
-        body: { sessionId, presenterToken, ...(level ? { thinkingLevel: level } : {}) },
+        body: { ...credentials, ...(level ? { thinkingLevel: level } : {}) },
       })
       if (functionError) throw new Error(await edgeFunctionMessage(functionError))
       if (!data?.analysis || !data?.metrics) throw new Error(data?.message || 'AI 沒有回傳完整課堂分析。')

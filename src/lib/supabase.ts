@@ -85,7 +85,7 @@ export const supabase = config
   : null
 
 // Functions that act on the teacher's behalf rather than a student's.
-const ownerFunctions = new Set(['create-session', 'presenter-action', 'gemini-caption-relay', 'openai-realtime-session'])
+const ownerFunctions = new Set(['create-session', 'presenter-action', 'analyze-session', 'gemini-caption-relay', 'openai-realtime-session'])
 
 // Attached here rather than at each call site: there are dozens of them, and a
 // credential that is only present when someone remembered to pass it is not a
