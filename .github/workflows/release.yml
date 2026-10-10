@@ -183,8 +183,8 @@ jobs:
             throw 'The packaged taskbar ICO is missing or changed.'
           }
           Add-Type -AssemblyName System.Drawing
-          $exeIcon = [Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path 'release/win-unpacked/InterAct.exe'))
-          $sourceIcon = [Drawing.Icon]::new((Resolve-Path $source), $exeIcon.Size)
+          $exeIcon = [Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path 'release/win-unpacked/InterAct.exe').Path)
+          $sourceIcon = [Drawing.Icon]::new((Resolve-Path $source).Path, $exeIcon.Size)
           $exeBitmap = $exeIcon.ToBitmap()
           $sourceBitmap = $sourceIcon.ToBitmap()
           try {
