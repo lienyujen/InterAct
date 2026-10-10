@@ -42,7 +42,7 @@ app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 
 const isDesktopDev = process.env.INTERACT_DESKTOP_DEV === '1'
 const APP_USER_MODEL_ID = 'tw.interact.presenter.desktop'
-const APP_WINDOW_ICON_PATH = isDesktopDev
+const APP_WINDOW_ICON_PATH = !app.isPackaged
   ? path.join(__dirname, '..', 'build', 'icon.ico')
   : path.join(process.resourcesPath, 'icon.ico')
 const APP_EXECUTABLE_PATH = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath
@@ -50,7 +50,9 @@ const PORTABLE_CONFIG_DIRECTORY = portableConfig.configDirectory({
   packaged: app.isPackaged, platform: process.platform,
   executablePath: APP_EXECUTABLE_PATH, appPath: app.getAppPath(),
 })
-const APP_RELAUNCH_ICON_PATH = isDesktopDev ? APP_WINDOW_ICON_PATH : APP_EXECUTABLE_PATH
+// The taskbar's relaunch icon is a separate Shell property from BrowserWindow's
+// icon. Use the shipped ICO, not an EXE path cached from an older portable build.
+const APP_RELAUNCH_ICON_PATH = APP_WINDOW_ICON_PATH
 const CONTROL_COLLAPSED = { width: 194, height: 242 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
 const CONTROL_WITH_SETTINGS = { width: 1100, height: 760 }
@@ -69,6 +71,7 @@ const ROSTER_RELATIVE_LEVEL = 5
 // platform where the app is a bundle in /Applications.
 function applyTaskbarIdentity(win) {
   if (process.platform !== 'win32') return
+  win.setIcon(APP_WINDOW_ICON_PATH)
   win.setAppDetails({
     appId: APP_USER_MODEL_ID,
     appIconPath: APP_RELAUNCH_ICON_PATH,

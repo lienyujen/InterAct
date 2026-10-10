@@ -82,6 +82,7 @@ jobs:
           node scripts/test-about-page.mjs
           node scripts/test-report-credentials.cjs
           node scripts/test-live-standing-sync.cjs
+          node scripts/test-taskbar-icon.cjs
 
       # Deliberately built with no Supabase project configured: whoever downloads
       # this enters their own on first launch. Baking one in would send every
@@ -171,6 +172,34 @@ jobs:
 
       - name: Package
         run: pnpm exec electron-builder ${{ matrix.package }} --publish never
+
+      - name: Verify Windows executable and taskbar icons
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $source = 'build/icon.ico'
+          $shipped = 'release/win-unpacked/resources/icon.ico'
+          if ((Get-FileHash $source).Hash -ne (Get-FileHash $shipped).Hash) {
+            throw 'The packaged taskbar ICO is missing or changed.'
+          }
+          Add-Type -AssemblyName System.Drawing
+          $exeIcon = [Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path 'release/win-unpacked/InterAct.exe'))
+          $sourceIcon = [Drawing.Icon]::new((Resolve-Path $source), $exeIcon.Size)
+          $exeBitmap = $exeIcon.ToBitmap()
+          $sourceBitmap = $sourceIcon.ToBitmap()
+          try {
+            for ($y = 0; $y -lt $exeBitmap.Height; $y++) {
+              for ($x = 0; $x -lt $exeBitmap.Width; $x++) {
+                if ($exeBitmap.GetPixel($x, $y).ToArgb() -ne $sourceBitmap.GetPixel($x, $y).ToArgb()) {
+                  throw 'The Windows executable icon does not match InterAct.'
+                }
+              }
+            }
+            Write-Output 'PASS: embedded EXE icon and shipped taskbar ICO match InterAct.'
+          } finally {
+            $exeBitmap.Dispose(); $sourceBitmap.Dispose()
+            $exeIcon.Dispose(); $sourceIcon.Dispose()
+          }
 
       # identity: '-' is easy to set and easy to have silently ignored, and the
       # difference only shows up as an app that will not open on an Apple Silicon
