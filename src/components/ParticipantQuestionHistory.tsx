@@ -259,7 +259,6 @@ function SubmissionReview({ drawn, files, locale, onReload }: {
   const reload = useRef(onReload)
   reload.current = onReload
   useEffect(() => {
-    if (result) return
     // Only while somebody is looking: a phone in a pocket asking every fifteen
     // seconds for a mark nobody is waiting to read is the sort of thing that
     // shows up as battery rather than as a bug.
@@ -275,7 +274,7 @@ function SubmissionReview({ drawn, files, locale, onReload }: {
   }, [result])
 
   if (files === undefined) {
-    return <p className="muted"><Clock3 size={16} />{english ? 'Loading what you handed in…' : '正在載入你的作答…'}</p>
+    return <div><p className="muted"><Clock3 size={16} />{english ? 'Loading what you handed in…' : '正在載入你的作答…'}</p><button className="ghost-button" type="button" onClick={() => void onReload()}>{english ? 'Retry assessment' : '更新批改結果'}</button></div>
   }
   if (!files.length) {
     return <p className="muted">{english ? 'You did not hand anything in for this one.' : '這一題你沒有交作答。'}</p>
@@ -285,11 +284,12 @@ function SubmissionReview({ drawn, files, locale, onReload }: {
   const images = stored.filter((file) => isImageFileName(file.name, file.mime_type))
   const others = stored.filter((file) => !isImageFileName(file.name, file.mime_type))
   const verdict = result?.verdict ? submissionVerdicts[result.verdict] : null
-  const strengths = result ? (english ? result.strengths_en : result.strengths_zh_tw) : []
-  const improvements = result ? (english ? result.improvements_en : result.improvements_zh_tw) : []
+  const strengths = (result ? (english ? result.strengths_en || result.strengths_zh_tw : result.strengths_zh_tw) : []) || []
+  const improvements = (result ? (english ? result.improvements_en || result.improvements_zh_tw : result.improvements_zh_tw) : []) || []
 
   return (
     <div className="participant-review">
+      <button type="button" className="ghost-button" onClick={() => void onReload()}>{english ? 'Refresh assessment' : '更新批改結果'}</button>
       <span className="participant-review-label">{english ? 'What you handed in' : '你送出的作答'}</span>
       {images.length > 0 && (
         // Full width, not a tile: this is the student's own handwriting, and a
@@ -325,7 +325,7 @@ function SubmissionReview({ drawn, files, locale, onReload }: {
               <span className="participant-mark-score">{result.score}{english ? ' points' : ' 分'}</span>
             )}
           </div>
-          <p>{english ? result.summary_en : result.summary_zh_tw}</p>
+          <p>{english ? result.summary_en || result.summary_zh_tw : result.summary_zh_tw}</p>
           {strengths.length > 0 && (
             <>
               <h4>{english ? 'Done well' : '做得好'}</h4>

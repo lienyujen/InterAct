@@ -1,4 +1,4 @@
-import { CircleStop, Mic, RotateCcw } from 'lucide-react'
+import { CircleStop, Mic, RotateCcw, Send } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { recordingToWav } from '../lib/audio'
 import { formatSeconds } from '../lib/questionTiming'
@@ -31,16 +31,37 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
   const startedAtRef = useRef(0)
   const chunksRef = useRef<Blob[]>([])
   const cancelledRef = useRef(false)
+  const generationRef = useRef(0)
+  const submittingRef = useRef(false)
+  const [processing, setProcessing] = useState(false)
+  const [draft, setDraft] = useState<{ file: File; durationMs: number } | null>(null)
+  const [previewUrl, setPreviewUrl] = useState('')
+
+  useEffect(() => {
+    if (!draft) { setPreviewUrl(''); return }
+    const url = URL.createObjectURL(draft.file)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [draft])
 
   function releaseMicrophone() {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
   }
 
-  useEffect(() => () => {
-    cancelledRef.current = true
-    if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
-    releaseMicrophone()
+  useEffect(() => {
+    setDraft(null)
+    setProcessing(false)
+    setRecording(false)
+    setPreparingLeft(null)
+    return () => {
+      cancelledRef.current = true
+      // Read the latest attempt counter intentionally, not a DOM ref snapshot.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      generationRef.current++
+      if (recorderRef.current?.state === 'recording') recorderRef.current.stop()
+      releaseMicrophone()
+    }
   }, [question.id])
 
   // A spoken answer is not bounded by the session's wall clock — the upload that
@@ -81,7 +102,10 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
   }, [question.id, question.prepare_seconds, question.status])
 
   async function startRecording() {
+    if (busy || processing || recording || question.status !== 'active') return
+    const generation = ++generationRef.current
     setError('')
+    setDraft(null)
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError('此瀏覽器不支援錄音，請改用最新版 Chrome、Edge 或 Safari。')
       return
@@ -89,6 +113,7 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
     try {
       cancelledRef.current = false
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      if (generation !== generationRef.current) { stream.getTracks().forEach(track => track.stop()); return }
       streamRef.current = stream
       const preferred = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/webm'].find((type) => MediaRecorder.isTypeSupported(type))
       const recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined)
@@ -112,11 +137,17 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
           return
         }
         try {
+          setProcessing(true)
           const source = new Blob(chunksRef.current, { type: recorder.mimeType })
           const wav = await recordingToWav(source)
-          await onSubmit(new File([wav], `interact-${question.id}.wav`, { type: 'audio/wav' }), durationMs)
+          if (cancelledRef.current || generation !== generationRef.current) return
+          const file = new File([wav], `interact-${question.id}.wav`, { type: 'audio/wav' })
+          if (!question.answer_seconds) setDraft({ file, durationMs })
+          else await onSubmit(file, durationMs)
         } catch (caught) {
           setError(caught instanceof Error ? caught.message : '錄音處理失敗，請重新錄製。')
+        } finally {
+          if (generation === generationRef.current) setProcessing(false)
         }
       }
       startedAtRef.current = Date.now()
@@ -178,6 +209,25 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
         {participantText(locale, 'recordingLimit')} {formatSeconds(Math.round(maxDurationMs / 1000), locale)}。
         {participantText(locale, 'recordingHint')}
       </p>
+      {draft && (
+        <section className="audio-response-card">
+          <p>{locale === 'en' ? 'Listen before submitting. This recording has not been uploaded.' : '先試聽再確認送出；這段錄音尚未上傳。'}</p>
+          {previewUrl && <audio controls preload="metadata" src={previewUrl} />}
+          <button type="button" disabled={busy || processing || question.status !== 'active'} onClick={async () => {
+            if (submittingRef.current || question.status !== 'active') return
+            submittingRef.current = true
+            const generation = generationRef.current
+            setProcessing(true)
+            setError('')
+            try { await onSubmit(draft.file, draft.durationMs) }
+            catch (caught) { setError(caught instanceof Error ? caught.message : '送出失敗，錄音已保留，請重試。') }
+            finally { submittingRef.current = false; if (generation === generationRef.current) setProcessing(false) }
+          }}><Send size={18} />{locale === 'en' ? 'Confirm and submit' : '確認送出'}</button>
+          <button type="button" className="ghost-button" disabled={busy || processing || question.status !== 'active'} onClick={() => void startRecording()}>
+            <RotateCcw size={18} />{locale === 'en' ? 'Record again' : '重新錄製'}
+          </button>
+        </section>
+      )}
       {preparingLeft !== null && (
         <p aria-live="off" className={`answer-countdown${preparingLeft <= 3 ? ' is-urgent' : ''}`}>
           {participantText(locale, 'preparing')} {preparingLeft}
@@ -185,7 +235,7 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
       )}
       <button
         className={recording ? 'recording-button active' : 'recording-button'}
-        disabled={busy || preparingLeft !== null}
+        disabled={busy || processing || Boolean(draft) || preparingLeft !== null || question.status !== 'active'}
         type="button"
         onClick={recording ? stopRecording : startRecording}
       >

@@ -27,6 +27,19 @@ export function CustomQuizReviewPage() {
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({})
   const [showAnswers, setShowAnswers] = useState(false)
   const [error, setError] = useState('')
+  const [anonymousEnabled, setAnonymousEnabled] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    const supabase = requireSupabase()
+    const read = () => void supabase.from('sessions').select('anonymous_enabled').eq('id', sessionId).maybeSingle()
+      .then(({ data }) => { if (active && data) setAnonymousEnabled(data.anonymous_enabled !== false) })
+    read()
+    const channel = supabase.channel(`quiz-review-anonymous:${sessionId}:${questionId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` }, read)
+      .subscribe()
+    return () => { active = false; void supabase.removeChannel(channel) }
+  }, [sessionId, questionId])
 
   const loadQuiz = useCallback(async () => {
     const presenterToken = getPresenterToken(sessionId)
@@ -78,6 +91,7 @@ export function CustomQuizReviewPage() {
   }
 
   const reviewProps: QuizReviewProps | null = results ? {
+    anonymousEnabled,
     busyItemId,
     draftAnswers,
     results,

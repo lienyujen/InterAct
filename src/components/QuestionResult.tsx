@@ -51,6 +51,7 @@ type Props = {
   // The dispatched screenshot, which the class's taps are drawn back onto.
   screenshotUrl: string | null
   onDrawUnanswered: (questionId: string) => void
+  onDrawOption: (questionId: string, option: string) => void
   onSetCorrectAnswer: (answer: string) => void
   // The ordering or matching key, empty when the question was dispatched without
   // one. It never reaches the student, so the presenter reads it from here.
@@ -1132,7 +1133,10 @@ export function QuestionResult(props: Props) {
                 <div className="bar-track">
                   <div className="bar-fill" style={{ width: `${rate}%` }} />
                 </div>
-                <span>{count} / {rate}%</span>
+                <span className="option-count-actions">{count} / {rate}%
+                  <button type="button" className="icon-button" aria-label={`抽選選擇「${option}」的學生`} title="從選擇這個選項的線上學生中抽籤"
+                    disabled={props.busy || !count || !props.onlineCount} onClick={() => props.onDrawOption(question.id, option)}><Dice5 size={18} /></button>
+                </span>
               </div>
             )
           })}

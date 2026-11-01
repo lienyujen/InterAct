@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   close: () => ipcRenderer.invoke('window:close'),
   listCaptureSources: () => ipcRenderer.invoke('capture:list'),
   startCaptureSelection: () => ipcRenderer.invoke('capture:start-selection'),
+  selectionContentBounds: () => ipcRenderer.invoke('capture:selection-content-bounds'),
   finishCaptureSelection: (expanded) => ipcRenderer.invoke('capture:finish-selection', expanded),
   logDiagnostic: (details) => ipcRenderer.invoke('diagnostics:write', details),
   supabaseManagement: (request) => ipcRenderer.invoke('supabase:management', request),

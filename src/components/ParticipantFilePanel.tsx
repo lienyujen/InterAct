@@ -6,6 +6,7 @@ import { usePageVisibility } from '../lib/usePageVisibility'
 import { participantText } from '../lib/participantI18n'
 import type { ParticipantLocale } from '../lib/participantI18n'
 import { downloadHref, publicFileUrl } from '../lib/fileLinks'
+import { createCoalescedLoader } from '../lib/coalescedLoad'
 import type { FileAnalysis, FileAnalysisStatus, SharedFile } from '../types'
 
 type Props = {
@@ -134,6 +135,8 @@ export function ParticipantFileUpload({
   // sending again replaces what they sent, so there is nothing to undo first.
   const [redrawing, setRedrawing] = useState(false)
   const [marks, setMarks] = useState<StudentMark[]>([])
+  const [marksError, setMarksError] = useState('')
+  const refreshMarks = useRef<() => Promise<void>>(async () => {})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -151,6 +154,8 @@ export function ParticipantFileUpload({
   useEffect(() => {
     setUploaded([])
     setMarks([])
+    setMarksError('')
+    setMarks([])
     setRedrawing(false)
     setError('')
   }, [questionId])
@@ -163,27 +168,43 @@ export function ParticipantFileUpload({
     if (!questionId || !participantToken || !visible) return
     let cancelled = false
     const supabase = requireSupabase()
+    const loader = createCoalescedLoader()
 
-    async function read() {
-      const { data } = await supabase.functions.invoke('participant-action', {
-        body: { action: 'get_file_result', sessionId, participantId, participantToken, questionId },
-      })
-      if (!cancelled) setMarks((data?.responses || []) as StudentMark[])
-    }
+    const read = () => loader(async () => {
+      if (cancelled || navigator.onLine === false || document.visibilityState === 'hidden') return
+      try {
+        const { data, error: loadError } = await supabase.functions.invoke('participant-action', {
+          timeout: 10_000,
+          body: { action: 'get_file_result', sessionId, participantId, participantToken, questionId },
+        })
+        if (loadError || !Array.isArray(data?.responses)) throw new Error(locale === 'en' ? 'Unable to load your assessment. Please retry.' : '無法讀取你的批改結果，請重試；若持續失敗請告知教師。')
+        if (!cancelled) { setMarks(data.responses as StudentMark[]); setMarksError('') }
+      } catch (caught) { if (!cancelled) setMarksError(caught instanceof Error ? caught.message : '讀取批改結果失敗。') }
+    })
+    refreshMarks.current = read
     void read()
 
-    const timer = window.setInterval(() => void read(), 12_000)
+    const timer = window.setInterval(() => void read(), 12_000 + Math.random() * 4000)
+    const channel = supabase.channel(`file-result:${questionId}:${participantId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `participant_id=eq.${participantId}` }, payload => {
+        const row = payload.new as { question_id?: string }
+        if (row.question_id === questionId) void read()
+      }).subscribe(status => { if (status === 'SUBSCRIBED') void read() })
     // A phone suspends timers as soon as it goes to the background, so a student
     // who locked their screen while waiting would come back to the state they
     // left rather than to their mark.
     const onVisible = () => { if (document.visibilityState === 'visible') void read() }
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', onVisible)
     return () => {
       cancelled = true
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', onVisible)
+      void supabase.removeChannel(channel)
+      refreshMarks.current = async () => {}
     }
-  }, [participantId, participantToken, questionId, sessionId, uploaded.length, visible])
+  }, [participantId, participantToken, questionId, sessionId, uploaded.length, visible, locale])
 
   async function upload(files: File[]) {
     if (!files.length) return false
@@ -245,6 +266,11 @@ export function ParticipantFileUpload({
     .filter((mark) => mark.storage_path)
     .map((mark) => ({ ...mark, url: publicFileUrl(mark.storage_path as string) }))
   const handedIn = drawing && (submitted.length > 0 || uploaded.length > 0)
+  const feedback = <>
+    {marksError && <p className="error" role="alert">{marksError}</p>}
+    {(marks.length > 0 || uploaded.length > 0 || !active || marksError) && <button type="button" className="ghost-button" onClick={() => void refreshMarks.current()}>{locale === 'en' ? 'Refresh assessment' : '更新批改結果'}</button>}
+    <StudentMarks locale={locale} marks={marks} />
+  </>
 
   if (drawing) {
     return (
@@ -283,7 +309,7 @@ export function ParticipantFileUpload({
           </>
         )}
         {error && <p className="error">{error}</p>}
-        <StudentMarks locale={locale} marks={marks} />
+        {feedback}
       </section>
     )
   }
@@ -337,7 +363,7 @@ export function ParticipantFileUpload({
           {uploaded.map((name, index) => <li key={`${index}-${name}`}><Sparkles size={13} />{name}</li>)}
         </ul>
       )}
-      <StudentMarks locale={locale} marks={marks} />
+      {feedback}
     </section>
   )
 }
@@ -355,9 +381,9 @@ function StudentMarks({ locale, marks }: { locale: ParticipantLocale; marks: Stu
 
   const result = marked.analysis_json as FileAnalysis
   const english = locale === 'en'
-  const summary = english ? result.summary_en : result.summary_zh_tw
-  const strengths = english ? result.strengths_en : result.strengths_zh_tw
-  const improvements = english ? result.improvements_en : result.improvements_zh_tw
+  const summary = english ? result.summary_en || result.summary_zh_tw : result.summary_zh_tw
+  const strengths = (english ? result.strengths_en || result.strengths_zh_tw : result.strengths_zh_tw) || []
+  const improvements = (english ? result.improvements_en || result.improvements_zh_tw : result.improvements_zh_tw) || []
   const verdict = result.verdict ? verdictLabels[result.verdict] : null
 
   return (

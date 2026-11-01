@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { BrainCircuit, Check, Clock3, Maximize2, Save, X } from 'lucide-react'
 import type { PresenterQuizResults, Question } from '../types'
 import { QuestionStopControl } from './QuestionStopControl'
+import { quizItemStats } from '../lib/quizItemStats'
 
 type Props = {
   anonymousEnabled: boolean
@@ -17,6 +18,7 @@ type Props = {
 }
 
 export type QuizReviewProps = {
+  anonymousEnabled?: boolean
   // Hidden by default: the presenter reviews these on a screen the class can see.
   showAnswers: boolean
   busyItemId: string
@@ -30,11 +32,12 @@ function acceptedAnswersFor(results: PresenterQuizResults, itemId: string) {
   return results.keys.find((key) => key.item_id === itemId)?.accepted_answers || []
 }
 
-export function QuizAnswerEditor({ showAnswers, busyItemId, draftAnswers, results, onDraftChange, onUpdateAnswer }: QuizReviewProps) {
+export function QuizAnswerEditor({ showAnswers, busyItemId, draftAnswers, results, onDraftChange, onUpdateAnswer, anonymousEnabled = true }: QuizReviewProps) {
   return (
     <div className="presenter-quiz-review-list">
       {results.items.map((item, index) => {
         const acceptedAnswers = acceptedAnswersFor(results, item.id)
+        const stats = quizItemStats(results, item.id)
         return (
           <article className="presenter-quiz-review-item" key={item.id}>
             <div className="presenter-quiz-question-heading">
@@ -42,6 +45,9 @@ export function QuizAnswerEditor({ showAnswers, busyItemId, draftAnswers, result
               <strong>{item.prompt_text}</strong>
               <small>{item.points} 分</small>
             </div>
+            <p className="muted">已交 {stats.submitted} 人 · 答對 {stats.correct} 人 · 答錯／未滿分 {stats.wrong.length} 人 · 待評 {stats.pending} 人 · 未作答 {stats.missing} 人</p>
+            {stats.wrong.length > 0 && <details><summary>查看本題需補強學員（{stats.wrong.length} 人）</summary><ul>{stats.wrong.map(student =>
+              <li key={student.id}>{anonymousEnabled ? student.anonymousName : student.name}</li>)}</ul></details>}
             {item.type === 'multiple_choice' ? (
               <div className="presenter-quiz-options">
                 {item.options.map((option) => {
@@ -128,6 +134,7 @@ export function CustomQuizResult({ anonymousEnabled, question, results, onlineCo
   }
 
   const reviewProps: QuizReviewProps = {
+    anonymousEnabled,
     showAnswers,
     busyItemId,
     draftAnswers,

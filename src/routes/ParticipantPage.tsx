@@ -390,17 +390,14 @@ export function ParticipantPage() {
     if (historyQuestion.type === 'file_upload' || historyQuestion.type === 'drawing') {
       // Refetched while the question is still open, and once more after it
       // closes, because the mark lands whenever the teacher gets to it.
-      if (historyFiles[historyQuestion.id] !== undefined && historyQuestion.status !== 'active') {
-        const known = historyFiles[historyQuestion.id]
-        if (known.some((file) => file.analysis_status === 'success')) return
-      }
       try {
-        const { data } = await requireSupabase().functions.invoke('participant-action', {
+        const { data, error: resultError } = await requireSupabase().functions.invoke('participant-action', {
           body: { action: 'get_file_result', sessionId, participantId, participantToken, questionId: historyQuestion.id },
         })
-        setHistoryFiles((current) => ({ ...current, [historyQuestion.id]: (data?.responses || []) as SubmittedFile[] }))
+        if (resultError || !Array.isArray(data?.responses)) throw new Error('無法讀取作業批改結果，請稍後重試。')
+        setHistoryFiles((current) => ({ ...current, [historyQuestion.id]: data.responses as SubmittedFile[] }))
       } catch {
-        setHistoryFiles((current) => ({ ...current, [historyQuestion.id]: current[historyQuestion.id] || [] }))
+        setError(locale === 'en' ? 'Unable to load your assessment. Please retry.' : '無法讀取你的作業批改結果，請按更新批改結果重試。')
       }
       return
     }
@@ -436,7 +433,7 @@ export function ParticipantPage() {
         return next
       })
     }
-  }, [historyAudioResponses, historyFiles, historyKeys, historyQuizData, participantId, participantToken, sessionId])
+  }, [historyAudioResponses, historyKeys, historyQuizData, participantId, participantToken, sessionId, locale])
 
   useEffect(() => {
     if (!participantId) navigate(`/join/${sessionId}${location.search}`)

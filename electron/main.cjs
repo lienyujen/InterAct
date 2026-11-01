@@ -891,7 +891,12 @@ ipcMain.handle('window:open-camera-poll', (_event, sessionId) => {
   createQuestionDetailWindow(`/camera-poll/${sessionId}`, 'InterAct 全班姿態回應')
 })
 
-ipcMain.handle('capture:list', listCaptureSources)
+ipcMain.handle('capture:list', () => listCaptureSources())
+
+ipcMain.handle('capture:selection-content-bounds', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Screen selection window is unavailable.')
+  return mainWindow.getContentBounds()
+})
 
 ipcMain.handle('capture:start-selection', async () => {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error('InterAct presenter window is unavailable.')
@@ -927,7 +932,7 @@ ipcMain.handle('capture:start-selection', async () => {
     mainWindow.setBounds(targetDisplay.bounds)
     mainWindow.show()
     mainWindow.focus()
-    return captureSource
+    return { ...captureSource, displayBounds: targetDisplay.bounds }
   } catch (error) {
     overlayVisibilitySuppressed = false
     setControlBounds(false)

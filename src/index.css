@@ -1324,6 +1324,8 @@ h2 {
   gap: 10px;
 }
 
+.option-count-actions { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; flex-wrap: wrap; }
+.option-count-actions .icon-button { width: 2rem; height: 2rem; padding: .25rem; flex-shrink: 0; }
 .bar-row {
   align-items: center;
   display: grid;

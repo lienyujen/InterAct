@@ -4,6 +4,7 @@ export {}
 
 declare global {
   interface InterActCaptureSource {
+    displayBounds?: { x: number; y: number; width: number; height: number }
     id: string
     displayId: string | null
     name: string
@@ -41,6 +42,7 @@ declare global {
       close: () => Promise<void>
       listCaptureSources: () => Promise<InterActCaptureSource[]>
       startCaptureSelection: () => Promise<InterActCaptureSource>
+      selectionContentBounds?: () => Promise<{ x: number; y: number; width: number; height: number }>
       finishCaptureSelection: (expanded?: boolean) => Promise<void>
       logDiagnostic: (details: Record<string, string | number | boolean | null | undefined>) => Promise<void>
       supabaseManagement?: (request: {

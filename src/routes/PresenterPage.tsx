@@ -22,6 +22,8 @@ import { SetupNotice } from '../components/SetupNotice'
 import { TextDispatchModal } from '../components/TextDispatchModal'
 import { FileTransferModal } from '../components/FileTransferModal'
 import { finalizeLottery } from '../lib/lottery'
+import { captureCrop } from '../lib/captureGeometry'
+import { optionCandidates } from '../lib/optionCandidates'
 import { getPresenterToken } from '../lib/presenterAuth'
 import { sliceRegions } from '../lib/sliceImage'
 import { endManagedSession } from '../lib/presenterSessions'
@@ -1122,23 +1124,27 @@ export function PresenterPage() {
   async function cropCapture(rect: { x: number; y: number; width: number; height: number }) {
     if (!captureSource) return
 
+    const viewport = { width: window.innerWidth, height: window.innerHeight }
+    const content = await window.interactDesktop?.selectionContentBounds?.()
+    const display = captureSource.displayBounds
+
     const image = new Image()
     image.src = captureSource.thumbnailDataUrl
     await image.decode()
 
-    const scaleX = image.naturalWidth / window.innerWidth
-    const scaleY = image.naturalHeight / window.innerHeight
+    if (!content || !display) throw new Error('請重新啟動新版教師端，以取得正確的螢幕座標。')
+    const crop = captureCrop(rect, viewport, content, display, { width: image.naturalWidth, height: image.naturalHeight })
     const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(rect.width * scaleX))
-    canvas.height = Math.max(1, Math.round(rect.height * scaleY))
+    canvas.width = crop.width
+    canvas.height = crop.height
 
     const context = canvas.getContext('2d')
     if (!context) throw new Error('無法建立截圖畫布，請重新截圖。')
 
     context.drawImage(
       image,
-      Math.round(rect.x * scaleX),
-      Math.round(rect.y * scaleY),
+      crop.x,
+      crop.y,
       canvas.width,
       canvas.height,
       0,
@@ -1699,15 +1705,13 @@ export function PresenterPage() {
     try {
       const { data, error } = await requireSupabase()
         .from('answers')
-        .select('participant_id')
+        .select('*')
         .eq('session_id', sessionId)
         .eq('question_id', questionId)
       if (error) throw error
 
-      const answeredParticipantIds = new Set((data || []).map((answer) => answer.participant_id))
-      const unansweredIds = onlineParticipants
-        .filter((participant) => !answeredParticipantIds.has(participant.id))
-        .map((participant) => participant.id)
+      const target = questions.find(item => item.id === questionId)
+      const unansweredIds = optionCandidates((data || []) as Answer[], onlineParticipants, target?.answer_round || 1)
 
       if (!unansweredIds.length) {
         setAnalysisError('目前線上學生皆已作答此題。')
@@ -1719,6 +1723,21 @@ export function PresenterPage() {
     } finally {
       setBusy(false)
     }
+  }
+
+  async function drawOption(questionId: string, option: string) {
+    setBusy(true)
+    setAnalysisError('')
+    try {
+      const target = questions.find(item => item.id === questionId)
+      if (!target || !['poll', 'multiple_choice', 'true_false'].includes(target.type)) return
+      const { data, error } = await requireSupabase().from('answers').select('*').eq('session_id', sessionId).eq('question_id', questionId)
+      if (error) throw error
+      const ids = optionCandidates((data || []) as Answer[], onlineParticipants, target.answer_round, option)
+      if (!ids.length) { setAnalysisError('這個選項目前沒有可抽選的線上學生。'); return }
+      await invokeLottery(ids)
+    } catch (error) { setAnalysisError(error instanceof Error ? error.message : '依選項抽籤失敗。') }
+    finally { setBusy(false) }
   }
 
   async function runLottery(candidateIds: string[], emptyMessage: string) {
@@ -2180,6 +2199,7 @@ export function PresenterPage() {
             setAnalysisError(error instanceof Error ? error.message : 'AI 批改失敗。')
           })}
           onDrawUnanswered={drawUnanswered}
+          onDrawOption={drawOption}
           onNextRound={nextRound}
           onRecallQuestion={recallQuestion}
           onSetCorrectAnswer={setCorrectAnswer}
