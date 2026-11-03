@@ -138,13 +138,24 @@ export async function runSchema(ref: string, token: string) {
 // Confirms the project really has what the app needs. Without this a schema that
 // silently did nothing would only surface later as an unexplained failure the
 // first time someone tries to dispatch a screenshot.
-type Counts = { tables?: number; buckets?: number; columns?: number; routines?: number }
+type Counts = { tables?: number; buckets?: number; columns?: number; routines?: number; missing_grants?: string[] }
 
 export async function verifyBackend(ref: string, token: string) {
   const body = await query(
     ref,
     token,
     `select
+       array(select t.table_name::text from information_schema.tables t
+          where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
+            and t.table_name in ('sessions','participants','presenter_session_keys',
+              'participant_session_keys','messages','screenshots','questions','answers',
+              'audio_responses','shared_files','file_responses','participant_points',
+              'board_posts','board_reactions','question_keys','ai_summaries','exit_tickets',
+              'shared_contents','quizzes','quiz_items','quiz_item_keys','quiz_attempts',
+              'quiz_item_answers','caption_segments','session_events')
+            and (not has_schema_privilege('service_role', 'public', 'USAGE')
+              or exists (select 1 from unnest(array['SELECT','INSERT','UPDATE','DELETE']) p
+                where not has_table_privilege('service_role', format('public.%I', t.table_name), p)))) as missing_grants,
        (select count(*) from information_schema.tables
           where table_schema = 'public' and table_name in ('sessions','questions','participants','shared_files','board_posts','board_reactions')) as tables,
        (select count(*) from storage.buckets
@@ -182,6 +193,10 @@ export async function verifyBackend(ref: string, token: string) {
   })()
 
   if (!first) throw new Error('無法讀取部署結果，請到 Supabase 後台確認資料表與 Storage 是否建立。')
+  if (!Array.isArray(first.missing_grants)) throw new Error('無法確認資料庫的後端存取權限，請重新執行自動部署。')
+  if (first.missing_grants.length) {
+    throw new Error(`資料庫缺少後端存取權限（${first.missing_grants.join('、')}），請重新執行自動部署以補齊；不需要刪除專案或既有場次。`)
+  }
   if (Number(first.tables) < 6) throw new Error(`資料表未建立完整（找到 ${first.tables ?? 0}/6），請重新執行部署。`)
   if (Number(first.routines) < 2) {
     throw new Error(`討論板的資料庫函式未建立（找到 ${first.routines ?? 0}/2），學生會無法貼文。請重新執行部署。`)

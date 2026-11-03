@@ -912,6 +912,20 @@ drop policy if exists "public read session events" on public.session_events;
 create policy "public read session events" on public.session_events for select to anon, authenticated using (true);
 
 revoke all on all tables in schema public from anon, authenticated;
+
+-- Do not rely on the project's automatic Data API grants. Some projects
+-- create tables without service_role privileges. Reapplying this is safe for
+-- existing classrooms and grants nothing new to browser roles.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on table
+  public.sessions, public.participants, public.presenter_session_keys,
+  public.participant_session_keys, public.messages, public.screenshots,
+  public.questions, public.answers, public.audio_responses, public.shared_files,
+  public.file_responses, public.participant_points, public.board_posts,
+  public.board_reactions, public.question_keys, public.ai_summaries,
+  public.exit_tickets, public.shared_contents, public.quizzes, public.quiz_items,
+  public.quiz_item_keys, public.quiz_attempts, public.quiz_item_answers,
+  public.caption_segments, public.session_events to service_role;
 grant select on public.sessions, public.screenshots, public.questions, public.ai_summaries,
   public.shared_contents, public.session_events, public.caption_segments,
   public.quizzes, public.quiz_items, public.shared_files, public.participant_points to anon, authenticated;
