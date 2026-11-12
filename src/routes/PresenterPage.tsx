@@ -1268,7 +1268,7 @@ export function PresenterPage() {
       ...(created.type === 'board' ? { board_question_id: created.id } : {}),
     } : current)
     setQuestions(current => [
-      ...current.filter(item => item.id !== created.id).map(item => (item.type !== 'board' || created.type === 'board') && item.status === 'active'
+      ...current.filter(item => item.id !== created.id).map(item => created.type !== 'send_screen' && (item.type !== 'board' || created.type === 'board') && item.status === 'active'
         ? { ...item, status: 'stopped' as const } : item), created,
     ])
     setQuestion(created)

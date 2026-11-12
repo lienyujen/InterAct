@@ -78,7 +78,7 @@ async function main() {
     assert.equal(state.question.type, type)
     assert.equal(state.selectedQuestionId, `new-${type}`)
     assert.equal(state.session.current_question_id, `new-${type}`)
-    assert.equal(state.questions.find(item => item.id === 'old').status, 'stopped')
+    assert.equal(state.questions.find(item => item.id === 'old').status, type === 'send_screen' ? 'active' : 'stopped')
     assert.equal(state.questions.find(item => item.id === 'wall').status, type === 'board' ? 'stopped' : 'active')
     assert.equal(state.session.board_question_id, type === 'board' ? 'new-board' : 'wall')
     assert(!calls.includes('camera-window'), `Only camera dispatch may open a large native window: ${type}`)
@@ -157,6 +157,15 @@ async function main() {
       ts.forEachChild(node, visit)
     }
     visit(branch)
+    if (action === 'create_question') {
+      const guards = []
+      function guardsFor(node) {
+        if (ts.isIfStatement(node) && node.expression.getText(backend) === "type !== 'send_screen'") guards.push(node.thenStatement.getText(backend))
+        ts.forEachChild(node, guardsFor)
+      }
+      guardsFor(branch)
+      assert(guards.some(body => body.includes(stop)), 'Pure screenshots must skip the stop query')
+    }
     assert(stop, `${action} closes earlier ordinary questions`)
     const rows = [{ type: 'board', status: 'active' }, { type: 'poll', status: 'active' }]
     const filters = []
@@ -169,5 +178,15 @@ async function main() {
     assert.equal(rows[1].status, 'stopped')
   }
   console.log('PASS: all screenshot types, sliced ordering, file quiz/upload, camera review/cancel/failure, stale snapshots, manual history and persistent discussion boards; no paid API calls')
+  const screenModule = { exports: {} }
+  vm.runInNewContext(compile(fs.readFileSync('src/lib/screenDispatch.ts', 'utf8')), screenModule)
+  const select = screenModule.exports.screenDispatchQuestion
+  const screen = { id: 'screen', type: 'send_screen', status: 'active' }
+  for (const type of types.filter(t => !['send_screen', 'board'].includes(t))) {
+    const original = { id: 'original', type, status: 'active', created_at: '2026-11-12' }
+    assert.equal(select(screen, [screen, original]).id, 'original', `${type} remains answerable alongside the screenshot`)
+    assert.equal(select(screen, [screen, { ...original, status: 'stopped' }]).id, 'screen', 'Never reopen stopped activities')
+  }
+  assert.equal(select(screen, [screen, { type: 'board', status: 'active' }]).id, 'screen')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })

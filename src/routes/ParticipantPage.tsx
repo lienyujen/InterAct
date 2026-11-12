@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { screenDispatchQuestion } from '../lib/screenDispatch'
 import { classroomRetryDelay, createClassroomReadCache } from '../lib/classroomReadCache'
 import type { FormEvent } from 'react'
 import { BookOpen, Coffee, Hand, PartyPopper, Send, Sparkles, Waves } from 'lucide-react'
@@ -104,6 +105,7 @@ export function ParticipantPage() {
   const [quizLoadError, setQuizLoadError] = useState('')
   const [quizLoadRetryable, setQuizLoadRetryable] = useState(true)
   const [screenshot, setScreenshot] = useState<Screenshot | null>(null)
+  const [supportingScreen, setSupportingScreen] = useState<Screenshot | null>(null)
   // The open 討論板, which outlives the question the class is currently on.
   const [boardQuestion, setBoardQuestion] = useState<Question | null>(null)
   const [boardImageUrl, setBoardImageUrl] = useState<string | null>(null)
@@ -268,9 +270,15 @@ export function ParticipantPage() {
 
     if (nextSession?.current_question_id) {
       const cachedQuestion = ((allQuestions || []) as Question[]).find(item => item.id === nextSession.current_question_id)
-      const questionData = cachedQuestion || (await read(`questions:${nextSession.current_question_id}`, () => supabase.from('questions').select('*').eq('id', nextSession.current_question_id!).single())).data
+      const dispatched = cachedQuestion || (await read(`questions:${nextSession.current_question_id}`, () => supabase.from('questions').select('*').eq('id', nextSession.current_question_id!).single())).data
+      const questionData = screenDispatchQuestion(dispatched as Question | null, (allQuestions || []) as Question[])
+      if (dispatched?.type === 'send_screen' && questionData?.id !== dispatched.id && dispatched.screenshot_id) {
+        const { data, error } = await read(`screenshots:${dispatched.screenshot_id}`, () => supabase.from('screenshots').select('*').eq('id', dispatched.screenshot_id).single())
+        if (requestId !== loadSequence.current) return
+        if (!error) setSupportingScreen(data as Screenshot | null)
+      } else setSupportingScreen(null)
       // The initial snapshot already includes every answer and every round.
-      const answerData = participantAnswers.filter(item => item.question_id === nextSession.current_question_id)
+      const answerData = participantAnswers.filter(item => item.question_id === questionData?.id)
       if (requestId !== loadSequence.current) return
       const nextQuestion = questionData as Question | null
       setQuestion(nextQuestion)
@@ -335,6 +343,7 @@ export function ParticipantPage() {
         setScreenshot(null)
       }
     } else {
+      setSupportingScreen(null)
       setQuestion(null)
       setAnswer(null)
       setAudioResponse(null)
@@ -1054,6 +1063,7 @@ export function ParticipantPage() {
         </div>
       )}
       <SharedContentPanel contents={sharedContents} locale={locale} />
+      {supportingScreen && <img alt={participantText(locale, 'imageAlt')} className="participant-image" src={supportingScreen.public_url} />}
       {screenshot && question?.share_screenshot && question?.type !== 'file_upload' && question?.type !== 'drawing' && question?.type !== 'hotspot' && question?.type !== 'board' && (
         <img alt={participantText(locale, 'imageAlt')} className="participant-image" src={screenshot.public_url} />
       )}

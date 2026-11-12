@@ -9,6 +9,7 @@ function moduleAt(file, globals = {}) {
   return exports
 }
 const { createClassroomReadCache, classroomRetryDelay } = moduleAt('src/lib/classroomReadCache.ts')
+const { screenDispatchQuestion } = moduleAt('src/lib/screenDispatch.ts')
 const text = fs.readFileSync('src/routes/ParticipantPage.tsx', 'utf8')
 const tree = ts.createSourceFile('page.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const nodes = []
@@ -25,7 +26,7 @@ const baseTables = ['sessions', 'participants', 'exit_tickets', 'shared_contents
 let clock = 0, baseReads = 0, detailReads = 0
 function client(index) {
   const state = {}, session = { id: `session-${index}`, status: 'active', current_question_id: 'quiz', board_question_id: 'board' }
-  const context = { Error, Date, console, locale: 'zh-TW', sessionId: session.id, participantId: `student-${index}`, participantToken: 'token',
+  const context = { screenDispatchQuestion, Error, Date, console, locale: 'zh-TW', sessionId: session.id, participantId: `student-${index}`, participantToken: 'token',
     isSupabaseConfigured: true, navigator: { onLine: true }, participantRevision: { current: { current: () => 0, accepts: () => true, changed() {} } },
     loadSequence: { current: 0 }, goneSessionId: { current: '' }, loadedQuizQuestionId: { current: '' }, handMutation: { current: false },
     coalescedLoad: { current: fn => fn() }, readCache: { current: createClassroomReadCache(() => clock) }, useCallback: fn => fn,
@@ -37,7 +38,7 @@ function client(index) {
     const q = { select: () => q, eq: (key, value) => { filters[key] = value; return q }, order: () => q, limit: () => q, in: () => q,
       single: () => q, maybeSingle: () => q, then: resolve => {
         if (baseTables.includes(table)) baseReads++; else detailReads++
-        const questions = [{ id: session.current_question_id, type: 'custom_quiz', status: 'active', answer_round: 1, screenshot_id: 'shot' },
+        const questions = context.fixtureQuestions || [{ id: session.current_question_id, type: 'custom_quiz', status: 'active', answer_round: 1, screenshot_id: 'shot' },
           { id: 'board', type: 'board', status: 'active', screenshot_id: 'board-shot', share_screenshot: true }]
         const data = table === 'sessions' ? session : table === 'participants' ? { id: context.participantId }
           : table === 'questions' ? (filters.id ? questions.find(q => q.id === filters.id) : questions)
@@ -77,6 +78,16 @@ async function main() {
   assert(baseReads < baseline * .15, `${baseReads}/${baseline}: repeated grading must reuse shared datasets`)
   const model = { simulatedStudents: 200, refreshesEach: 60, baselineBaseReads: baseline, cachedBaseReads: baseReads, cachedDetailReads: detailReads, reductionPercent: Math.round((1 - baseReads / baseline) * 100) }
   for (const c of clients) assert.equal(c.state.BoardQuestion.status, 'active', 'The discussion board stays open')
+  const supplement = client(999)
+  supplement.context.fixtureQuestions = [
+    { id: 'quiz', type: 'custom_quiz', status: 'active', created_at: '2026-11-12T01:00:00Z', screenshot_id: 'shot' },
+    { id: 'screen', type: 'send_screen', status: 'active', created_at: '2026-11-12T02:00:00Z', screenshot_id: 'new-shot' },
+  ]
+  supplement.session.current_question_id = 'screen'
+  await supplement.context.load()
+  assert.equal(supplement.state.Question.id, 'quiz', 'Screenshot must not replace the unfinished quiz')
+  assert.equal(supplement.state.SupportingScreen.id, 'new-shot')
+  assert.equal(supplement.state.Screenshot.id, 'shot', 'Original question retains its own image')
   // Real Realtime handlers must bypass TTL immediately, not wait a minute.
   const c = clients[0], handlers = []
   const channel = { on: (_kind, filter, fn) => { handlers.push({ filter, fn }); return channel }, subscribe: () => channel }

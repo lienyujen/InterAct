@@ -1033,17 +1033,20 @@ Deno.serve(async (req) => {
         console.error('question translation failed', translationError instanceof Error ? translationError.message : translationError)
       }
 
-      // Dispatching closes whatever the class was working on — except an open
+      // A plain screen is supporting material, not a replacement assignment.
+      // Dispatching a response activity closes the previous one — except an open
       // board, which is meant to stay collectable while the lesson moves on.
       // Only the presenter closes a board, and only deliberately.
       const stoppedAt = new Date().toISOString()
-      const { error: stopError } = await supabase
-        .from('questions')
-        .update({ status: 'stopped', stopped_at: stoppedAt })
-        .eq('session_id', sessionId)
-        .eq('status', 'active')
-        .neq('type', 'board')
-      if (stopError) throw stopError
+      if (type !== 'send_screen') {
+        const { error: stopError } = await supabase
+          .from('questions')
+          .update({ status: 'stopped', stopped_at: stoppedAt })
+          .eq('session_id', sessionId)
+          .eq('status', 'active')
+          .neq('type', 'board')
+        if (stopError) throw stopError
+      }
 
       const { data: publicData } = supabase.storage.from('interact-screenshots').getPublicUrl(storagePath)
       const { error: screenshotError } = await supabase

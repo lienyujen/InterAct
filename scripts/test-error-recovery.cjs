@@ -37,6 +37,11 @@ async function main() {
   const participant = source('src/routes/ParticipantPage.tsx')
   const state = { QuizData: { items: ['unfinished form'] } }
   const context = {
+    screenDispatchQuestion: (() => {
+      const exports = {}
+      vm.runInNewContext(compile(fs.readFileSync('src/lib/screenDispatch.ts', 'utf8')), { exports })
+      return exports.screenDispatchQuestion
+    })(),
     isSupabaseConfigured: true, sessionId: 'session', participantId: 'student', participantToken: 'token', locale: 'zh-TW',
     navigator: { onLine: true }, goneSessionId: { current: '' }, loadSequence: { current: 0 },
     participantRevision: { current: { current: () => 0, accepts: () => true } },
