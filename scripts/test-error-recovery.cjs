@@ -42,6 +42,7 @@ async function main() {
       vm.runInNewContext(compile(fs.readFileSync('src/lib/screenDispatch.ts', 'utf8')), { exports })
       return exports.screenDispatchQuestion
     })(),
+    supportingScreenQuestion: () => null,
     isSupabaseConfigured: true, sessionId: 'session', participantId: 'student', participantToken: 'token', locale: 'zh-TW',
     navigator: { onLine: true }, goneSessionId: { current: '' }, loadSequence: { current: 0 },
     participantRevision: { current: { current: () => 0, accepts: () => true } },

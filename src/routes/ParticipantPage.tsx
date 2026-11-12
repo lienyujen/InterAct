@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { screenDispatchQuestion } from '../lib/screenDispatch'
+import { screenDispatchQuestion, supportingScreenQuestion } from '../lib/screenDispatch'
 import { classroomRetryDelay, createClassroomReadCache } from '../lib/classroomReadCache'
 import type { FormEvent } from 'react'
 import { BookOpen, Coffee, Hand, PartyPopper, Send, Sparkles, Waves } from 'lucide-react'
@@ -272,8 +272,9 @@ export function ParticipantPage() {
       const cachedQuestion = ((allQuestions || []) as Question[]).find(item => item.id === nextSession.current_question_id)
       const dispatched = cachedQuestion || (await read(`questions:${nextSession.current_question_id}`, () => supabase.from('questions').select('*').eq('id', nextSession.current_question_id!).single())).data
       const questionData = screenDispatchQuestion(dispatched as Question | null, (allQuestions || []) as Question[])
-      if (dispatched?.type === 'send_screen' && questionData?.id !== dispatched.id && dispatched.screenshot_id) {
-        const { data, error } = await read(`screenshots:${dispatched.screenshot_id}`, () => supabase.from('screenshots').select('*').eq('id', dispatched.screenshot_id).single())
+      const supporting = supportingScreenQuestion(questionData, (allQuestions || []) as Question[])
+      if (supporting?.screenshot_id) {
+        const { data, error } = await read(`screenshots:${supporting.screenshot_id}`, () => supabase.from('screenshots').select('*').eq('id', supporting.screenshot_id!).single())
         if (requestId !== loadSequence.current) return
         if (!error) setSupportingScreen(data as Screenshot | null)
       } else setSupportingScreen(null)

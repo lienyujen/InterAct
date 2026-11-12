@@ -1116,10 +1116,21 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Supporting material must not redirect teacher stop/round controls to
+      // the picture instead of the activity students are still answering.
+      let currentQuestionId = question.id
+      if (type === 'send_screen') {
+        const { data: active, error } = await supabase.from('questions')
+          .select('id').eq('session_id', sessionId).eq('status', 'active')
+          .not('type', 'in', '(send_screen,board)')
+          .order('created_at', { ascending: false }).limit(1).maybeSingle()
+        if (error) throw error
+        if (active) currentQuestionId = active.id
+      }
       const { error: sessionError } = await supabase
         .from('sessions')
         .update({
-          current_question_id: question.id,
+          current_question_id: currentQuestionId,
           ...(type === 'board' ? { board_question_id: question.id } : {}),
         })
         .eq('id', sessionId)

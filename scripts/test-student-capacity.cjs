@@ -9,7 +9,7 @@ function moduleAt(file, globals = {}) {
   return exports
 }
 const { createClassroomReadCache, classroomRetryDelay } = moduleAt('src/lib/classroomReadCache.ts')
-const { screenDispatchQuestion } = moduleAt('src/lib/screenDispatch.ts')
+const { screenDispatchQuestion, supportingScreenQuestion } = moduleAt('src/lib/screenDispatch.ts')
 const text = fs.readFileSync('src/routes/ParticipantPage.tsx', 'utf8')
 const tree = ts.createSourceFile('page.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const nodes = []
@@ -26,7 +26,7 @@ const baseTables = ['sessions', 'participants', 'exit_tickets', 'shared_contents
 let clock = 0, baseReads = 0, detailReads = 0
 function client(index) {
   const state = {}, session = { id: `session-${index}`, status: 'active', current_question_id: 'quiz', board_question_id: 'board' }
-  const context = { screenDispatchQuestion, Error, Date, console, locale: 'zh-TW', sessionId: session.id, participantId: `student-${index}`, participantToken: 'token',
+  const context = { screenDispatchQuestion, supportingScreenQuestion, Error, Date, console, locale: 'zh-TW', sessionId: session.id, participantId: `student-${index}`, participantToken: 'token',
     isSupabaseConfigured: true, navigator: { onLine: true }, participantRevision: { current: { current: () => 0, accepts: () => true, changed() {} } },
     loadSequence: { current: 0 }, goneSessionId: { current: '' }, loadedQuizQuestionId: { current: '' }, handMutation: { current: false },
     coalescedLoad: { current: fn => fn() }, readCache: { current: createClassroomReadCache(() => clock) }, useCallback: fn => fn,
@@ -88,6 +88,11 @@ async function main() {
   assert.equal(supplement.state.Question.id, 'quiz', 'Screenshot must not replace the unfinished quiz')
   assert.equal(supplement.state.SupportingScreen.id, 'new-shot')
   assert.equal(supplement.state.Screenshot.id, 'shot', 'Original question retains its own image')
+  supplement.session.current_question_id = 'quiz'
+  supplement.context.readCache.current.invalidate()
+  await supplement.context.load()
+  assert.equal(supplement.state.Question.id, 'quiz')
+  assert.equal(supplement.state.SupportingScreen.id, 'new-shot', 'Keep teacher controls aimed at the real activity')
   // Real Realtime handlers must bypass TTL immediately, not wait a minute.
   const c = clients[0], handlers = []
   const channel = { on: (_kind, filter, fn) => { handlers.push({ filter, fn }); return channel }, subscribe: () => channel }

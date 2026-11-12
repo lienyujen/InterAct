@@ -8,3 +8,9 @@ export function screenDispatchQuestion(current: Question | null, questions: Ques
     && !['send_screen', 'board'].includes(item.type))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] || current
 }
+
+export function supportingScreenQuestion(current: Question | null, questions: Question[]) {
+  return questions.filter(item => item.type === 'send_screen' && item.id !== current?.id
+    && (!current || item.created_at >= current.created_at))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0] || null
+}
