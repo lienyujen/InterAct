@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('interactDesktop', {
   getPortableBackendConfig: () => ipcRenderer.sendSync('config:read-portable'),
   savePortableBackendConfig: (config) => ipcRenderer.sendSync('config:write-portable', config),
   enterPresenterMode: (sessionId) => ipcRenderer.invoke('window:presenter-mode', sessionId),
-  setPresenterExpanded: (expanded, settingsOpen = false, interactiveOpen = false) => ipcRenderer.invoke('window:set-expanded', expanded, settingsOpen, interactiveOpen),
+  setPresenterExpanded: (expanded, settingsOpen = false, interactiveOpen = false, collapsedView = 'join', measuredToolbarWidth) => ipcRenderer.invoke('window:set-expanded', expanded, settingsOpen, interactiveOpen, collapsedView, measuredToolbarWidth),
   setLotteryInteraction: (enabled) => ipcRenderer.invoke('lottery:set-interactive', enabled),
   showLottery: (event) => ipcRenderer.invoke('lottery:show', event),
   getLatestLottery: () => ipcRenderer.invoke('lottery:get-latest'),

@@ -23,7 +23,7 @@ declare global {
         | { ok: false; path: string; hasFile: true; message: string }
       savePortableBackendConfig?: (config: { ref: string; key: string; appUrl?: string }) => { ok: true } | { ok: false; message: string }
       enterPresenterMode: (sessionId: string) => Promise<void>
-      setPresenterExpanded: (expanded: boolean, settingsOpen?: boolean, interactiveOpen?: boolean) => Promise<void>
+      setPresenterExpanded: (expanded: boolean, settingsOpen?: boolean, interactiveOpen?: boolean, collapsedView?: 'join' | 'toolbar', measuredToolbarWidth?: number) => Promise<void>
       setLotteryInteraction: (enabled: boolean) => Promise<void>
       showLottery: (event: SessionEvent) => Promise<void>
       getLatestLottery: () => Promise<SessionEvent | null>

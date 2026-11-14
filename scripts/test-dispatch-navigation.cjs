@@ -25,7 +25,7 @@ const request = type => ({ type, options: ['A', 'B'], promptText: 'Topic', allow
 })
 function harness({ native = true, fail = false, cameraFail = false } = {}) {
   const calls = []
-  const state = { session: { current_question_id: 'old', board_question_id: 'wall' },
+  const state = { native, joinOpen: true, session: { current_question_id: 'old', board_question_id: 'wall' },
     questions: [{ id: 'wall', type: 'board', status: 'active' }, { id: 'old', type: 'short_answer', status: 'active' }],
     controlsOpen: false, editorOpen: true, fileTransferOpen: true, textDispatchOpen: true, settingsOpen: true,
   }
@@ -46,7 +46,7 @@ function harness({ native = true, fail = false, cameraFail = false } = {}) {
   }
   for (const name of ['Session', 'Questions', 'SelectedQuestionId', 'Question', 'Answers', 'AudioResponses', 'QuizResults', 'Analysis', 'OrderingKey',
     'QuestionScreenshotUrl', 'EditorOpen', 'FileTransferOpen', 'TextDispatchOpen', 'SettingsOpen', 'EndClassConfirmOpen', 'CloseConfirmOpen',
-    'ControlsOpen', 'CaptureFile', 'CapturePreviewUrl', 'Busy', 'AnalysisError', 'CameraPollRequest', 'CameraPollResult', 'CameraPollError', 'CollectQuestion', 'FileResponses', 'Participants', 'ExitTickets', 'AnswerCounts']) {
+    'ControlsOpen', 'JoinOpen', 'TeachingNotice', 'ResultsRequested', 'CaptureFile', 'CapturePreviewUrl', 'Busy', 'AnalysisError', 'CameraPollRequest', 'CameraPollResult', 'CameraPollError', 'CollectQuestion', 'FileResponses', 'Participants', 'ExitTickets', 'AnswerCounts']) {
     const key = name[0].toLowerCase() + name.slice(1)
     context[`set${name}`] = value => { state[key] = typeof value === 'function' ? value(state[key]) : value }
   }
@@ -66,7 +66,8 @@ function harness({ native = true, fail = false, cameraFail = false } = {}) {
   return { context, state, calls, created }
 }
 function assertMenu(state) {
-  assert.equal(state.controlsOpen, true)
+  assert.equal(state.controlsOpen, !state.native, 'Desktop returns to toolbar; web keeps expanded results')
+  assert.equal(state.joinOpen, false, 'Dispatch must not show the join QR')
   for (const key of ['editorOpen', 'fileTransferOpen', 'textDispatchOpen', 'settingsOpen']) assert.equal(state[key], false, key)
 }
 async function main() {
@@ -83,6 +84,8 @@ async function main() {
     assert.equal(state.session.board_question_id, type === 'board' ? 'new-board' : 'wall')
     assert(!calls.includes('camera-window'), `Only camera dispatch may open a large native window: ${type}`)
     assert.equal(state.busy, false)
+    assert.equal(state.teachingNotice, '題目已派送')
+    if (native) assert(calls.some(call => Array.isArray(call) && call[0] === 'bounds' && call[1] === false && call[4] === 'toolbar'), 'Desktop requests compact native bounds')
   }
   const sliced = harness()
   await sliced.context.createScreenshotQuestion({ ...request('ordering'), sliceCount: 4 })

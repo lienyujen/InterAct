@@ -53,10 +53,13 @@ const PORTABLE_CONFIG_DIRECTORY = portableConfig.configDirectory({
 // The taskbar's relaunch icon is a separate Shell property from BrowserWindow's
 // icon. Use the shipped ICO, not an EXE path cached from an older portable build.
 const APP_RELAUNCH_ICON_PATH = APP_WINDOW_ICON_PATH
-const CONTROL_COLLAPSED = { width: 194, height: 242 }
+const CONTROL_COLLAPSED = { width: 660, height: 64 }
+const CONTROL_JOIN = { width: 360, height: 380 }
 const CONTROL_EXPANDED = { width: 420, height: 760 }
 const CONTROL_WITH_SETTINGS = { width: 1100, height: 760 }
 const WINDOW_MARGIN = 12
+let collapsedControlView = 'join'
+let toolbarWidth = CONTROL_COLLAPSED.width
 const TOPMOST_LEVEL = 'screen-saver'
 const CONTROL_RELATIVE_LEVEL = 6
 const OVERLAY_RELATIVE_LEVEL = 2
@@ -154,7 +157,7 @@ function createWindow() {
     width: 540,
     height: 680,
     minWidth: 194,
-    minHeight: 242,
+    minHeight: 64,
     frame: false,
     transparent: true,
     resizable: false,
@@ -651,10 +654,14 @@ function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(value, maximum))
 }
 
-function setControlBounds(expanded, snapToTopRight = false, settingsOpen = false) {
+function setControlBounds(expanded, snapToTopRight = false, settingsOpen = false, collapsedView = collapsedControlView, measuredToolbarWidth) {
   if (!mainWindow || mainWindow.isDestroyed()) return
 
-  const size = settingsOpen ? CONTROL_WITH_SETTINGS : expanded ? CONTROL_EXPANDED : CONTROL_COLLAPSED
+  collapsedControlView = collapsedView === 'toolbar' ? 'toolbar' : 'join'
+  if (typeof measuredToolbarWidth === 'number' && Number.isFinite(measuredToolbarWidth) && measuredToolbarWidth > 0) {
+    toolbarWidth = Math.max(194, Math.ceil(measuredToolbarWidth))
+  }
+  const size = settingsOpen ? CONTROL_WITH_SETTINGS : expanded ? CONTROL_EXPANDED : collapsedControlView === 'join' ? CONTROL_JOIN : { ...CONTROL_COLLAPSED, width: toolbarWidth }
   const current = lastControlBounds || safeBounds(mainWindow) || screen.getPrimaryDisplay().workArea
   const display = displayForBounds(current)
   const workArea = display.workArea
@@ -738,7 +745,7 @@ ipcMain.handle('window:presenter-mode', (_event, sessionId) => {
   if (!mainWindow) return
   requireUuid(sessionId)
   setPresenterTopmost(true)
-  setControlBounds(false, true)
+  setControlBounds(false, true, false, 'join')
   createOverlayWindow(sessionId)
 })
 
@@ -780,11 +787,11 @@ ipcMain.handle('supabase:management', async (_event, request) => {
   }
 })
 
-ipcMain.handle('window:set-expanded', (_event, expanded, settingsOpen = false, interactiveOpen = false) => {
+ipcMain.handle('window:set-expanded', (_event, expanded, settingsOpen = false, interactiveOpen = false, collapsedView = 'join', measuredToolbarWidth) => {
   // Reapplying always-on-top closes native Windows select popups. Temporarily
   // suspend the presenter topmost reinforcement while settings are interactive.
   setPresenterTopmost(!(settingsOpen || interactiveOpen))
-  setControlBounds(Boolean(expanded), false, settingsOpen)
+  setControlBounds(Boolean(expanded), false, settingsOpen, collapsedView, measuredToolbarWidth)
   setTimeout(() => bringControlToFront(false), 30)
 })
 
