@@ -32,7 +32,7 @@ async function main() {
   assert(calls.includes('menu'), 'Decode and IPC failure must still return to the teacher menu')
   assert(calls.some(value => Array.isArray(value) && value[0] === 'AnalysisError' && /image decode failed/.test(value[1])))
   assert.equal(capture.activeSelectionPointerId.current, null)
-  assert(calls.includes(true), 'Cancelled capture must restore expanded controls, not just the QR code')
+  assert(calls.includes(false), 'Cancelled capture must restore compact teaching controls')
 
   const participant = source('src/routes/ParticipantPage.tsx')
   const state = { QuizData: { items: ['unfinished form'] } }

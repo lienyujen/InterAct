@@ -3,6 +3,7 @@ import { createPresenterQuestionFocus } from '../lib/presenterQuestionFocus'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { PresenterControlPanel } from '../components/PresenterControlPanel'
+import { PresenterToolbar } from '../components/PresenterToolbar'
 import { PresenterSettingsModal } from '../components/PresenterSettingsModal'
 import type { PresenterCaptionSettings } from '../components/PresenterSettingsModal'
 import { LiveCaptionOverlay } from '../components/LiveCaptionOverlay'
@@ -95,6 +96,7 @@ export function PresenterPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [answerCounts, setAnswerCounts] = useState<Record<string, number>>({})
+  const [submissionAnswers, setSubmissionAnswers] = useState<Pick<Answer, 'question_id' | 'round'>[]>([])
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
   const questionFocus = useMemo(() => createPresenterQuestionFocus(sessionId), [sessionId])
   const [question, setQuestion] = useState<Question | null>(null)
@@ -109,6 +111,10 @@ export function PresenterPage() {
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
   const [closingSession, setClosingSession] = useState(false)
   const [controlsOpen, setControlsOpen] = useState(false)
+  const [joinOpen, setJoinOpen] = useState(true)
+  const [teachingNotice, setTeachingNotice] = useState('')
+  const [resultsRequested, setResultsRequested] = useState(0)
+  const questionResultRef = useRef<HTMLDivElement>(null)
   const [editorOpen, setEditorOpen] = useState(false)
   const [textDispatchOpen, setTextDispatchOpen] = useState(false)
   const [textDispatchError, setTextDispatchError] = useState('')
@@ -283,7 +289,7 @@ export function PresenterPage() {
       supabase.from('sessions').select('*').eq('id', sessionId).single(),
       supabase.from('participants').select('*').eq('session_id', sessionId).order('joined_at'),
       supabase.from('questions').select('*').eq('session_id', sessionId).order('created_at'),
-      supabase.from('answers').select('question_id').eq('session_id', sessionId),
+      supabase.from('answers').select('question_id, round').eq('session_id', sessionId),
       supabase.from('exit_tickets').select('*').eq('session_id', sessionId).order('submitted_at'),
     ])
     const readError = initial.find((result) => result.error)?.error
@@ -305,6 +311,7 @@ export function PresenterPage() {
     }, {})
     for (const item of nextQuestions) if (item.type === 'camera_poll' && item.camera_result) nextAnswerCounts[item.id] = item.camera_result.totalDetected
     setAnswerCounts(nextAnswerCounts)
+    setSubmissionAnswers(answerQuestionData || [])
 
     const targetQuestionId = focus.questionId
 
@@ -463,8 +470,15 @@ export function PresenterPage() {
       controlsOpen || editorOpen || textDispatchOpen || settingsOpen || endClassConfirmOpen || closeConfirmOpen || fileTransferOpen,
       settingsOpen,
       editorOpen || fileTransferOpen,
+      joinOpen ? 'join' : 'toolbar',
     )
-  }, [closeConfirmOpen, controlsOpen, editorOpen, endClassConfirmOpen, fileTransferOpen, selectionMode, settingsOpen, textDispatchOpen])
+      .catch(error => logDiagnostic('presenter_resize_failed', { message: String(error) }))
+  }, [closeConfirmOpen, controlsOpen, editorOpen, endClassConfirmOpen, fileTransferOpen, joinOpen, selectionMode, settingsOpen, textDispatchOpen])
+
+  useEffect(() => {
+    if (!window.interactDesktop || !controlsOpen || !resultsRequested) return
+    questionResultRef.current?.scrollIntoView({ block: 'start' })
+  }, [controlsOpen, resultsRequested, question?.id])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !sessionId) return
@@ -1096,6 +1110,8 @@ export function PresenterPage() {
     if (!window.interactDesktop) return
 
     setControlsOpen(false)
+    setJoinOpen(false)
+    setTeachingNotice('')
     setCapturePreviewUrl(null)
     setCaptureFile(null)
     setAnalysisError('')
@@ -1109,7 +1125,7 @@ export function PresenterPage() {
       setCaptureSource(source)
     } catch (error) {
       setSelectionMode(false)
-      setControlsOpen(true)
+      returnToClassView()
       const message = error instanceof Error ? error.message : '無法取得螢幕畫面。'
       setAnalysisError(`截圖無法開始：${message}`)
       void window.interactDesktop.logDiagnostic({ event: 'capture-start-failed', message })
@@ -1207,7 +1223,7 @@ export function PresenterPage() {
     setCaptureSource(null)
     setSelectionRect(null)
     try {
-      await window.interactDesktop?.finishCaptureSelection(true)
+      await window.interactDesktop?.finishCaptureSelection(false)
     } catch (error) {
       logDiagnostic('capture_restore_failed', { message: String(error) })
     }
@@ -1241,12 +1257,8 @@ export function PresenterPage() {
     })
   }
 
-  // Where every dispatch ends up. Sending something to the class is always
-  // followed by watching the class answer it, so the dialog that sent it closes
-  // and the panel that shows the answers opens. Without this the screen you land
-  // on depends on which button you happened to press: 截圖派題 collapses to the
-  // QR window, because taking the screenshot hid the controls and nothing brought
-  // them back, while the others simply leave their own dialog covering the view.
+  // Keep the classroom connections mounted; desktop returns to the toolbar,
+  // while the web presenter retains its existing expanded results view.
   function returnToClassView() {
     setEditorOpen(false)
     setFileTransferOpen(false)
@@ -1254,10 +1266,12 @@ export function PresenterPage() {
     setSettingsOpen(false)
     setEndClassConfirmOpen(false)
     setCloseConfirmOpen(false)
-    setControlsOpen(true)
+    setJoinOpen(false)
+    setResultsRequested(0)
+    setControlsOpen(!window.interactDesktop)
     // React may already hold these flags after a slow dispatch. Still reset
     // native bounds rather than depend on a state change to run the effect.
-    void window.interactDesktop?.setPresenterExpanded(true, false, false)
+    void window.interactDesktop?.setPresenterExpanded(false, false, false, 'toolbar')
       .catch(error => logDiagnostic('presenter_return_failed', { message: String(error) }))
   }
 
@@ -1278,6 +1292,7 @@ export function PresenterPage() {
     setAnalysis(null)
     setOrderingKey(null)
     setQuestionScreenshotUrl(null)
+    setTeachingNotice('題目已派送')
     returnToClassView()
     void loadAll()
   }
@@ -1372,11 +1387,8 @@ export function PresenterPage() {
       }
       return
     }
-    // Before the upload, not after. Closing the dialog on its own left nothing open
-    // and controlsOpen still false from the screen capture, so the window collapsed
-    // to the QR code for as long as the upload took and then expanded again — a
-    // round trip through a window nobody asked to see. Opening the class view in
-    // the same tick means it never collapses.
+    // Return to the teaching surface during upload; on failure the retained
+    // capture reopens in the editor for retry.
     returnToClassView()
     try {
       await uploadQuestionScreenshot(captureFile, request)
@@ -1389,9 +1401,6 @@ export function PresenterPage() {
   }
 
   function cancelQuestionEditor() {
-    // Also the class view: taking a screenshot collapsed the window, so closing
-    // the dialog without dispatching would otherwise drop the presenter onto the
-    // QR code rather than back where they started.
     returnToClassView()
     setCaptureFile(null)
     setCapturePreviewUrl(null)
@@ -1401,16 +1410,23 @@ export function PresenterPage() {
     if (!session?.current_question_id) return
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
-    const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
-      body: {
-        action: 'stop_question',
-        sessionId,
-        presenterToken,
-        questionId: session.current_question_id,
-      },
-    })
-    if (error) throw error
-    if (!data?.question) throw new Error(data?.message || '停止作答失敗。')
+    try {
+      const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+        body: {
+          action: 'stop_question',
+          sessionId,
+          presenterToken,
+          questionId: session.current_question_id,
+        },
+      })
+      if (error) throw new Error(await edgeFunctionErrorMessage(error, '停止作答失敗。'))
+      if (!data?.question) throw new Error(data?.message || '停止作答失敗。')
+      const stopped = data.question as Question
+      setQuestions(current => current.map(item => item.id === stopped.id ? stopped : item))
+      setQuestion(current => current?.id === stopped.id ? stopped : current)
+    } finally {
+      await loadAll()
+    }
   }
 
   // Reopening the question the class is on, so a teacher who stopped it can
@@ -2099,6 +2115,16 @@ export function PresenterPage() {
     void loadAll()
   }
 
+  function openCurrentResults() {
+    if (!session?.current_question_id) return
+    questionFocus.select(session.current_question_id)
+    setSelectedQuestionId(session.current_question_id)
+    setJoinOpen(false)
+    setControlsOpen(true)
+    setResultsRequested(current => current + 1)
+    void loadAll()
+  }
+
   if (!session) {
     return (
       <main className="center-page">
@@ -2108,9 +2134,35 @@ export function PresenterPage() {
     )
   }
 
+  const currentQuestion = questions.find(item => item.id === session.current_question_id)
+  const submittedCount = submissionAnswers.filter(item => item.question_id === session.current_question_id
+    && item.round === (currentQuestion?.answer_round || 1)).length
+
   return (
-    <main className={`presenter-page${controlsOpen ? ' controls-open' : ''}${settingsOpen ? ' settings-open' : ''}${selectionMode ? ' selecting-capture' : ''}`}>
-      {!selectionMode && (
+    <main className={`presenter-page${controlsOpen ? ' controls-open' : ''}${settingsOpen ? ' settings-open' : ''}${selectionMode ? ' selecting-capture' : ''}${window.interactDesktop ? ` desktop-presenter${joinOpen && !controlsOpen ? ' join-open' : ''}` : ''}`}>
+      {window.interactDesktop && !selectionMode && !controlsOpen && !joinOpen && !editorOpen && !textDispatchOpen && !fileTransferOpen && !settingsOpen && !endClassConfirmOpen && !closeConfirmOpen && (
+        <PresenterToolbar
+          busy={busy}
+          error={analysisError || captionError || textDispatchError || cameraPollError}
+          notice={teachingNotice}
+          onlineCount={onlineParticipants.length}
+          raisedCount={raisedCount}
+          recording={session.recording_enabled}
+          recordingStarting={session.caption_status === 'starting'}
+          hasQuestion={Boolean(session.current_question_id)}
+          submittedCount={submittedCount}
+          onCapture={captureWindowsScreen}
+          onJoin={() => setJoinOpen(true)}
+          onResults={openCurrentResults}
+          onPanel={() => {
+            setResultsRequested(0)
+            setControlsOpen(true)
+          }}
+          onRoster={() => void window.interactDesktop?.openRoster(sessionId)}
+          onMinimize={() => void window.interactDesktop?.minimize()}
+        />
+      )}
+      {!selectionMode && (!window.interactDesktop || (joinOpen && !controlsOpen && !settingsOpen && !editorOpen && !textDispatchOpen && !fileTransferOpen && !endClassConfirmOpen && !closeConfirmOpen)) && (
         <aside className="qr-floating">
           <QRCodePanel
             joinUrl={joinUrl}
@@ -2124,10 +2176,18 @@ export function PresenterPage() {
               },
             }}
           />
+          {window.interactDesktop && <button className="presenter-return-button" onClick={returnToClassView} type="button">返回授課</button>}
         </aside>
       )}
       {controlsOpen && (
         <aside className="presenter-controls-overlay" onDoubleClick={(event) => event.stopPropagation()}>
+        {window.interactDesktop && (
+          <div className="presenter-panel-heading">
+            <strong>InterAct</strong>
+            <button onClick={returnToClassView} type="button">返回授課</button>
+            <button onClick={() => setCloseConfirmOpen(true)} type="button">關閉程式</button>
+          </div>
+        )}
         <PresenterControlPanel
           busy={busy}
           buzzerActive={isBuzzerPending(buzzerEvent)}
@@ -2158,6 +2218,9 @@ export function PresenterPage() {
           onToggleCaptionVisibility={toggleCaptionVisibility}
         />
         {analysisError && !editorOpen && <p className="error presenter-action-error">{analysisError}</p>}
+        {window.interactDesktop && (captionError || textDispatchError || cameraPollError) && (
+          <p className="error presenter-action-error" role="alert">{captionError || textDispatchError || cameraPollError}</p>
+        )}
         <QuestionHistory
           activeQuestionId={session.current_question_id}
           answerCounts={answerCounts}
@@ -2165,6 +2228,7 @@ export function PresenterPage() {
           selectedQuestionId={selectedQuestionId}
           onSelect={selectQuestion}
         />
+        <div className="presenter-current-result" ref={questionResultRef}>
         {question?.type === 'camera_poll' ? <CameraPollResult question={question} /> : question?.type === 'custom_quiz' ? (
           <CustomQuizResult
             anonymousEnabled={session.anonymous_enabled}
@@ -2206,6 +2270,7 @@ export function PresenterPage() {
           orderingKey={orderingKey}
           onSetOrderingKey={setOrderingAnswer}
         />}
+        </div>
         {session.exit_ticket_prompt && session.exit_ticket_category && (
           <ExitTicketResult
             anonymousEnabled={session.anonymous_enabled}

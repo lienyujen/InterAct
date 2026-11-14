@@ -562,6 +562,138 @@ h2 {
   padding: 0;
 }
 
+.desktop-shell .desktop-presenter {
+  align-content: start;
+}
+
+.presenter-current-result {
+  display: contents;
+}
+
+.desktop-shell .presenter-current-result {
+  display: block;
+}
+
+.desktop-shell .desktop-presenter:not(.controls-open):not(.join-open) {
+  overflow-x: auto;
+}
+
+.desktop-shell .presenter-toolbar {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: 4px;
+  min-height: 54px;
+  padding: 4px 6px;
+  width: max-content;
+}
+
+.presenter-toolbar-drag {
+  -webkit-app-region: drag;
+  align-items: center;
+  cursor: move;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  min-width: 0;
+  width: 82px;
+  touch-action: none;
+  user-select: none;
+}
+
+.presenter-toolbar-drag span {
+  display: grid;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.presenter-toolbar-drag strong {
+  font-size: 13px;
+}
+
+.presenter-toolbar-drag small {
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.desktop-shell .presenter-toolbar button {
+  -webkit-app-region: no-drag;
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 13px;
+  gap: 4px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.desktop-shell .presenter-toolbar-capture {
+  background: var(--share);
+  border-color: var(--share);
+  color: white;
+}
+
+.presenter-toolbar-hands {
+  align-items: center;
+  color: white;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 3px;
+}
+
+.desktop-shell .presenter-toolbar .has-warning {
+  background: var(--danger-soft);
+  color: var(--danger-dark);
+}
+
+.presenter-toolbar-warning {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.desktop-shell .desktop-presenter.join-open .qr-box svg {
+  height: 220px;
+  margin: auto;
+  width: 220px;
+}
+
+.presenter-return-button {
+  margin-top: 8px;
+  width: 100%;
+}
+
+.presenter-panel-heading {
+  -webkit-app-region: drag;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+}
+
+.presenter-panel-heading strong {
+  flex: 1;
+}
+
+.presenter-panel-heading button {
+  -webkit-app-region: no-drag;
+  font-size: 13px;
+  padding: 8px;
+}
+
 .desktop-shell .presenter-page.selecting-capture {
   display: block;
   overflow: hidden;
