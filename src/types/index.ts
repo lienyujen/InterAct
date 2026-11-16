@@ -1,4 +1,5 @@
 export type Session = {
+  classroom_sync_version?: number
   id: string
   title: string
   code: string

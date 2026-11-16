@@ -75,6 +75,7 @@ jobs:
           pnpm lint
           pnpm exec tsc -b
           node scripts/test-deployment-grants.cjs
+          node scripts/test-classroom-broadcast.cjs
           node scripts/test-detail-window-visibility.cjs
           node scripts/test-portable-config.cjs
           node scripts/test-runtime-backend.cjs

@@ -47,7 +47,11 @@ jobs:
           test -n "$VITE_PUBLIC_APP_URL" || (echo "Missing repository variable VITE_PUBLIC_APP_URL" && exit 1)
 
       - name: Build
-        run: pnpm build
+        run: |
+          node scripts/test-classroom-broadcast.cjs
+          node scripts/test-student-capacity.cjs
+          node scripts/test-dispatch-navigation.cjs
+          pnpm build
         env:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}

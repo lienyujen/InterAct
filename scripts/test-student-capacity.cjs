@@ -10,6 +10,7 @@ function moduleAt(file, globals = {}) {
 }
 const { createClassroomReadCache, classroomRetryDelay } = moduleAt('src/lib/classroomReadCache.ts')
 const { screenDispatchQuestion, supportingScreenQuestion } = moduleAt('src/lib/screenDispatch.ts')
+const { classroomChanges } = moduleAt('src/lib/classroomBroadcast.ts')
 const text = fs.readFileSync('src/routes/ParticipantPage.tsx', 'utf8')
 const tree = ts.createSourceFile('page.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 const nodes = []
@@ -103,9 +104,12 @@ async function main() {
   c.context.refreshParticipantRow = () => {}
   c.context.pageVisible = true
   c.context.sessionGone = false
+  c.context.broadcastSync = false
+  c.context.classroomChanges = classroomChanges
+  c.context.classroomReconnect = { current: { subscribed() {} } }
   const db = c.context.requireSupabase()
   c.context.requireSupabase = () => ({ ...db, channel: () => channel, removeChannel() {} })
-  const effect = nodes.find(n => ts.isCallExpression(n) && n.expression.getText(tree) === 'useEffect' && n.getText(tree).includes('.channel(`participant:${'))
+  const effect = nodes.find(n => ts.isCallExpression(n) && n.expression.getText(tree) === 'useEffect' && n.getText(tree).includes('const channel = classroomChanges('))
   vm.runInContext(compile(effect.getText(tree)), c.context)
   const lifecycle = nodes.find(n => ts.isCallExpression(n) && n.expression.getText(tree) === 'useEffect' && n.getText(tree).includes('.channel(`participant-session:'))
   vm.runInContext(compile(lifecycle.getText(tree)), c.context)

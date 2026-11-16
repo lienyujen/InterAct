@@ -52,9 +52,9 @@ async function main() {
   let maximum = 0
   const resolves = []
   const options = []
-  const window = { ...events(), setInterval: fn => { interval = fn; return 1 }, clearInterval: () => { interval = null } }
+  const window = { ...events(), setTimeout: () => 2, clearTimeout() {}, setInterval: fn => { interval = fn; return 1 }, clearInterval: () => { interval = null } }
   const { trackParticipantPresence } = load('src/lib/participantPresence.ts', {
-    document, window, Date,
+    document, window, Date, navigator: { onLine: true },
     require: () => ({ requireSupabase: () => ({ functions: { invoke: (_name, option) => {
       calls++; concurrent++; maximum = Math.max(maximum, concurrent); options.push(option)
       return new Promise(resolve => resolves.push(result => { concurrent--; resolve(result) }))

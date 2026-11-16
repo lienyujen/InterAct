@@ -4,7 +4,7 @@ import type { Participant } from '../types'
 // Reports that a student is still here, and how long the page spent in the
 // background. Without this last_seen_at keeps the value it was given at join,
 // which made the report's "last activity" column a copy of the join time.
-const HEARTBEAT_MS = 30_000
+const HEARTBEAT_MS = 45_000
 
 type Args = {
   sessionId: string
@@ -76,15 +76,18 @@ export function trackParticipantPresence({ sessionId, participantId, participant
     void send()
   }
 
-  const timer = window.setInterval(() => { if (!stopped && document.visibilityState !== 'hidden') void send() }, HEARTBEAT_MS + Math.random() * 10_000)
+  const timer = window.setInterval(() => { if (!stopped && navigator.onLine !== false && document.visibilityState !== 'hidden') void send() }, HEARTBEAT_MS + Math.random() * 15_000)
   const onPageHide = () => { if (!stopped) void send(true) }
   document.addEventListener('visibilitychange', onVisibility)
   window.addEventListener('pagehide', onPageHide)
-  if (document.visibilityState !== 'hidden') void send()
+  const initialTimer = window.setTimeout(() => {
+    if (!stopped && navigator.onLine !== false && document.visibilityState !== 'hidden') void send()
+  }, 5000 + Math.random() * 10000)
 
   return () => {
     stopped = true
     window.clearInterval(timer)
+    window.clearTimeout(initialTimer)
     document.removeEventListener('visibilitychange', onVisibility)
     window.removeEventListener('pagehide', onPageHide)
     void send(true)

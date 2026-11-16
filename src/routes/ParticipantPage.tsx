@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { classroomChanges, createClassroomReconnect } from '../lib/classroomBroadcast'
 import { screenDispatchQuestion, supportingScreenQuestion } from '../lib/screenDispatch'
 import { classroomRetryDelay, createClassroomReadCache } from '../lib/classroomReadCache'
 import type { FormEvent } from 'react'
@@ -75,6 +76,7 @@ export function ParticipantPage() {
   // sent here — see the note in lib/standings.
   const [session, setSession] = useState<Session | null>(null)
   const pageVisible = usePageVisibility()
+  const broadcastSync = (session?.classroom_sync_version || 0) >= 1
   const liveSessionId = pageVisible && session?.status === 'active' ? sessionId : ''
   const refreshParticipantRow = useCallback(() => ownRowLoader.current(async () => {
     if (!isSupabaseConfigured || !participantId || !sessionId || navigator.onLine === false || document.visibilityState === 'hidden') return
@@ -465,7 +467,7 @@ export function ParticipantPage() {
   useEffect(() => {
     if (!pageVisible) return
     readCache.current.invalidate()
-    const timer = window.setTimeout(() => void loadAll(), Math.random() * 600)
+    const timer = window.setTimeout(() => void loadAll(), 250 + Math.random() * 1750)
     return () => window.clearTimeout(timer)
   }, [loadAll, pageVisible])
 
@@ -492,18 +494,30 @@ export function ParticipantPage() {
   // landing in the same instant — which is what made 派送 itself feel slow.
   //
   // They coalesce into one reload, and the jitter spreads the herd across a
-  // second rather than stacking it on one tick.
+  // two-second window rather than stacking it on one tick.
   const reloadTimer = useRef<number | null>(null)
+  const classroomReconnect = useRef<ReturnType<typeof createClassroomReconnect> | null>(null)
   const scheduleLoad = useCallback(() => {
     if (reloadTimer.current !== null) return
     reloadTimer.current = window.setTimeout(() => {
       reloadTimer.current = null
       if (document.visibilityState !== 'hidden') void loadAll()
-    }, 150 + Math.random() * 600)
+    }, 250 + Math.random() * 1750)
   }, [loadAll])
 
   useEffect(() => {
-    const reconnect = () => { readCache.current.invalidate(); scheduleLoad(); void refreshParticipantRow() }
+    const reconnect = createClassroomReconnect(wasConnected => {
+      if (wasConnected) readCache.current.invalidate()
+      else readCache.current.invalidate('sessions', 'questions')
+      scheduleLoad()
+      void refreshParticipantRow()
+    })
+    classroomReconnect.current = reconnect
+    return () => { reconnect.stop(); classroomReconnect.current = null }
+  }, [refreshParticipantRow, scheduleLoad])
+
+  useEffect(() => {
+    const reconnect = () => { classroomReconnect.current?.subscribed() }
     window.addEventListener('online', reconnect)
     return () => window.removeEventListener('online', reconnect)
   }, [refreshParticipantRow, scheduleLoad])
@@ -522,15 +536,14 @@ export function ParticipantPage() {
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'sessions' }, payload => {
         if (payload.old?.id === sessionId) markSessionGone()
       })
-      .subscribe(status => { if (status === 'SUBSCRIBED') { readCache.current.invalidate(); scheduleLoad() } })
+      .subscribe(status => { if (status === 'SUBSCRIBED') classroomReconnect.current?.subscribed() })
     return () => { void supabase.removeChannel(channel) }
   }, [markSessionGone, pageVisible, participantId, scheduleLoad, sessionGone, sessionId])
 
   useEffect(() => {
     if (!isSupabaseConfigured || !liveSessionId || !participantId) return
     const supabase = requireSupabase()
-    const channel = supabase
-      .channel(`participant:${sessionId}:${participantId}`)
+    const channel = classroomChanges(supabase, sessionId, participantId, broadcastSync)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'questions', filter: `session_id=eq.${sessionId}` }, () => { readCache.current.invalidate('questions'); scheduleLoad() })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'answers', filter: `participant_id=eq.${participantId}` }, () => { readCache.current.invalidate('answers'); scheduleLoad() })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'screenshots', filter: `session_id=eq.${sessionId}` }, () => { readCache.current.invalidate('screenshots'); scheduleLoad() })
@@ -566,13 +579,13 @@ export function ParticipantPage() {
         }
       })
       .subscribe(status => {
-        if (status === 'SUBSCRIBED') { readCache.current.invalidate(); void refreshParticipantRow(); scheduleLoad() }
+        if (status === 'SUBSCRIBED') classroomReconnect.current?.subscribed()
       })
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadAll, liveSessionId, participantId, refreshParticipantRow, scheduleLoad, sessionId])
+  }, [broadcastSync, loadAll, liveSessionId, participantId, refreshParticipantRow, scheduleLoad, sessionId])
 
   // Realtime is the fast path. A small, jittered probe recovers a missed
   // dispatch/switch event without reloading the whole lesson on every tick.
@@ -593,7 +606,7 @@ export function ParticipantPage() {
         if (!data) { markSessionGone(); return }
         const current = latestSession.current
         if (!current || Object.entries(data).some(([key, value]) => current[key as keyof Session] !== value)) {
-          readCache.current.invalidate()
+          readCache.current.invalidate('sessions', 'questions')
           scheduleLoad()
         }
       } catch { /* Keep the last known class during a network failure. */ }
