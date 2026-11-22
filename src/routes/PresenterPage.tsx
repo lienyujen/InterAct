@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AssignmentProgress } from '../lib/assignmentProgress'
+import { pendingAssignment } from '../lib/assignmentProgress'
 import { createPresenterQuestionFocus } from '../lib/presenterQuestionFocus'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -95,6 +97,9 @@ export function PresenterPage() {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [questions, setQuestions] = useState<Question[]>([])
   const [answerCounts, setAnswerCounts] = useState<Record<string, number>>({})
+  const [submissionProgress, setSubmissionProgress] = useState<AssignmentProgress | null>(null)
+  const [submissionError, setSubmissionError] = useState(false)
+  const repeatLock = useRef(false)
   const [selectedQuestionId, setSelectedQuestionId] = useState<string | null>(null)
   const questionFocus = useMemo(() => createPresenterQuestionFocus(sessionId), [sessionId])
   const [question, setQuestion] = useState<Question | null>(null)
@@ -189,6 +194,41 @@ export function PresenterPage() {
     () => participants.filter((participant) => onlineParticipantIds.includes(participant.id)),
     [onlineParticipantIds, participants],
   )
+
+  const currentAssignment = questions.find(q => q.id === session?.current_question_id)
+  const currentAssignmentId = currentAssignment?.id
+  const currentAssignmentStatus = currentAssignment?.status
+  const currentAssignmentType = currentAssignment?.type
+  useEffect(() => {
+    let active = true, inFlight = false
+    setSubmissionProgress(null); setSubmissionError(false)
+    if (!currentAssignmentId || ['send_screen', 'board', 'camera_poll'].includes(currentAssignmentType || '')) return
+    const refresh = async () => {
+      if (!active || inFlight || navigator.onLine === false || document.visibilityState === 'hidden') return
+      const presenterToken = getPresenterToken(sessionId)
+      if (!presenterToken) return
+      inFlight = true
+      try {
+        const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
+          timeout: 10_000, body: { action: 'assignment_progress', sessionId, presenterToken, questionId: currentAssignmentId },
+        })
+        if (!active) return
+        if (error || data?.progress?.questionId !== currentAssignmentId) { setSubmissionError(true); return }
+        setSubmissionProgress(data.progress as AssignmentProgress); setSubmissionError(false)
+      } catch { if (active) setSubmissionError(true) } finally { inFlight = false }
+    }
+    void refresh()
+    const timer = currentAssignmentStatus === 'active' ? window.setInterval(() => { void refresh() }, 2000) : null
+    window.addEventListener('online', refresh); document.addEventListener('visibilitychange', refresh)
+    return () => { active = false; if (timer !== null) window.clearInterval(timer); window.removeEventListener('online', refresh); document.removeEventListener('visibilitychange', refresh) }
+  }, [sessionId, currentAssignmentId, currentAssignmentStatus, currentAssignmentType])
+  const pending = submissionProgress?.questionId === currentAssignmentId ? pendingAssignment(submissionProgress)
+    : currentAssignment && !['send_screen','board','camera_poll'].includes(currentAssignment.type)
+      ? { pending: [], total: 0, closed: currentAssignment.status !== 'active', questionId: currentAssignment.id } : null
+  const submission = pending ? { ...pending, error: submissionError || !submissionProgress, pending: pending.pending.map(id => {
+    const index = participants.findIndex(p => p.id === id)
+    return { id, label: session?.anonymous_enabled ? (index < 0 ? '匿名學員' : `匿名學員 ${index + 1}`) : participants[index]?.name || '學員', online: onlineParticipantIds.includes(id) }
+  }) } : null
 
   const clearCaptionDisplayTimers = useCallback(() => {
     for (const timer of captionDisplayTimersRef.current.values()) window.clearTimeout(timer)
@@ -1450,14 +1490,33 @@ export function PresenterPage() {
   // The same question asked again after the class has argued about it. The
   // first round stays put; the comparison is the point.
   async function nextRound() {
-    if (!session?.current_question_id) return
+    if (!question || repeatLock.current) return
+    repeatLock.current = true
+    try {
+    if (question.type === 'camera_poll') {
+      if (!questionScreenshotUrl) throw new Error('找不到原截圖，請重新截圖。')
+      const blob = await (await fetch(questionScreenshotUrl)).blob()
+      setCaptureFile(new File([blob], 'repeat-camera.png', { type: blob.type || 'image/png' }))
+      const request: DispatchRequest = { type: 'camera_poll', options: question.options, promptText: question.prompt_text || '',
+        allowMultiple: false, timing: { prepareSeconds: null, answerSeconds: null }, key: { choices: [], correctValues: [] },
+        sliceCount: null, sliceHasAnswer: false, sentenceMode: false, shareScreenshot: true, maxPins: null,
+        boardFormats: [], boardMaxPosts: null, boardSelfPaced: false, cameraGestureMap: question.camera_gesture_map }
+      setCameraPollRequest(request); setCameraPollResult(null); setCameraPollError(''); setControlsOpen(true)
+      if (window.interactDesktop) {
+        localStorage.setItem(`interact:camera-draft:${sessionId}`, JSON.stringify(request))
+        try { await window.interactDesktop.openCameraPoll(sessionId) } catch (error) { cancelCameraPoll(); throw error }
+      }
+      return
+    }
     const presenterToken = getPresenterToken(sessionId)
     if (!presenterToken) throw new Error('找不到講者權限，請重新加入場次。')
     const { data, error } = await requireSupabase().functions.invoke('presenter-action', {
-      body: { action: 'next_round', sessionId, presenterToken, questionId: session.current_question_id },
+      body: { action: 'repeat_assignment', sessionId, presenterToken, questionId: question.id, requestId: crypto.randomUUID() },
     })
     if (error) throw new Error(await edgeFunctionErrorMessage(error, '無法開始新的一輪。'))
     if (!data?.question) throw new Error(data?.message || '無法開始新的一輪。')
+    showDispatchedQuestion(data.question as Question)
+    } finally { repeatLock.current = false }
   }
 
   // Set after the fact as often as up front: the presenter can dispatch an
@@ -2134,6 +2193,7 @@ export function PresenterPage() {
           captionError={captionError}
           onlineCount={onlineParticipants.length}
           raisedCount={raisedCount}
+          submission={submission}
           onLowerHands={() => void lowerHands()}
           session={session}
           onDrawLottery={drawLottery}
@@ -2167,6 +2227,7 @@ export function PresenterPage() {
         />
         {question?.type === 'camera_poll' ? <CameraPollResult question={question} /> : question?.type === 'custom_quiz' ? (
           <CustomQuizResult
+            onNextRound={nextRound}
             anonymousEnabled={session.anonymous_enabled}
             onlineCount={onlineParticipants.length}
             question={question}

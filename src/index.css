@@ -7395,3 +7395,10 @@ h2 {
 .rating-distribution { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
 .rating-distribution > div { display: flex; flex-direction: column; text-align: center; gap: 4px; border: 1px solid #dce1ec; border-radius: 12px; padding: 8px 2px; }
 @media (max-width: 600px) { .rating-scale { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.submission-counter { position: relative; font-size: 13px; color: var(--text); }
+.submission-counter summary { display: flex; align-items: center; gap: 4px; cursor: pointer; border: 1px solid #dce1eb; border-radius: 16px; padding: 6px 8px; }
+.submission-pending-list { position: absolute; top: 100%; right: 0; z-index: 20; min-width: 190px; max-height: 280px; overflow: auto; background: white; padding: 14px; border: 1px solid #dce1eb; border-radius: 12px; box-shadow: 0 8px 24px #18233b22; }
+.submission-pending-list > div { padding-top: 7px; }
+.control-panel .metric-row { flex-wrap: wrap; gap: 8px; }
+.control-panel .metric { flex-wrap: wrap; min-width: 0; }
+.submission-counter summary { white-space: nowrap; }

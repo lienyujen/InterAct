@@ -1,4 +1,5 @@
 import type { Answer, BoardPost, FileResponse, Message, Participant, Question, QuizAttempt } from '../types'
+import { repeatScoring } from './repeatScoring'
 
 // One definition of "how involved was this student", shared by the live roster
 // and the exported report so the two can never disagree.
@@ -82,6 +83,11 @@ export function answerableQuestions(questions: Question[]) {
 }
 
 export function participationRows(input: Input): ParticipationRow[] {
+  const repeats = repeatScoring(input.questions)
+  input = { ...input, questions: repeats.questions, answers: repeats.latest(input.answers),
+    quizAttempts: repeats.latest(input.quizAttempts), uploadMarks: repeats.latest(input.uploadMarks || []),
+    boardPosts: input.boardPosts?.map(post => ({ ...post, question_id: repeats.root(post.question_id) })),
+  }
   const askedIds = new Set(answerableQuestions(input.questions).map((question) => question.id))
   const askedCount = askedIds.size
 

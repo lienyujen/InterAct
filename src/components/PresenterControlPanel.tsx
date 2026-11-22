@@ -1,11 +1,13 @@
 import { AudioLines, Captions, CircleDot, Cloud, Dice5, DoorOpen, Eye, EyeOff, FolderUp, Hand, MessageSquare, MonitorUp, Send, Settings, Shapes, Sparkles, Users } from 'lucide-react'
 import { isPlusEdition } from '../lib/edition'
+import { ClipboardClock } from 'lucide-react'
 import type { Session } from '../types'
 
 type Props = {
   session: Session
   onlineCount: number
   raisedCount: number
+  submission?: { pending: Array<{ id: string; label: string; online: boolean }>; total: number; closed: boolean; error: boolean } | null
   busy: boolean
   buzzerActive: boolean
   captionError?: string
@@ -30,6 +32,7 @@ export function PresenterControlPanel({
   session,
   onlineCount,
   raisedCount,
+  submission,
   busy,
   buzzerActive,
   captionError,
@@ -70,6 +73,14 @@ export function PresenterControlPanel({
               <Hand size={15} />{raisedCount}
             </button>
           )}
+          {submission && <details className="submission-counter">
+            <summary title="僅顯示繳交狀態，不顯示答案"><ClipboardClock size={17} />
+              {submission.error ? '計數更新中' : !submission.total ? '尚無應交學員' : submission.closed ? `已截止・未交 ${submission.pending.length}` : submission.pending.length ? `未交 ${submission.pending.length}` : '全數繳交'}
+            </summary>
+            <div className="submission-pending-list"><strong>本輪應交 {submission.total} 人</strong>
+              {submission.pending.map(p => <div key={p.id}>{p.label}{!p.online && '（離線）'}</div>)}
+            </div>
+          </details>}
         </div>
         <div className="metric-actions">
           <button

@@ -27,7 +27,7 @@ function clock() {
 }
 
 function load(file, globals = {}) {
-  const context = { exports: {}, require, ...globals }
+  const context = { exports: {}, require: name => name === './repeatScoring' ? load('src/lib/repeatScoring.ts', globals) : require(name), ...globals }
   vm.runInNewContext(compile(file), context)
   return context.exports
 }

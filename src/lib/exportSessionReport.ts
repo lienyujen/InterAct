@@ -376,6 +376,8 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     { header: '題次', key: 'number', width: 8 },
     { header: '類型', key: 'type', width: 14 },
     { header: '題目／AI 辨識', key: 'title', width: 38 },
+    { header: '原題 ID', key: 'repeatRoot', width: 38 },
+    { header: '作答輪次', key: 'repeatNumber', width: 12 },
     { header: '狀態', key: 'status', width: 12 },
     { header: '選項', key: 'options', width: 25 },
     { header: '正確答案', key: 'correctAnswer', width: 14 },
@@ -406,6 +408,8 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
         const key = quizKeyByItem.get(item.id)
         questions.addRow({
           number: `${index + 1}-${item.position}`,
+          repeatRoot: question.repeat_root_id || question.id,
+          repeatNumber: question.repeat_number || 1,
           type: `自訂測驗／${quizItemTypeLabels[item.type]}`,
           title: item.prompt_text,
           status: question.status,
@@ -423,6 +427,8 @@ export async function exportSessionReport(data: SessionReportData, analysis: Ses
     }
     questions.addRow({
       number: index + 1,
+      repeatRoot: question.repeat_root_id || question.id,
+      repeatNumber: question.repeat_number || 1,
       ...(rating ? {
         ratingAverage: rating.average ?? '',
         ratingFilteredAverage: rating.filteredAverage ?? '',

@@ -48,7 +48,7 @@ async function main() {
   reconnect.subscribed(); reconnect.stop(); assert.equal(pending.size, 0)
   reconnect.subscribed(); assert.equal(pending.size, 0)
   const sql = fs.readFileSync('supabase/migrations/20261116160649_classroom_broadcast_sync.sql', 'utf8')
-  assert.ok(fs.readFileSync('supabase/schema.sql', 'utf8').replaceAll('\r', '').trim().endsWith(sql.replaceAll('\r', '').trim()))
+  assert.ok(fs.readFileSync('supabase/schema.sql', 'utf8').replaceAll('\r', '').includes(sql.replaceAll('\r', '').trim()))
   assert.ok(sql.includes('from public, anon, authenticated'))
   if (process.env.INTERACT_PGLITE) {
     const { PGlite } = require(process.env.INTERACT_PGLITE)

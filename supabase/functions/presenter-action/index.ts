@@ -281,6 +281,18 @@ Deno.serve(async (req) => {
       : null
     if (!keyRecord && !owner) return jsonResponse({ message: '講者權限驗證失敗。' }, 403)
 
+    if (action === 'repeat_assignment' || action === 'assignment_progress') {
+      if (!validUuid(input.questionId) || (action === 'repeat_assignment' && !validUuid(input.requestId))) {
+        return jsonResponse({ message: '題目資料格式不正確。' }, 400)
+      }
+      const { data, error } = await supabase.rpc(action, {
+        target_session: sessionId, target_question: input.questionId,
+        ...(action === 'repeat_assignment' ? { request_id: input.requestId } : {}),
+      })
+      if (error) throw error
+      return jsonResponse(action === 'repeat_assignment' ? { question: data } : { progress: data })
+    }
+
     if (action === 'analyze_camera_poll') {
       const options = normalizedOptions(input.options).slice(0, 8)
       const gestureMap = normalizedOptions(input.gestureMap).slice(0, options.length)

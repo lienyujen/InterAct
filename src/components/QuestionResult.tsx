@@ -121,7 +121,7 @@ function QuestionStatusActions({
         busy={busy}
         isCurrentQuestion={isCurrentQuestion}
         question={question}
-        canRepeat={['poll', 'rating', 'multiple_choice', 'true_false', 'short_answer', 'hotspot', 'ordering', 'matching'].includes(question.type)}
+        canRepeat
         onNextRound={onNextRound}
         onRecall={() => onRecallQuestion(question.id)}
         onResume={onResumeQuestion}
@@ -887,6 +887,7 @@ export function QuestionResult(props: Props) {
         <div className="panel-heading">
           <h2>派送畫面</h2>
           <span className={`status ${question.status}`}>{question.status}</span>
+          <QuestionStatusActions {...props} question={question} />
         </div>
         <p className="muted">目前派送的是畫面，不需要作答。</p>
       </section>

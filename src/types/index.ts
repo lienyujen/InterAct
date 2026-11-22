@@ -198,6 +198,9 @@ export type BuzzerSessionEvent = {
 export type SessionEvent = LotterySessionEvent | BuzzerSessionEvent
 
 export type Question = {
+  repeat_root_id?: string | null
+  repeat_number?: number
+  assignment_audience?: string[] | null
   id: string
   session_id: string
   screenshot_id: string | null

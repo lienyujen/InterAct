@@ -49,12 +49,19 @@ export function QuestionStopControl({ question, isCurrentQuestion, busy, canRepe
     }
   }
 
+  const repeatButton = canRepeat && <button aria-label="再做一次" className="question-stop-button is-repeat"
+    disabled={busy || toggling} title="再做一次 —— 全班重新作答，保留舊紀錄" type="button"
+    onClick={() => { if (window.confirm('全班重新作答，舊紀錄會保留。確定再做一次？')) void run(onNextRound) }}>
+    <RotateCcw size={17} />
+  </button>
+
   // Icons only. These sit in the panel heading beside the question title and
   // the status badge, and three labelled buttons there wrap onto their own
   // lines and crowd out the title. The name moves into the tooltip.
   if (recallable) {
     return (
       <span className="question-stop-control">
+        {repeatButton}
         <button
           aria-label="重新派送"
           className="question-stop-button is-resume"
@@ -82,20 +89,7 @@ export function QuestionStopControl({ question, isCurrentQuestion, busy, canRepe
       >
         {resumable ? <Play size={17} /> : <Square size={17} />}
       </button>
-      {resumable && canRepeat && (
-        // Reopening carries on the round that was stopped; this starts a fresh
-        // one, which is what a teacher wants once the class has argued about it.
-        <button
-          aria-label="再做一次"
-          className="question-stop-button is-repeat"
-          disabled={busy || toggling}
-          title="再做一次 —— 讓全班重答一次，並與上一輪對照"
-          type="button"
-          onClick={() => void run(onNextRound)}
-        >
-          <RotateCcw size={17} />
-        </button>
-      )}
+      {repeatButton}
       {error && <span className="error question-stop-error">{error}</span>}
     </span>
   )
