@@ -1280,7 +1280,8 @@ begin
   q.repeat_root_id:=coalesce(source.repeat_root_id,source.id);
   select coalesce(max(greatest(repeat_number,answer_round)),1)+1 into q.repeat_number from public.questions
     where id=q.repeat_root_id or repeat_root_id=q.repeat_root_id;
-  q.title:=regexp_replace(source.title,'（第[0-9]+輪）$','') || '（第' || q.repeat_number || '輪）';
+  select title into q.title from public.questions where id=q.repeat_root_id;
+  q.title:=coalesce(q.title,source.title) || '（第' || q.repeat_number || '輪）';
   q.status:='active'; q.answer_round:=1; q.created_at:=now(); q.started_at:=now(); q.stopped_at:=null;
   q.assignment_audience:=null;
   if q.board_revealed_at is not null then q.board_revealed_at:=now(); end if;
