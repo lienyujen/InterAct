@@ -12,7 +12,7 @@ export function CameraPollPage() {
   const [draft, setDraft] = useState<DispatchRequest | null>(() => {
     try { return JSON.parse(localStorage.getItem(`interact:camera-draft:${sessionId}`) || 'null') } catch { return null }
   })
-  const [preset, setPreset] = useState('choice')
+  const [preset, setPreset] = useState(() => draft?.cameraPreset || 'choice')
   const [result, setResult] = useState<CameraPollResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')

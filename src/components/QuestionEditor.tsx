@@ -55,6 +55,7 @@ export type DispatchRequest = {
   // Whether the class starts out unable to see each other's cards.
   boardSelfPaced: boolean
   cameraGestureMap: string[]
+  cameraPreset?: string
   cameraResult?: CameraPollResult
   quizSettings?: CustomQuizSettings
 }

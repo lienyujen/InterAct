@@ -36,7 +36,7 @@ async function main() {
   function visit(node) { if (ts.isFunctionDeclaration(node) && node.name?.text==='nextRound') repeatNode=node; ts.forEachChild(node,visit) }
   visit(tree)
   for (const type of ['multiple_choice','custom_quiz','file_upload','drawing','oral_response','pronunciation','board','send_screen','camera_poll']) {
-    const calls=[], state={}, question={ id:'historical', type, options:['A','B'], camera_gesture_map:['one','two'] }
+    const calls=[], state={}, question={ id:'historical', type, options:['A','B'], camera_gesture_map:['one','two'], camera_result: { mode: 'poster' } }
     const context={ question, repeatLock:{current:false}, getPresenterToken:()=> 'token', sessionId:'session', crypto:require('node:crypto'),
       questionScreenshotUrl:'image.png', fetch:async()=>({blob:async()=>new Blob(['image'],{type:'image/png'})}), File, Blob,
       localStorage:{setItem(){}}, window:{interactDesktop:{openCameraPoll:async()=>calls.push('camera')}},
@@ -48,7 +48,7 @@ async function main() {
     vm.runInNewContext(compile(repeatNode.getText(tree))+';exports.run=nextRound',{...context,exports:state})
     await state.run()
     assert.equal(context.repeatLock.current,false)
-    if(type==='camera_poll') {assert.ok(calls.includes('camera'));assert.equal(state.CameraPollResult,null);assert.equal(state.CameraPollRequest.type,'camera_poll')}
+    if(type==='camera_poll') {assert.ok(calls.includes('camera'));assert.equal(state.CameraPollResult,null);assert.equal(state.CameraPollRequest.type,'camera_poll');assert.equal(state.CameraPollRequest.cameraPreset,'poster')}
     else {assert.equal(calls[0].questionId,'historical');assert.equal(calls[0].action,'repeat_assignment');assert.equal(state.question.id,'fresh')}
   }
   const sql = fs.readFileSync('supabase/migrations/20261122010831_assignment_repeats_progress.sql', 'utf8')

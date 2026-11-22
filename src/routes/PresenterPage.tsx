@@ -1343,6 +1343,7 @@ export function PresenterPage() {
         imageDataUrl,
         options: cameraPollRequest.options,
         gestureMap: cameraPollRequest.cameraGestureMap,
+        cameraMode: cameraPollRequest.cameraPreset === 'poster' ? 'poster' : 'gestures',
         promptText: cameraPollRequest.promptText,
       }, 'AI 姿勢分析失敗。') as { result?: CameraPollResultData }
       if (!data.result) throw new Error('AI 沒有回傳可用的統計。')
@@ -1500,7 +1501,8 @@ export function PresenterPage() {
       const request: DispatchRequest = { type: 'camera_poll', options: question.options, promptText: question.prompt_text || '',
         allowMultiple: false, timing: { prepareSeconds: null, answerSeconds: null }, key: { choices: [], correctValues: [] },
         sliceCount: null, sliceHasAnswer: false, sentenceMode: false, shareScreenshot: true, maxPins: null,
-        boardFormats: [], boardMaxPosts: null, boardSelfPaced: false, cameraGestureMap: question.camera_gesture_map }
+        boardFormats: [], boardMaxPosts: null, boardSelfPaced: false, cameraGestureMap: question.camera_gesture_map,
+        cameraPreset: question.camera_result?.mode === 'poster' ? 'poster' : 'choice' }
       setCameraPollRequest(request); setCameraPollResult(null); setCameraPollError(''); setControlsOpen(true)
       if (window.interactDesktop) {
         localStorage.setItem(`interact:camera-draft:${sessionId}`, JSON.stringify(request))
@@ -2328,6 +2330,7 @@ export function PresenterPage() {
         error={cameraPollError}
         gestureMap={cameraPollRequest?.cameraGestureMap || []}
         open={Boolean(cameraPollRequest) && !window.interactDesktop}
+        posterMode={cameraPollRequest?.cameraPreset === 'poster'}
         options={cameraPollRequest?.options || []}
         result={cameraPollResult}
         onAnalyze={(imageDataUrl) => void analyzeCameraPoll(imageDataUrl)}
