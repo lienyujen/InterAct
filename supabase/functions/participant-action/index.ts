@@ -665,34 +665,21 @@ Deno.serve(async (req) => {
           .select('id, session_id, question_id, participant_id, participant_name, mime_type, duration_ms, analysis_status, detected_language, transcript, score, analysis_json, error_message, submitted_at, analyzed_at, storage_path')
           .eq('question_id', questionId)
           .eq('participant_id', participantId)
+          .eq('session_id', sessionId)
           .maybeSingle()
         if (error) throw error
         if (!response) return jsonResponse({ response: null })
-        if (question.status === 'active') {
-          return jsonResponse({ response: {
-            id: response.id,
-            session_id: sessionId,
-            question_id: questionId,
-            participant_id: participantId,
-            participant_name: participant.name,
-            mime_type: response.mime_type,
-            duration_ms: response.duration_ms,
-            analysis_status: response.analysis_status,
-            detected_language: null,
-            transcript: null,
-            score: null,
-            analysis_json: null,
-            error_message: null,
-            submitted_at: response.submitted_at,
-            analyzed_at: null,
-          } })
-        }
-        const { data: signed, error: signedError } = await supabase.storage
+        const { data: signed } = response.analysis_status === 'pending' ? { data: null } : await supabase.storage
           .from('interact-recordings')
           .createSignedUrl(response.storage_path, 3600)
-        if (signedError) throw signedError
-        const { storage_path: _storagePath, ...safeResponse } = response
-        return jsonResponse({ response: { ...safeResponse, signed_url: signed.signedUrl } })
+        // This is the verified learner's own result. A missing playback URL
+        // must not hide an already completed assessment. Never return internal
+        // storage paths or provider error details to the public client.
+        const { storage_path: _storagePath, error_message: _errorMessage, ...safeResponse } = response
+        return jsonResponse({ response: { ...safeResponse,
+          error_message: response.analysis_status === 'failed' ? 'AI 評測未完成，請告知講師。' : null,
+          signed_url: signed?.signedUrl || null,
+        } })
       }
 
       if (question.status !== 'active') return jsonResponse({ message: '本題已停止作答。' }, 409)

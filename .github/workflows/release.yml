@@ -77,6 +77,7 @@ jobs:
           node scripts/test-deployment-grants.cjs
           node scripts/test-classroom-broadcast.cjs
           node scripts/test-assignment-repeats.cjs
+          node scripts/test-audio-immediate.cjs
           node scripts/test-detail-window-visibility.cjs
           node scripts/test-portable-config.cjs
           node scripts/test-runtime-backend.cjs
@@ -309,7 +310,7 @@ jobs:
           - **再做一次：** 各派題提供循環箭頭，沿用題目並保留各輪答案；自訂測驗不重新生題，相機作答重新拍攝。積分採最新作答，不因重做重複累加，Excel 可對照原題與輪次。
           - **評分題：** 截圖經 AI 辨識後，學員點選 1～10 分並送出；教師即時查看回應人數、平均與分布，可勾選 IQR 離群值剔除後平均。原始回答保留，Excel 同時提供原始平均、剔除後平均與剔除筆數。
           - **課程錄製與語言支援：** 自主控制錄製、字幕顯示與多語即時口譯語音；字幕可設定語言、字型大小、粗體與螢幕位置，學員可選擇可用的口譯語言聆聽。錄製、字幕與口譯預設關閉。
-          - **成果與分析：** 自訂測驗評分、逐題錯誤／未滿分人數與補強名單，學生可讀取自己上傳作業的分數及回饋；另有 Exit Ticket、AI 課堂分析、課堂重點整理與 Excel 報告匯出，管理金鑰可管理歷史場次並讀取報告。
+          - **成果與分析：** 口說與朗讀送出後，AI 批改完成即可查看個人分數與回饋，不必等教師停止。另有自訂測驗評分、逐題錯誤／未滿分人數與補強名單、上傳作業回饋、Exit Ticket、AI 課堂分析、課堂重點整理與 Excel 匯出；管理金鑰可管理歷史場次並讀取報告。
           - **學員介面：** 繁體中文／英文切換，支援題目與 AI 回饋翻譯。
 
           AI 功能需要自行設定相應 API 金鑰，費用由服務提供者另計；AI 題目、評分與辨識結果請由教師確認。

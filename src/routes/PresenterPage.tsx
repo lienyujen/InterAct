@@ -225,7 +225,7 @@ export function PresenterPage() {
   const pending = submissionProgress?.questionId === currentAssignmentId ? pendingAssignment(submissionProgress)
     : currentAssignment && !['send_screen','board','camera_poll'].includes(currentAssignment.type)
       ? { pending: [], total: 0, closed: currentAssignment.status !== 'active', questionId: currentAssignment.id } : null
-  const submission = pending ? { ...pending, error: submissionError || !submissionProgress, pending: pending.pending.map(id => {
+  const submission = pending && currentAssignmentStatus === 'active' ? { ...pending, error: submissionError || !submissionProgress, pending: pending.pending.map(id => {
     const index = participants.findIndex(p => p.id === id)
     return { id, label: session?.anonymous_enabled ? (index < 0 ? '匿名學員' : `匿名學員 ${index + 1}`) : participants[index]?.name || '學員', online: onlineParticipantIds.includes(id) }
   }) } : null
@@ -1452,6 +1452,10 @@ export function PresenterPage() {
     })
     if (error) throw error
     if (!data?.question) throw new Error(data?.message || '停止作答失敗。')
+    const stopped = data.question as Question
+    setQuestions(current => current.map(item => item.id === stopped.id ? stopped : item))
+    setQuestion(current => current?.id === stopped.id ? stopped : current)
+    setSubmissionProgress(current => current?.questionId === stopped.id ? { ...current, status: 'stopped' } : current)
   }
 
   // Reopening the question the class is on, so a teacher who stopped it can

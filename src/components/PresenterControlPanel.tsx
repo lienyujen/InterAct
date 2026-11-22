@@ -73,9 +73,9 @@ export function PresenterControlPanel({
               <Hand size={15} />{raisedCount}
             </button>
           )}
-          {submission && <details className="submission-counter">
+          {submission && !submission.closed && <details className="submission-counter">
             <summary title="僅顯示繳交狀態，不顯示答案"><ClipboardClock size={17} />
-              {submission.error ? '計數更新中' : !submission.total ? '尚無應交學員' : submission.closed ? `已截止・未交 ${submission.pending.length}` : submission.pending.length ? `未交 ${submission.pending.length}` : '全數繳交'}
+              {submission.error ? '計數更新中' : !submission.total ? '尚無應交學員' : submission.pending.length ? `未交 ${submission.pending.length}` : '全數繳交'}
             </summary>
             <div className="submission-pending-list"><strong>本輪應交 {submission.total} 人</strong>
               {submission.pending.map(p => <div key={p.id}>{p.label}{!p.online && '（離線）'}</div>)}

@@ -488,6 +488,21 @@ export function ParticipantPage() {
     return () => { active = false; clearTimeout(timer) }
   }, [loadAll, liveSessionId, pageVisible, participantToken, question?.id, quizWaiting, quizLoadError])
 
+  const audioWaiting = Boolean(question && ['pronunciation', 'oral_response'].includes(question.type)
+    && (audioBusy || audioResponse?.analysis_status === 'pending'))
+  useEffect(() => {
+    if (!pageVisible || !participantToken || !audioWaiting) return
+    let active = true
+    let timer: ReturnType<typeof setTimeout>
+    const poll = async () => {
+      try { if (active && navigator.onLine !== false) await loadAll() }
+      catch { /* A later retry recovers a lost grading notification. */ }
+      finally { if (active) timer = setTimeout(poll, 5000 + Math.random() * 3000) }
+    }
+    timer = setTimeout(poll, 5000 + Math.random() * 3000)
+    return () => { active = false; clearTimeout(timer) }
+  }, [audioWaiting, loadAll, pageVisible, participantToken, question?.id])
+
   // Dispatching one question writes a screenshot, a question and the session
   // row, so every student page used to run its seven queries three times over.
   // In a room of 145 that is three thousand queries for one press of 派送, all

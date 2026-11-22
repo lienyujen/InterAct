@@ -19,9 +19,16 @@ async function main() {
   assert.equal(scoring.latest([{ question_id: 'q2', participant_id: 'a', submitted_at: '2' }, { question_id: 'q2', participant_id: 'a', submitted_at: '3' }]).length, 2, 'Multi-page uploads stay together')
   const { renderToStaticMarkup } = require('react-dom/server')
   function component(file, name) {
-    const exports = {}; vm.runInNewContext(compile(fs.readFileSync(file, 'utf8')), { exports, require, window: {} }); return exports[name]
+    const exports = {}; vm.runInNewContext(compile(fs.readFileSync(file, 'utf8')), { exports, require: name => name === '../lib/edition' ? { isPlusEdition: true } : require(name), window: {} }); return exports[name]
   }
   const Control = component('src/components/QuestionStopControl.tsx', 'QuestionStopControl')
+  const Panel = component('src/components/PresenterControlPanel.tsx', 'PresenterControlPanel')
+  for (const closed of [false, true]) {
+    const html = renderToStaticMarkup(require('react').createElement(Panel, { session: {}, onlineCount: 2, raisedCount: 1,
+      submission: { pending: [{ id: 'a', label: '匿名學員 1', online: true }], total: 2, closed, error: false } }))
+    assert.equal(html.includes('submission-counter'), !closed, 'Stopping removes the entire counter, including its dropdown')
+    for (const label of ['開始搶答', '抽籤', '教師端設定']) assert.ok(html.includes(label), `${label} stays available`)
+  }
   for (const type of ['poll','rating','multiple_choice','true_false','short_answer','pronunciation','oral_response','file_upload','drawing','hotspot','ordering','matching','board','camera_poll','custom_quiz','send_screen']) {
     for (const isCurrentQuestion of [true, false]) {
       const html = renderToStaticMarkup(require('react').createElement(Control, { question: { type, status: 'active' }, isCurrentQuestion, canRepeat: true }))

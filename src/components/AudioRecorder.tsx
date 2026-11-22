@@ -169,9 +169,7 @@ export function AudioRecorder({ busy, question, response, onSubmit, locale = 'zh
     const analysis = locale === 'en' ? originalAnalysis?.translations?.en || originalAnalysis : originalAnalysis
     return (
       <div className="audio-response-card" aria-live="polite">
-        {question.status === 'active' ? (
-          <p className="success">{participantText(locale, 'recordingSent')}</p>
-        ) : response.analysis_status === 'success' && analysis ? (
+        {response.analysis_status === 'success' && analysis ? (
           <>
             <div className="audio-feedback-heading">
               <div>
